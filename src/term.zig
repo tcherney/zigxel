@@ -171,17 +171,6 @@ pub const Term = struct {
         return idx;
     }
 
-    // const px = "▀";
-    // fn initBuf(self: *Self) !void {
-    //     const px_char_sz = px.len;
-    //     const px_color_sz = BG[LAST_COLOR].len + FG[LAST_COLOR].len;
-    //     const px_sz = px_color_sz + px_char_sz;
-    //     const screen_sz: u64 = @as(u64, px_sz * self.size.width * self.size.width);
-    //     const overflow_sz: u64 = px_char_sz * 100;
-    //     const bs_sz: u64 = screen_sz + overflow_sz;
-    //     self.buffer = try self.allocator.alloc(u8, bs_sz * 2);
-    // }
-
     pub fn out(self: *const Self, s: []const u8) !void {
         _ = try self.stdout.write(s);
     }

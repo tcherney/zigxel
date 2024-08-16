@@ -144,7 +144,6 @@ var running: bool = false;
 pub fn on_key_press(key: KEYS) void {
     std.debug.print("{}\n", .{key});
     if (key == KEYS.KEY_q) {
-        std.debug.print("running now false\n", .{});
         running = false;
     }
 }
