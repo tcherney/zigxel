@@ -13,80 +13,23 @@ const win32 = struct {
         uChar: KEY_EVENT_RECORD_CHAR,
         dwControlKeyState: std.os.windows.DWORD,
     };
+    pub const EventType = enum(u32) {
+        KEY_EVENT = 0x0001,
+        FOCUS_EVENT = 0x0010,
+        MENU_EVENT = 0x0008,
+        MOUSE_EVENT = 0x0002,
+        WINDOW_BUFFER_SIZE = 0x0004,
+    };
     pub const INPUT_RECORD = extern struct {
         EventType: std.os.windows.WORD,
         Event: EVENT_RECORD,
     };
     pub extern "kernel32" fn ReadConsoleInputW(hStdin: std.os.windows.HANDLE, lpBuffer: [*]INPUT_RECORD, nLength: std.os.windows.DWORD, lpNumberOfEventsRead: *std.os.windows.DWORD) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
     pub extern "kernel32" fn PeekConsoleInputW(hStdin: std.os.windows.HANDLE, lpBuffer: [*]INPUT_RECORD, nLength: std.os.windows.DWORD, lpNumberOfEventsRead: *std.os.windows.DWORD) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
+    pub extern "kernel32" fn GetNumberOfConsoleInputEvents(hConsoleInput: std.os.windows.HANDLE, lpcNumberOfEvents: *std.os.windows.DWORD) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
 };
 
-pub const KEYS = enum(u8) {
-    KEY_0 = '0',
-    KEY_1 = '1',
-    KEY_2 = '2',
-    KEY_3 = '3',
-    KEY_4 = '4',
-    KEY_5 = '5',
-    KEY_6 = '6',
-    KEY_7 = '7',
-    KEY_8 = '8',
-    KEY_9 = '9',
-    KEY_A = 'A',
-    KEY_B = 'B',
-    KEY_C = 'C',
-    KEY_D = 'D',
-    KEY_E = 'E',
-    KEY_F = 'F',
-    KEY_G = 'G',
-    KEY_H = 'H',
-    KEY_I = 'I',
-    KEY_J = 'J',
-    KEY_K = 'K',
-    KEY_L = 'L',
-    KEY_M = 'M',
-    KEY_N = 'N',
-    KEY_O = 'O',
-    KEY_P = 'P',
-    KEY_Q = 'Q',
-    KEY_R = 'R',
-    KEY_S = 'S',
-    KEY_T = 'T',
-    KEY_U = 'U',
-    KEY_V = 'V',
-    KEY_W = 'W',
-    KEY_X = 'X',
-    KEY_Y = 'Y',
-    KEY_Z = 'Z',
-    KEY_a = 'a',
-    KEY_b = 'b',
-    KEY_c = 'c',
-    KEY_d = 'd',
-    KEY_e = 'e',
-    KEY_f = 'f',
-    KEY_g = 'g',
-    KEY_h = 'h',
-    KEY_i = 'i',
-    KEY_j = 'j',
-    KEY_k = 'k',
-    KEY_l = 'l',
-    KEY_m = 'm',
-    KEY_n = 'n',
-    KEY_o = 'o',
-    KEY_p = 'p',
-    KEY_q = 'q',
-    KEY_r = 'r',
-    KEY_s = 's',
-    KEY_t = 't',
-    KEY_u = 'u',
-    KEY_v = 'v',
-    KEY_w = 'w',
-    KEY_x = 'x',
-    KEY_y = 'y',
-    KEY_z = 'z',
-    KEY_enter = '\n',
-    KEY_CR = '\r',
-};
+pub const KEYS = enum(u8) { KEY_0 = '0', KEY_1 = '1', KEY_2 = '2', KEY_3 = '3', KEY_4 = '4', KEY_5 = '5', KEY_6 = '6', KEY_7 = '7', KEY_8 = '8', KEY_9 = '9', KEY_A = 'A', KEY_B = 'B', KEY_C = 'C', KEY_D = 'D', KEY_E = 'E', KEY_F = 'F', KEY_G = 'G', KEY_H = 'H', KEY_I = 'I', KEY_J = 'J', KEY_K = 'K', KEY_L = 'L', KEY_M = 'M', KEY_N = 'N', KEY_O = 'O', KEY_P = 'P', KEY_Q = 'Q', KEY_R = 'R', KEY_S = 'S', KEY_T = 'T', KEY_U = 'U', KEY_V = 'V', KEY_W = 'W', KEY_X = 'X', KEY_Y = 'Y', KEY_Z = 'Z', KEY_a = 'a', KEY_b = 'b', KEY_c = 'c', KEY_d = 'd', KEY_e = 'e', KEY_f = 'f', KEY_g = 'g', KEY_h = 'h', KEY_i = 'i', KEY_j = 'j', KEY_k = 'k', KEY_l = 'l', KEY_m = 'm', KEY_n = 'n', KEY_o = 'o', KEY_p = 'p', KEY_q = 'q', KEY_r = 'r', KEY_s = 's', KEY_t = 't', KEY_u = 'u', KEY_v = 'v', KEY_w = 'w', KEY_x = 'x', KEY_y = 'y', KEY_z = 'z', KEY_enter = '\n', KEY_CR = '\r', KEY_TAB = 9, KEY_ESC = 27, KEY_SPACE = 32, KEY_TILDE = 192, _ };
 
 pub const Error = error{ WindowsInit, WindowsRead };
 
@@ -163,11 +106,26 @@ pub const EventManager = struct {
             var irInBuf: [128]win32.INPUT_RECORD = undefined;
             var numRead: u32 = undefined;
             while (self.running) {
-                if (win32.ReadConsoleInputW(self.stdin.handle, &irInBuf, 128, &numRead) != std.os.windows.TRUE) {
-                    return Error.WindowsRead;
-                } else {
-                    if (self.key_press_callback != null) {
-                        self.key_press_callback.?(@enumFromInt(irInBuf[0].Event.KeyEvent.uChar.AsciiChar));
+                _ = win32.GetNumberOfConsoleInputEvents(self.stdin.handle, &numRead);
+                if (numRead > 0) {
+                    if (win32.ReadConsoleInputW(self.stdin.handle, &irInBuf, 128, &numRead) != std.os.windows.TRUE) {
+                        return Error.WindowsRead;
+                    } else {
+                        for (0..numRead) |i| {
+                            switch (irInBuf[i].EventType) {
+                                @intFromEnum(win32.EventType.KEY_EVENT) => {
+                                    if (self.key_down_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.TRUE) {
+                                        self.key_down_callback.?(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                    } else if (self.key_up_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.FALSE) {
+                                        self.key_press_callback.?(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                    } else if (self.key_press_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.FALSE) {
+                                        self.key_press_callback.?(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                    }
+                                },
+                                //TODO handle non key events
+                                else => {},
+                            }
+                        }
                     }
                 }
             }
