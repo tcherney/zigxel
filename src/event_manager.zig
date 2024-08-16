@@ -1,3 +1,4 @@
+//https://gist.github.com/technoscavenger/7ffb72acdee9ff32daf85bec1c35d5d8
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -17,6 +18,7 @@ const win32 = struct {
         Event: EVENT_RECORD,
     };
     pub extern "kernel32" fn ReadConsoleInputW(hStdin: std.os.windows.HANDLE, lpBuffer: [*]INPUT_RECORD, nLength: std.os.windows.DWORD, lpNumberOfEventsRead: *std.os.windows.DWORD) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
+    pub extern "kernel32" fn PeekConsoleInputW(hStdin: std.os.windows.HANDLE, lpBuffer: [*]INPUT_RECORD, nLength: std.os.windows.DWORD, lpNumberOfEventsRead: *std.os.windows.DWORD) callconv(std.os.windows.WINAPI) std.os.windows.BOOL;
 };
 
 pub const KEYS = enum(u8) {
@@ -30,6 +32,32 @@ pub const KEYS = enum(u8) {
     KEY_7 = '7',
     KEY_8 = '8',
     KEY_9 = '9',
+    KEY_A = 'A',
+    KEY_B = 'B',
+    KEY_C = 'C',
+    KEY_D = 'D',
+    KEY_E = 'E',
+    KEY_F = 'F',
+    KEY_G = 'G',
+    KEY_H = 'H',
+    KEY_I = 'I',
+    KEY_J = 'J',
+    KEY_K = 'K',
+    KEY_L = 'L',
+    KEY_M = 'M',
+    KEY_N = 'N',
+    KEY_O = 'O',
+    KEY_P = 'P',
+    KEY_Q = 'Q',
+    KEY_R = 'R',
+    KEY_S = 'S',
+    KEY_T = 'T',
+    KEY_U = 'U',
+    KEY_V = 'V',
+    KEY_W = 'W',
+    KEY_X = 'X',
+    KEY_Y = 'Y',
+    KEY_Z = 'Z',
     KEY_a = 'a',
     KEY_b = 'b',
     KEY_c = 'c',
@@ -138,7 +166,9 @@ pub const EventManager = struct {
                 if (win32.ReadConsoleInputW(self.stdin.handle, &irInBuf, 128, &numRead) != std.os.windows.TRUE) {
                     return Error.WindowsRead;
                 } else {
-                    std.debug.print("{any}", .{irInBuf});
+                    if (self.key_press_callback != null) {
+                        self.key_press_callback.?(@enumFromInt(irInBuf[0].Event.KeyEvent.uChar.AsciiChar));
+                    }
                 }
             }
         } else {
@@ -156,6 +186,7 @@ var running: bool = false;
 pub fn on_key_press(key: KEYS) void {
     std.debug.print("{}\n", .{key});
     if (key == KEYS.KEY_q) {
+        std.debug.print("running now false\n", .{});
         running = false;
     }
 }
