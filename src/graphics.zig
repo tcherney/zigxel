@@ -12,12 +12,10 @@ pub const Graphics = struct {
     pixel_buffer: []u8 = undefined,
     last_frame: ?[]u8 = null,
     terminal_buffer: []u8 = undefined,
+    text_to_render: std.ArrayList(Text) = undefined,
     allocator: std.mem.Allocator = undefined,
     const Self = @This();
-    const DirtyPixel = struct {
-        i: u8,
-        j: u8,
-    };
+    pub const Text = struct { x: usize, y: usize, r: u8, g: u8, b: u8, value: []const u8 };
     pub fn init(allocator: std.mem.Allocator) !Graphics {
         const terminal = try term.Term.init(allocator);
         var pixel_buffer = try allocator.alloc(u8, terminal.size.height * terminal.size.width * 2);
@@ -30,6 +28,7 @@ pub const Graphics = struct {
             .pixel_buffer = pixel_buffer,
             // need space for setting background and setting of foreground color for every pixel
             .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width) + 100)),
+            .text_to_render = std.ArrayList(Text).init(allocator),
         };
     }
 
@@ -38,6 +37,7 @@ pub const Graphics = struct {
         self.allocator.free(self.terminal_buffer);
         try self.terminal.deinit();
         self.allocator.free(self.last_frame.?);
+        self.text_to_render.deinit();
     }
 
     pub fn set_bg(self: *Self, r: u8, g: u8, b: u8) !void {
@@ -54,6 +54,10 @@ pub const Graphics = struct {
                 self.pixel_buffer[j * self.terminal.size.width + i] = color_indx;
             }
         }
+    }
+
+    pub fn draw_text(self: *Self, value: []const u8, x: usize, y: usize, r: u8, g: u8, b: u8) !void {
+        try self.text_to_render.append(Text{ .x = x, .y = if (y % 2 == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
     }
 
     pub fn flip(self: *Self) !void {
@@ -124,6 +128,39 @@ pub const Graphics = struct {
                         }
                     }
                 }
+            }
+        }
+        if (self.text_to_render.items.len > 0) {
+            var text = self.text_to_render.popOrNull();
+            while (text) |t| {
+                for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ (t.y / 2) + 1, t.x + 1 })) |c| {
+                    self.terminal_buffer[buffer_len] = c;
+                    buffer_len += 1;
+                }
+                const fg_pixel = @as(u8, @intCast(self.terminal.rgb_256(t.r, t.g, t.b)));
+
+                if (prev_fg_pixel != fg_pixel) {
+                    prev_fg_pixel = fg_pixel;
+                    for (term.FG[fg_pixel]) |c| {
+                        self.terminal_buffer[buffer_len] = c;
+                        buffer_len += 1;
+                    }
+                }
+
+                for (t.value, 0..) |c, z| {
+                    const bg_pixel = self.pixel_buffer[(t.y + 1) * width + t.x + z];
+                    if (prev_bg_pixel != bg_pixel) {
+                        prev_bg_pixel = bg_pixel;
+                        for (term.BG[bg_pixel]) |f| {
+                            self.terminal_buffer[buffer_len] = f;
+                            buffer_len += 1;
+                        }
+                    }
+                    self.terminal_buffer[buffer_len] = c;
+                    buffer_len += 1;
+                }
+
+                text = self.text_to_render.popOrNull();
             }
         }
 

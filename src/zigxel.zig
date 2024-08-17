@@ -69,6 +69,7 @@ test "engine" {
         try zigxel.g.draw_rect(60, 8, 3, 1, 128, 75, 0);
         try zigxel.g.draw_rect(95, 15, 2, 1, 255, 128, 0);
         try zigxel.g.draw_rect(my_x, my_y, 1, 1, 255, 128, 255);
+        try zigxel.g.draw_text("hello world", 30, 40, 0, 255, 0);
         try zigxel.g.flip();
         end = std.time.nanoTimestamp();
         delta = end - now;
