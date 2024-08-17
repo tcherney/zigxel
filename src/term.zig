@@ -1,5 +1,5 @@
 // Heavily inspired by https://github.com/const-void/DOOM-fire-zig
-
+// https://en.wikipedia.org/wiki/ANSI_escape_code
 const builtin = @import("builtin");
 const std = @import("std");
 

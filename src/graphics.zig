@@ -1,6 +1,7 @@
 const std = @import("std");
 const term = @import("term.zig");
 
+//https://www.compart.com/en/unicode/U+2580
 const UPPER_PX = "▀";
 //const FULL_PX = "█";
 const LOWER_PX = "▄";
@@ -151,8 +152,8 @@ pub const Graphics = struct {
                     const bg_pixel = self.pixel_buffer[(t.y + 1) * width + t.x + z];
                     if (prev_bg_pixel != bg_pixel) {
                         prev_bg_pixel = bg_pixel;
-                        for (term.BG[bg_pixel]) |f| {
-                            self.terminal_buffer[buffer_len] = f;
+                        for (term.BG[bg_pixel]) |ci| {
+                            self.terminal_buffer[buffer_len] = ci;
                             buffer_len += 1;
                         }
                     }

@@ -4,15 +4,15 @@ const graphics = @import("graphics.zig");
 const event_manager = @import("event_manager.zig");
 
 pub const Zigxel = struct {
-    g: graphics.Graphics = undefined,
+    renderer: graphics.Graphics = undefined,
     events: event_manager.EventManager = undefined,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) !Self {
-        return Self{ .g = try graphics.Graphics.init(allocator), .events = event_manager.EventManager.init() };
+        return Self{ .renderer = try graphics.Graphics.init(allocator), .events = event_manager.EventManager.init() };
     }
 
     pub fn deinit(self: *Self) !void {
-        try self.g.deinit();
+        try self.renderer.deinit();
         try self.events.deinit();
     }
 
@@ -31,6 +31,7 @@ pub const Zigxel = struct {
     pub fn on_key_press(self: *Self, func: *const fn (event_manager.KEYS) void) void {
         self.events.key_press_callback = func;
     }
+    //TODO expose render function pointer to put graphics on a different thread than game logic
 };
 
 var running: bool = true;
@@ -67,19 +68,18 @@ test "engine" {
     const time_per_update: f64 = 1.0;
     var elapsed: f64 = 0.0;
     while (running) {
-        try zigxel.g.set_bg(0, 0, 0);
-        try zigxel.g.draw_rect(50, 10, 5, 5, 255, 255, 0);
-        try zigxel.g.draw_rect(60, 8, 2, 3, 0, 255, 255);
-        try zigxel.g.draw_rect(60, 8, 3, 1, 128, 75, 0);
-        try zigxel.g.draw_rect(95, 15, 2, 1, 255, 128, 0);
-        try zigxel.g.draw_rect(my_x, my_y, 1, 1, 255, 128, 255);
-        try zigxel.g.draw_text(try std.fmt.bufPrint(&fps_buffer, "FPS:{d:.2}", .{fps}), 30, 40, 0, 255, 0);
-        try zigxel.g.flip();
+        try zigxel.renderer.set_bg(0, 0, 0);
+        try zigxel.renderer.draw_rect(50, 10, 5, 5, 255, 255, 0);
+        try zigxel.renderer.draw_rect(60, 8, 2, 3, 0, 255, 255);
+        try zigxel.renderer.draw_rect(60, 8, 3, 1, 128, 75, 0);
+        try zigxel.renderer.draw_rect(95, 15, 2, 1, 255, 128, 0);
+        try zigxel.renderer.draw_rect(my_x, my_y, 1, 1, 255, 128, 255);
+        try zigxel.renderer.draw_text(try std.fmt.bufPrint(&fps_buffer, "FPS:{d:.2}", .{fps}), 30, 40, 0, 255, 0);
+        try zigxel.renderer.flip();
         delta = timer.read();
         timer.reset();
 
         elapsed += @as(f64, @floatFromInt(delta)) / 1_000_000_000.0;
-        //std.debug.print("delta {d}, {d} elapsed {d}\n", .{ delta, @as(f64, @floatFromInt(delta)) / 1000000000.0, elapsed });
         frames += 1;
         if (elapsed >= time_per_update) {
             fps = @as(f64, @floatFromInt(frames)) / elapsed;

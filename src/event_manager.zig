@@ -1,7 +1,6 @@
-//https://gist.github.com/technoscavenger/7ffb72acdee9ff32daf85bec1c35d5d8
 const std = @import("std");
 const builtin = @import("builtin");
-
+//https://www.asciitable.com/
 const win32 = struct {
     pub const EVENT_RECORD = extern union { KeyEvent: KEY_EVENT_RECORD };
     pub const KEY_EVENT_RECORD_CHAR = extern union { UnicodeChar: std.os.windows.WCHAR, AsciiChar: std.os.windows.CHAR };
