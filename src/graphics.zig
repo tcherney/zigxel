@@ -57,6 +57,7 @@ pub const Graphics = struct {
     }
 
     pub fn draw_text(self: *Self, value: []const u8, x: usize, y: usize, r: u8, g: u8, b: u8) !void {
+        std.debug.print("{s} with len {d}\n", .{ value, value.len });
         try self.text_to_render.append(Text{ .x = x, .y = if (y % 2 == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
     }
 
@@ -73,7 +74,6 @@ pub const Graphics = struct {
         var first_render: bool = false;
         if (self.last_frame == null) {
             try self.terminal.out(term.CURSOR_HOME);
-            try self.terminal.out(term.CURSOR_HIDE);
             self.last_frame = try self.allocator.alloc(u8, self.pixel_buffer.len);
             for (0..self.pixel_buffer.len) |pixel| {
                 self.last_frame.?[pixel] = self.pixel_buffer[pixel];
@@ -167,6 +167,7 @@ pub const Graphics = struct {
         if (buffer_len > 0) {
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
             try self.terminal.out(term.COLOR_RESET);
+            try self.terminal.out(term.CURSOR_HIDE);
         }
     }
 };

@@ -57,24 +57,37 @@ test "engine" {
     var zigxel = try Zigxel.init(allocator);
     zigxel.on_key_press(on_key_press);
     try zigxel.start();
-    const time_per_frame = 17_000_000;
-    var now = std.time.nanoTimestamp();
-    var end = std.time.nanoTimestamp();
-    var delta = end - now;
+    const time_per_frame: u64 = 17_000_000;
+
+    var delta: u64 = 0;
+    var fps_buffer: [32]u8 = undefined;
+    var fps: f64 = 0;
+    var timer: std.time.Timer = try std.time.Timer.start();
+    var frames: u32 = 0;
+    const time_per_update: f64 = 1.0;
+    var elapsed: f64 = 0.0;
     while (running) {
-        now = std.time.nanoTimestamp();
         try zigxel.g.set_bg(0, 0, 0);
         try zigxel.g.draw_rect(50, 10, 5, 5, 255, 255, 0);
         try zigxel.g.draw_rect(60, 8, 2, 3, 0, 255, 255);
         try zigxel.g.draw_rect(60, 8, 3, 1, 128, 75, 0);
         try zigxel.g.draw_rect(95, 15, 2, 1, 255, 128, 0);
         try zigxel.g.draw_rect(my_x, my_y, 1, 1, 255, 128, 255);
-        try zigxel.g.draw_text("hello world", 30, 40, 0, 255, 0);
+        try zigxel.g.draw_text(try std.fmt.bufPrint(&fps_buffer, "FPS:{d:.2}", .{fps}), 30, 40, 0, 255, 0);
         try zigxel.g.flip();
-        end = std.time.nanoTimestamp();
-        delta = end - now;
-        //std.debug.print("{d}\n", .{delta});
-        const time_to_sleep = time_per_frame - delta;
+        delta = timer.read();
+        timer.reset();
+
+        elapsed += @as(f64, @floatFromInt(delta)) / 1_000_000_000.0;
+        //std.debug.print("delta {d}, {d} elapsed {d}\n", .{ delta, @as(f64, @floatFromInt(delta)) / 1000000000.0, elapsed });
+        frames += 1;
+        if (elapsed >= time_per_update) {
+            fps = @as(f64, @floatFromInt(frames)) / elapsed;
+            frames = 0;
+            elapsed = 0.0;
+        }
+
+        const time_to_sleep = @as(i64, @bitCast(time_per_frame)) - @as(i64, @bitCast(delta));
         if (time_to_sleep > 0) {
             std.time.sleep(@as(u64, @intCast(time_to_sleep)));
         }
