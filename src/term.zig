@@ -9,8 +9,8 @@ const TIOCGWINSZ = std.c.T.IOCGWINSZ; // ioctl flag
 const Size = struct { height: usize, width: usize };
 
 //ansi escape codes
-const ESC = "\x1B";
-const CSI = ESC ++ "[";
+pub const ESC = "\x1B";
+pub const CSI = ESC ++ "[";
 
 pub const CURSOR_SAVE = ESC ++ "7";
 pub const CURSOR_LOAD = ESC ++ "8";
@@ -208,17 +208,17 @@ pub const Term = struct {
     }
 };
 
-test "hello world" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    var term = try Term.init(allocator);
-    try term.set_bg_color(40, 40, 40);
-    try term.set_fg_color(255, 128, 0);
-    try term.out("hello world\n");
-    _ = try term.stdin.readByte();
-    try term.deinit();
+// test "hello world" {
+//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+//     const allocator = gpa.allocator();
+//     var term = try Term.init(allocator);
+//     try term.set_bg_color(40, 40, 40);
+//     try term.set_fg_color(255, 128, 0);
+//     try term.out("hello world\n");
+//     _ = try term.stdin.readByte();
+//     try term.deinit();
 
-    if (gpa.deinit() == .leak) {
-        std.debug.print("Leaked!\n", .{});
-    }
-}
+//     if (gpa.deinit() == .leak) {
+//         std.debug.print("Leaked!\n", .{});
+//     }
+// }

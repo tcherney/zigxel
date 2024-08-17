@@ -75,6 +75,10 @@ pub const EventManager = struct {
             if (std.os.windows.kernel32.GetConsoleMode(self.stdin.handle, &self.original_termios) != std.os.windows.TRUE) {
                 return Error.WindowsInit;
             }
+            const ENABLE_ECHO_INPUT: std.os.windows.DWORD = 0x0004;
+            if (std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, self.original_termios & ~(ENABLE_ECHO_INPUT)) != std.os.windows.TRUE) {
+                return Error.WindowsInit;
+            }
         } else {
             self.original_termios = try std.posix.tcgetattr(self.stdin.handle);
             var raw = self.original_termios;
@@ -140,19 +144,19 @@ pub const EventManager = struct {
         }
     }
 };
-var running: bool = false;
-pub fn on_key_press(key: KEYS) void {
-    std.debug.print("{}\n", .{key});
-    if (key == KEYS.KEY_q) {
-        running = false;
-    }
-}
+// var running: bool = false;
+// pub fn on_key_press(key: KEYS) void {
+//     std.debug.print("{}\n", .{key});
+//     if (key == KEYS.KEY_q) {
+//         running = false;
+//     }
+// }
 
-test "input" {
-    var event_manager = EventManager.init();
-    event_manager.key_press_callback = on_key_press;
-    try event_manager.start();
-    running = true;
-    while (running) {}
-    try event_manager.deinit();
-}
+// test "input" {
+//     var event_manager = EventManager.init();
+//     event_manager.key_press_callback = on_key_press;
+//     try event_manager.start();
+//     running = true;
+//     while (running) {}
+//     try event_manager.deinit();
+// }
