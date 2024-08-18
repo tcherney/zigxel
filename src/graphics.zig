@@ -6,6 +6,7 @@ const UPPER_PX = "▀";
 //const FULL_PX = "█";
 const LOWER_PX = "▄";
 //▀█▄
+pub const Error = error{} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError;
 
 pub const Graphics = struct {
     ascii_based: bool = false,
@@ -17,7 +18,8 @@ pub const Graphics = struct {
     allocator: std.mem.Allocator = undefined,
     const Self = @This();
     pub const Text = struct { x: usize, y: usize, r: u8, g: u8, b: u8, value: []const u8 };
-    pub fn init(allocator: std.mem.Allocator) !Graphics {
+
+    pub fn init(allocator: std.mem.Allocator) Error!Graphics {
         const terminal = try term.Term.init(allocator);
         var pixel_buffer = try allocator.alloc(u8, terminal.size.height * terminal.size.width * 2);
         for (0..pixel_buffer.len) |i| {
@@ -33,7 +35,7 @@ pub const Graphics = struct {
         };
     }
 
-    pub fn deinit(self: *Self) !void {
+    pub fn deinit(self: *Self) Error!void {
         self.allocator.free(self.pixel_buffer);
         self.allocator.free(self.terminal_buffer);
         try self.terminal.deinit();
@@ -41,14 +43,14 @@ pub const Graphics = struct {
         self.text_to_render.deinit();
     }
 
-    pub fn set_bg(self: *Self, r: u8, g: u8, b: u8) !void {
+    pub fn set_bg(self: *Self, r: u8, g: u8, b: u8) void {
         const bg_color_indx = @as(u8, @intCast(self.terminal.rgb_256(r, g, b)));
         for (0..self.pixel_buffer.len) |i| {
             self.pixel_buffer[i] = bg_color_indx;
         }
     }
 
-    pub fn draw_rect(self: *Self, x: usize, y: usize, w: usize, h: usize, r: u8, g: u8, b: u8) !void {
+    pub fn draw_rect(self: *Self, x: usize, y: usize, w: usize, h: usize, r: u8, g: u8, b: u8) void {
         const color_indx = @as(u8, @intCast(self.terminal.rgb_256(r, g, b)));
         for (y..y + h) |j| {
             for (x..x + w) |i| {
@@ -57,12 +59,12 @@ pub const Graphics = struct {
         }
     }
 
-    pub fn draw_text(self: *Self, value: []const u8, x: usize, y: usize, r: u8, g: u8, b: u8) !void {
-        std.debug.print("{s} with len {d}\n", .{ value, value.len });
+    pub fn draw_text(self: *Self, value: []const u8, x: usize, y: usize, r: u8, g: u8, b: u8) Error!void {
+        //std.debug.print("{s} with len {d}\n", .{ value, value.len });
         try self.text_to_render.append(Text{ .x = x, .y = if (y % 2 == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
     }
 
-    pub fn flip(self: *Self) !void {
+    pub fn flip(self: *Self) Error!void {
         // fill terminal buffer with pixel colors
         var buffer_len: usize = 0;
         var prev_fg_pixel: u8 = 0;

@@ -7,6 +7,7 @@ const TIOCGWINSZ = std.c.T.IOCGWINSZ; // ioctl flag
 
 //term size
 const Size = struct { height: usize, width: usize };
+pub const Error = error{SizeError} || std.fmt.AllocPrintError || std.fs.File.Writer.Error;
 
 //ansi escape codes
 pub const ESC = "\x1B";
@@ -93,7 +94,6 @@ pub const Term = struct {
     stdin: std.fs.File.Reader = undefined,
     buffer: []u8 = undefined,
     const Self = @This();
-
     pub fn init(allocator: std.mem.Allocator) !Self {
         const stdout = std.io.getStdOut().writer();
         const stdin = std.io.getStdIn().reader();
@@ -111,11 +111,11 @@ pub const Term = struct {
         try self.out(TERM_OFF);
     }
 
-    pub fn set_bg_color(self: *Self, r: u8, g: u8, b: u8) !void {
+    pub fn set_bg_color(self: *Self, r: u8, g: u8, b: u8) Error!void {
         try self.out(BG[self.rgb_256(r, g, b)]);
     }
 
-    pub fn set_fg_color(self: *Self, r: u8, g: u8, b: u8) !void {
+    pub fn set_fg_color(self: *Self, r: u8, g: u8, b: u8) Error!void {
         try self.out(FG[self.rgb_256(r, g, b)]);
     }
 
@@ -171,21 +171,21 @@ pub const Term = struct {
         return idx;
     }
 
-    pub fn out(self: *const Self, s: []const u8) !void {
+    pub fn out(self: *const Self, s: []const u8) Error!void {
         _ = try self.stdout.write(s);
     }
 
-    pub fn out_fmt(self: *const Self, comptime s: []const u8, args: anytype) !void {
+    pub fn out_fmt(self: *const Self, comptime s: []const u8, args: anytype) Error!void {
         const t = try std.fmt.allocPrint(self.allocator, s, args);
         defer self.allocator.free(t);
         try self.out(t);
     }
-    fn get_Size(tty: std.posix.fd_t) !Size {
+    fn get_Size(tty: std.posix.fd_t) Error!Size {
         if (builtin.os.tag == .windows) {
             //Microsoft Windows Case
             var info: win32.CONSOLE_SCREEN_BUFFER_INFO = undefined;
             if (0 == win32.GetConsoleScreenBufferInfo(tty, &info)) switch (std.os.windows.kernel32.GetLastError()) {
-                else => |e| return std.os.windows.unexpectedError(e),
+                else => return Error.SizeError,
             };
 
             return Size{
@@ -196,13 +196,11 @@ pub const Term = struct {
             //Linux-MacOS Case
             var winsz = std.posix.winsize{ .col = 0, .row = 0, .xpixel = 0, .ypixel = 0 };
             const rv = std.c.ioctl(tty, TIOCGWINSZ, @intFromPtr(&winsz));
-            const err = std.posix.errno(rv);
 
             if (rv >= 0) {
                 return Size{ .height = winsz.row, .width = winsz.col };
             } else {
-                std.process.exit(0);
-                return std.posix.unexpectedErrno(err);
+                return Error.SizeError;
             }
         }
     }

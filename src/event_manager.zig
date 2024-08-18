@@ -30,7 +30,7 @@ const win32 = struct {
 
 pub const KEYS = enum(u8) { KEY_0 = '0', KEY_1 = '1', KEY_2 = '2', KEY_3 = '3', KEY_4 = '4', KEY_5 = '5', KEY_6 = '6', KEY_7 = '7', KEY_8 = '8', KEY_9 = '9', KEY_A = 'A', KEY_B = 'B', KEY_C = 'C', KEY_D = 'D', KEY_E = 'E', KEY_F = 'F', KEY_G = 'G', KEY_H = 'H', KEY_I = 'I', KEY_J = 'J', KEY_K = 'K', KEY_L = 'L', KEY_M = 'M', KEY_N = 'N', KEY_O = 'O', KEY_P = 'P', KEY_Q = 'Q', KEY_R = 'R', KEY_S = 'S', KEY_T = 'T', KEY_U = 'U', KEY_V = 'V', KEY_W = 'W', KEY_X = 'X', KEY_Y = 'Y', KEY_Z = 'Z', KEY_a = 'a', KEY_b = 'b', KEY_c = 'c', KEY_d = 'd', KEY_e = 'e', KEY_f = 'f', KEY_g = 'g', KEY_h = 'h', KEY_i = 'i', KEY_j = 'j', KEY_k = 'k', KEY_l = 'l', KEY_m = 'm', KEY_n = 'n', KEY_o = 'o', KEY_p = 'p', KEY_q = 'q', KEY_r = 'r', KEY_s = 's', KEY_t = 't', KEY_u = 'u', KEY_v = 'v', KEY_w = 'w', KEY_x = 'x', KEY_y = 'y', KEY_z = 'z', KEY_enter = '\n', KEY_CR = '\r', KEY_TAB = 9, KEY_ESC = 27, KEY_SPACE = 32, KEY_TILDE = 192, _ };
 
-pub const Error = error{ WindowsInit, WindowsRead };
+pub const Error = error{ WindowsInit, WindowsRead } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError;
 
 pub const EventManager = struct {
     main_thread: std.Thread = undefined,
@@ -49,11 +49,11 @@ pub const EventManager = struct {
         return EventManager{ .stdin = std.io.getStdIn() };
     }
 
-    pub fn deinit(self: *Self) !void {
+    pub fn deinit(self: *Self) Error!void {
         try self.stop();
     }
 
-    pub fn stop(self: *Self) !void {
+    pub fn stop(self: *Self) Error!void {
         if (self.running) {
             self.running = false;
             self.main_thread.join();
@@ -61,7 +61,7 @@ pub const EventManager = struct {
         }
     }
 
-    fn cook(self: *Self) !void {
+    fn cook(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             _ = std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, self.original_termios);
         } else {
@@ -69,7 +69,7 @@ pub const EventManager = struct {
         }
     }
 
-    fn raw_mode(self: *Self) !void {
+    fn raw_mode(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             if (std.os.windows.kernel32.GetConsoleMode(self.stdin.handle, &self.original_termios) != std.os.windows.TRUE) {
                 return Error.WindowsInit;
@@ -98,13 +98,13 @@ pub const EventManager = struct {
         }
     }
 
-    pub fn start(self: *Self) !void {
+    pub fn start(self: *Self) Error!void {
         try self.raw_mode();
         self.running = true;
         self.main_thread = try std.Thread.spawn(.{}, event_loop, .{self});
     }
 
-    fn event_loop(self: *Self) !void {
+    fn event_loop(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             var irInBuf: [128]win32.INPUT_RECORD = undefined;
             var numRead: u32 = undefined;
