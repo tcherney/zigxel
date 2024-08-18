@@ -1,5 +1,7 @@
 const std = @import("std");
 const term = @import("term.zig");
+const texture = @import("texture.zig");
+const utils = @import("utils.zig");
 
 //https://www.compart.com/en/unicode/U+2580
 const UPPER_PX = "▀";
@@ -44,14 +46,24 @@ pub const Graphics = struct {
     }
 
     pub fn set_bg(self: *Self, r: u8, g: u8, b: u8) void {
-        const bg_color_indx = @as(u8, @intCast(self.terminal.rgb_256(r, g, b)));
+        const bg_color_indx = utils.rgb_256(r, g, b);
         for (0..self.pixel_buffer.len) |i| {
             self.pixel_buffer[i] = bg_color_indx;
         }
     }
 
+    pub fn draw_texture(self: *Self, tex: anytype) void {
+        var tex_indx: usize = 0;
+        for (tex.y..tex.y + tex.height) |j| {
+            for (tex.x..tex.x + tex.width) |i| {
+                self.pixel_buffer[j * self.terminal.size.width + i] = tex.pixel_buffer[tex_indx];
+                tex_indx += 1;
+            }
+        }
+    }
+
     pub fn draw_rect(self: *Self, x: usize, y: usize, w: usize, h: usize, r: u8, g: u8, b: u8) void {
-        const color_indx = @as(u8, @intCast(self.terminal.rgb_256(r, g, b)));
+        const color_indx = utils.rgb_256(r, g, b);
         for (y..y + h) |j| {
             for (x..x + w) |i| {
                 self.pixel_buffer[j * self.terminal.size.width + i] = color_indx;
@@ -140,7 +152,7 @@ pub const Graphics = struct {
                     self.terminal_buffer[buffer_len] = c;
                     buffer_len += 1;
                 }
-                const fg_pixel = @as(u8, @intCast(self.terminal.rgb_256(t.r, t.g, t.b)));
+                const fg_pixel = utils.rgb_256(t.r, t.g, t.b);
 
                 if (prev_fg_pixel != fg_pixel) {
                     prev_fg_pixel = fg_pixel;

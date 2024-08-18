@@ -2,8 +2,10 @@ const std = @import("std");
 const builtin = @import("builtin");
 const graphics = @import("graphics.zig");
 const event_manager = @import("event_manager.zig");
+const utils = @import("utils.zig");
+const texture = @import("texture.zig");
 
-pub const Error = error{} || event_manager.Error || graphics.Error || std.time.Timer.Error;
+pub const Error = error{} || event_manager.Error || graphics.Error || std.time.Timer.Error || utils.Error;
 
 pub const Zigxel = struct {
     renderer: graphics.Graphics = undefined,
@@ -93,6 +95,7 @@ var my_x: usize = 5;
 var my_y: usize = 5;
 var zigxel: Zigxel = undefined;
 var fps_buffer: [64]u8 = undefined;
+var tex: texture.Texture(texture.ColorMode.color_256) = undefined;
 pub fn on_key_press(key: event_manager.KEYS) void {
     //std.debug.print("{}\n", .{key});
     if (key == event_manager.KEYS.KEY_q) {
@@ -110,7 +113,7 @@ pub fn on_key_press(key: event_manager.KEYS) void {
 
 pub fn on_render() Error!void {
     zigxel.renderer.set_bg(0, 0, 0);
-    zigxel.renderer.draw_rect(50, 10, 5, 5, 255, 255, 0);
+    zigxel.renderer.draw_texture(tex);
     zigxel.renderer.draw_rect(60, 8, 2, 3, 0, 255, 255);
     zigxel.renderer.draw_rect(60, 8, 3, 1, 128, 75, 0);
     zigxel.renderer.draw_rect(95, 15, 2, 1, 255, 128, 0);
@@ -122,6 +125,12 @@ pub fn on_render() Error!void {
 test "engine" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    try utils.gen_rand();
+    tex = texture.Texture(texture.ColorMode.color_256).init(allocator);
+    try tex.rect(50, 10, 5, 5, 255, 255, 0);
+    for (0..tex.pixel_buffer.len) |i| {
+        tex.pixel_buffer[i] = utils.rand.int(u8);
+    }
     zigxel = try Zigxel.init(allocator);
     zigxel.on_key_press(on_key_press);
     zigxel.on_render(on_render);
