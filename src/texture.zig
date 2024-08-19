@@ -49,6 +49,26 @@ pub fn Texture(comptime T: ColorMode) type {
             self.alpha_index = alpha_index;
         }
 
+        pub fn scale(self: *Self, width: usize, height: usize) Error!void {
+            var new_buffer = try self.allocator.alloc(PixelType, width * height);
+            switch (T) {
+                .color_256 => {},
+                .color_true => {
+                    for (0..height) |y| {
+                        for (0..width) |x| {
+                            const src_x: usize = @min(self.width - 1, @as(usize, @intFromFloat(@as(f32, @floatFromInt(x)) / @as(f32, @floatFromInt(width)) * @as(f32, @floatFromInt(self.width)))));
+                            const src_y: usize = @min(self.height - 1, @as(usize, @intFromFloat(@as(f32, @floatFromInt(y)) / @as(f32, @floatFromInt(height)) * @as(f32, @floatFromInt(self.height)))));
+                            new_buffer[y * width + x] = .{ .r = self.pixel_buffer[src_y * self.width + src_x].r, .g = self.pixel_buffer[src_y * self.width + src_x].g, .b = self.pixel_buffer[src_y * self.width + src_x].b, .a = self.pixel_buffer[src_y * self.width + src_x].a };
+                        }
+                    }
+                },
+            }
+            self.width = width;
+            self.height = height;
+            self.allocator.free(self.pixel_buffer);
+            self.pixel_buffer = new_buffer;
+        }
+
         pub fn load_image(self: *Self, x: i32, y: i32, img: anytype) Error!void {
             self.x = x;
             self.y = y;
@@ -58,7 +78,7 @@ pub fn Texture(comptime T: ColorMode) type {
             for (0..self.pixel_buffer.len) |i| {
                 switch (T) {
                     .color_256 => self.pixel_buffer[i] = utils.rgb_256(img.data.items[i].r, img.data.items[i].g, img.data.items[i].b),
-                    .color_true => self.pixel_buffer[i] = .{ .r = img.data.items[i].r, .g = img.data.items[i].g, .b = img.data.items[i].b, .a = if (img.data.items[i].a != null) img.data.items[i].a.? else null },
+                    .color_true => self.pixel_buffer[i] = .{ .r = img.data.items[i].r, .g = img.data.items[i].g, .b = img.data.items[i].b, .a = img.data.items[i].a },
                 }
             }
         }

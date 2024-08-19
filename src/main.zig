@@ -38,11 +38,12 @@ pub fn main() !void {
     try utils.gen_rand();
     tex = engine.TextureTrue.init(allocator);
     e = try engine.Engine.init(allocator);
-    var img = image.Image(image.PNGImage){};
-    try img.load("alpha50.png", allocator);
+    var img = image.Image(image.JPEGImage){};
+    try img.load("../img2ascii/tests/jpeg/cat.jpg", allocator);
     try tex.load_image(5, 5, img);
-    std.debug.print("{any}\n", .{tex.pixel_buffer});
-    std.debug.print("{d}\n", .{utils.rgb_256(255, 255, 255)});
+    try tex.scale(68, 45);
+    //std.debug.print("{any}\n", .{tex.pixel_buffer});
+    //std.debug.print("{d}\n", .{utils.rgb_256(255, 255, 255)});
     e.on_key_press(on_key_press);
     e.on_render(on_render);
     e.set_fps(60);

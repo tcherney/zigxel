@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const graphics = @import("graphics.zig");
 const event_manager = @import("event_manager.zig");
+const term = @import("term.zig");
 const utils = @import("utils.zig");
 const texture = @import("texture.zig");
 const image = @import("image");
@@ -22,6 +23,8 @@ pub const Engine = struct {
     running: bool = false,
     frame_limit: u64 = 16_666_667,
     fps: f64 = 0.0,
+    window_changed: bool = false,
+    window_change_size: term.Size = undefined,
 
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Error!Self {
@@ -37,12 +40,22 @@ pub const Engine = struct {
         try self.events.deinit();
     }
 
+    pub fn window_change(self: *Self, coord: std.os.windows.COORD) void {
+        self.window_changed = true;
+        self.window_change_size = term.Size{ .width = @as(usize, @intCast(coord.X)), .height = @as(usize, @intCast(coord.Y)) };
+    }
+
     fn render_loop(self: *Self) Error!void {
         var timer: std.time.Timer = try std.time.Timer.start();
         var elapsed: f64 = 0.0;
         var frames: u32 = 0;
         while (self.running) {
             try self.render_fn.?();
+            // check window change
+            if (self.window_changed) {
+                try self.renderer.size_change(self.window_change_size);
+                self.window_changed = false;
+            }
             const delta = timer.read();
             timer.reset();
             elapsed += @as(f64, @floatFromInt(delta)) / 1_000_000_000.0;
@@ -72,6 +85,8 @@ pub const Engine = struct {
     }
 
     pub fn start(self: *Self) Error!void {
+        std.debug.print("Window size {d}x{d}\n", .{ self.renderer.terminal.size.width, self.renderer.terminal.size.height });
+        self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
         self.running = true;
         try self.events.start();
         if (self.render_fn) |_| {

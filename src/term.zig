@@ -1,5 +1,7 @@
 // Heavily inspired by https://github.com/const-void/DOOM-fire-zig
 // https://en.wikipedia.org/wiki/ANSI_escape_code
+// https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
+
 const builtin = @import("builtin");
 const std = @import("std");
 const utils = @import("utils.zig");
@@ -7,7 +9,7 @@ const utils = @import("utils.zig");
 const TIOCGWINSZ = std.c.T.IOCGWINSZ; // ioctl flag
 
 //term size
-const Size = struct { height: usize, width: usize };
+pub const Size = struct { height: usize, width: usize };
 pub const Error = error{SizeError} || std.fmt.AllocPrintError || std.fs.File.Writer.Error;
 
 //ansi escape codes
@@ -40,6 +42,8 @@ pub const COLOR_NOT_ITALIC = CSI ++ "23m";
 pub const TERM_ON = SCREEN_BUF_ON ++ CURSOR_HIDE ++ CURSOR_HOME ++ SCREEN_CLEAR ++ COLOR_DEF;
 pub const TERM_OFF = SCREEN_BUF_OFF ++ CURSOR_SHOW ++ N1;
 
+pub const FULL_SCREEN = CSI ++ "8;200;500t";
+
 //handy characters
 pub const N1 = "\n";
 pub const SEP = '▏';
@@ -56,6 +60,10 @@ fn init_color(color_code: []const u8) [MAX_COLOR][]const u8 {
     }
     return colors;
 }
+
+//TODO RGB true color
+//"ESC[38;2;{r};{g};{b}m" Set foreground color as RGB
+//"ESC[48;2;{r};{g};{b}m" Set background color as RGB
 
 pub const FG: [MAX_COLOR][]const u8 = init_color("{s}38;5;{d}m");
 pub const BG: [MAX_COLOR][]const u8 = init_color("{s}48;5;{d}m");
@@ -84,6 +92,11 @@ const win32 = struct {
         hConsoleOutput: ?HANDLE,
         lpConsoleScreenBufferInfo: ?*CONSOLE_SCREEN_BUFFER_INFO,
     ) callconv(std.os.windows.WINAPI) BOOL;
+
+    pub extern "kernel32" fn SetConsoleScreenBufferSize(
+        hConsoleOutput: ?HANDLE,
+        dwSize: std.os.windows.COORD,
+    ) callconv(std.os.windows.WINAPI) BOOL;
 };
 
 pub const Term = struct {
@@ -102,7 +115,9 @@ pub const Term = struct {
             .stdout = stdout,
             .stdin = stdin,
         };
+
         try ret.out(TERM_ON);
+        //try ret.out(FULL_SCREEN);
         return ret;
     }
 
@@ -131,13 +146,12 @@ pub const Term = struct {
         if (builtin.os.tag == .windows) {
             //Microsoft Windows Case
             var info: win32.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-            std.debug.print("{any}\n", .{tty});
             if (std.os.windows.FALSE == win32.GetConsoleScreenBufferInfo(tty, &info)) switch (std.os.windows.kernel32.GetLastError()) {
-                else => |e| return std.os.windows.unexpectedError(e),
+                else => return Error.SizeError,
             };
 
             return Size{
-                .height = @intCast(info.srWindow.Bottom - info.srWindow.Top + 1),
+                .height = @as(usize, @intCast(info.srWindow.Bottom - info.srWindow.Top + 1)) * 2,
                 .width = @intCast(info.srWindow.Right - info.srWindow.Left + 1),
             };
         } else {
