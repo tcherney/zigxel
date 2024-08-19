@@ -4,12 +4,19 @@ const graphics = @import("graphics.zig");
 const event_manager = @import("event_manager.zig");
 const utils = @import("utils.zig");
 const texture = @import("texture.zig");
+const image = @import("image");
+
+pub const EventManager = event_manager.EventManager;
+pub const Graphics = graphics.Graphics;
+pub const Texture256 = texture.Texture(texture.ColorMode.color_256);
+pub const TextureTrue = texture.Texture(texture.ColorMode.color_true);
+pub const KEYS = event_manager.KEYS;
 
 pub const Error = error{} || event_manager.Error || graphics.Error || std.time.Timer.Error || utils.Error;
 
-pub const Zigxel = struct {
-    renderer: graphics.Graphics = undefined,
-    events: event_manager.EventManager = undefined,
+pub const Engine = struct {
+    renderer: Graphics = undefined,
+    events: EventManager = undefined,
     render_fn: ?*const fn () Error!void = null,
     render_thread: std.Thread = undefined,
     running: bool = false,
@@ -18,7 +25,7 @@ pub const Zigxel = struct {
 
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Error!Self {
-        return Self{ .renderer = try graphics.Graphics.init(allocator), .events = event_manager.EventManager.init() };
+        return Self{ .renderer = try Graphics.init(allocator), .events = EventManager.init() };
     }
 
     pub fn deinit(self: *Self) Error!void {
@@ -72,74 +79,19 @@ pub const Zigxel = struct {
         }
     }
 
-    pub fn on_key_down(self: *Self, func: *const fn (event_manager.KEYS) void) void {
+    pub fn on_key_down(self: *Self, func: *const fn (KEYS) void) void {
         self.events.key_down_callback = func;
     }
 
-    pub fn on_key_up(self: *Self, func: *const fn (event_manager.KEYS) void) void {
+    pub fn on_key_up(self: *Self, func: *const fn (KEYS) void) void {
         self.events.key_up_callback = func;
     }
 
-    pub fn on_key_press(self: *Self, func: *const fn (event_manager.KEYS) void) void {
+    pub fn on_key_press(self: *Self, func: *const fn (KEYS) void) void {
         self.events.key_press_callback = func;
     }
 
     pub fn on_render(self: *Self, func: *const fn () Error!void) void {
         self.render_fn = func;
     }
-    //TODO expose render function pointer to put graphics on a different thread than game logic
 };
-
-var running: bool = true;
-var my_x: usize = 5;
-var my_y: usize = 5;
-var zigxel: Zigxel = undefined;
-var fps_buffer: [64]u8 = undefined;
-var tex: texture.Texture(texture.ColorMode.color_256) = undefined;
-pub fn on_key_press(key: event_manager.KEYS) void {
-    //std.debug.print("{}\n", .{key});
-    if (key == event_manager.KEYS.KEY_q) {
-        running = false;
-    } else if (key == event_manager.KEYS.KEY_a) {
-        my_x -= 1;
-    } else if (key == event_manager.KEYS.KEY_d) {
-        my_x += 1;
-    } else if (key == event_manager.KEYS.KEY_w) {
-        my_y -= 1;
-    } else if (key == event_manager.KEYS.KEY_s) {
-        my_y += 1;
-    }
-}
-
-pub fn on_render() Error!void {
-    zigxel.renderer.set_bg(0, 0, 0);
-    zigxel.renderer.draw_texture(tex);
-    zigxel.renderer.draw_rect(60, 8, 2, 3, 0, 255, 255);
-    zigxel.renderer.draw_rect(60, 8, 3, 1, 128, 75, 0);
-    zigxel.renderer.draw_rect(95, 15, 2, 1, 255, 128, 0);
-    zigxel.renderer.draw_rect(my_x, my_y, 1, 1, 255, 128, 255);
-    try zigxel.renderer.draw_text(try std.fmt.bufPrint(&fps_buffer, "FPS:{d:.2}", .{zigxel.fps}), 30, 40, 0, 255, 0);
-    try zigxel.renderer.flip();
-}
-
-test "engine" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    try utils.gen_rand();
-    tex = texture.Texture(texture.ColorMode.color_256).init(allocator);
-    try tex.rect(50, 10, 5, 5, 255, 255, 0);
-    for (0..tex.pixel_buffer.len) |i| {
-        tex.pixel_buffer[i] = utils.rand.int(u8);
-    }
-    zigxel = try Zigxel.init(allocator);
-    zigxel.on_key_press(on_key_press);
-    zigxel.on_render(on_render);
-    zigxel.set_fps(60);
-    try zigxel.start();
-
-    while (running) {
-        // do game logic on seperate thread
-        std.time.sleep(zigxel.frame_limit);
-    }
-    try zigxel.deinit();
-}

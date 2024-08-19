@@ -131,8 +131,9 @@ pub const Term = struct {
         if (builtin.os.tag == .windows) {
             //Microsoft Windows Case
             var info: win32.CONSOLE_SCREEN_BUFFER_INFO = undefined;
-            if (0 == win32.GetConsoleScreenBufferInfo(tty, &info)) switch (std.os.windows.kernel32.GetLastError()) {
-                else => return Error.SizeError,
+            std.debug.print("{any}\n", .{tty});
+            if (std.os.windows.FALSE == win32.GetConsoleScreenBufferInfo(tty, &info)) switch (std.os.windows.kernel32.GetLastError()) {
+                else => |e| return std.os.windows.unexpectedError(e),
             };
 
             return Size{

@@ -8,7 +8,7 @@ const UPPER_PX = "▀";
 //const FULL_PX = "█";
 const LOWER_PX = "▄";
 //▀█▄
-pub const Error = error{} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError;
+pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError;
 
 pub const Graphics = struct {
     ascii_based: bool = false,
@@ -19,7 +19,7 @@ pub const Graphics = struct {
     text_to_render: std.ArrayList(Text) = undefined,
     allocator: std.mem.Allocator = undefined,
     const Self = @This();
-    pub const Text = struct { x: usize, y: usize, r: u8, g: u8, b: u8, value: []const u8 };
+    pub const Text = struct { x: i32, y: i32, r: u8, g: u8, b: u8, value: []const u8 };
 
     pub fn init(allocator: std.mem.Allocator) Error!Graphics {
         const terminal = try term.Term.init(allocator);
@@ -52,13 +52,79 @@ pub const Graphics = struct {
         }
     }
 
-    pub fn draw_texture(self: *Self, tex: anytype) void {
+    pub fn draw_texture(self: *Self, tex: anytype) Error!void {
         var tex_indx: usize = 0;
-        for (tex.y..tex.y + tex.height) |j| {
-            for (tex.x..tex.x + tex.width) |i| {
-                self.pixel_buffer[j * self.terminal.size.width + i] = tex.pixel_buffer[tex_indx];
-                tex_indx += 1;
-            }
+        const height: i32 = @as(i32, @intCast(@as(i64, @bitCast(tex.height))));
+        const width: i32 = @as(i32, @intCast(@as(i64, @bitCast(tex.width))));
+        switch (@TypeOf(tex)) {
+            texture.Texture(texture.ColorMode.color_256) => {
+                var j: i32 = tex.y;
+                while (j < (tex.y + height)) : (j += 1) {
+                    if (j < 0) {
+                        tex_indx += tex.width;
+                        continue;
+                    }
+                    var i: i32 = tex.x;
+                    while (i < (tex.x + width)) : (i += 1) {
+                        const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
+                        const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
+                        if (i < 0) {
+                            tex_indx += 1;
+                            continue;
+                        }
+                        if (tex.alpha_index) |a| {
+                            if (tex.pixel_buffer[tex_indx] != a) {
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = tex.pixel_buffer[tex_indx];
+                            }
+                        } else {
+                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = tex.pixel_buffer[tex_indx];
+                        }
+
+                        tex_indx += 1;
+                    }
+                }
+            },
+            texture.Texture(texture.ColorMode.color_true) => {
+                var j: i32 = tex.y;
+                while (j < (tex.y + height)) : (j += 1) {
+                    if (j < 0) {
+                        tex_indx += tex.width;
+                        continue;
+                    }
+                    var i: i32 = tex.x;
+                    while (i < (tex.x + width)) : (i += 1) {
+                        const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
+                        const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
+                        if (i < 0) {
+                            tex_indx += 1;
+                            continue;
+                        }
+                        // have alpha channel
+                        var r: u8 = tex.pixel_buffer[tex_indx].r;
+                        var g: u8 = tex.pixel_buffer[tex_indx].g;
+                        var b: u8 = tex.pixel_buffer[tex_indx].b;
+                        if (tex.pixel_buffer[tex_indx].a) |alpha| {
+                            const max_pixel = 255.0;
+                            const bkgd = utils.indx_rgb(self.pixel_buffer[j_usize * self.terminal.size.width + i_usize]);
+                            var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
+                            var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(g));
+                            var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(b));
+                            rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                            gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                            bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                            r = @as(u8, @intFromFloat(rf));
+                            g = @as(u8, @intFromFloat(gf));
+                            b = @as(u8, @intFromFloat(bf));
+                        }
+                        self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = utils.rgb_256(r, g, b);
+
+                        tex_indx += 1;
+                    }
+                }
+            },
+            else => {
+                return Error.TextureError;
+            },
         }
     }
 
@@ -71,9 +137,9 @@ pub const Graphics = struct {
         }
     }
 
-    pub fn draw_text(self: *Self, value: []const u8, x: usize, y: usize, r: u8, g: u8, b: u8) Error!void {
+    pub fn draw_text(self: *Self, value: []const u8, x: i32, y: i32, r: u8, g: u8, b: u8) Error!void {
         //std.debug.print("{s} with len {d}\n", .{ value, value.len });
-        try self.text_to_render.append(Text{ .x = x, .y = if (y % 2 == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
+        try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
     }
 
     pub fn flip(self: *Self) Error!void {
@@ -148,7 +214,7 @@ pub const Graphics = struct {
         if (self.text_to_render.items.len > 0) {
             var text = self.text_to_render.popOrNull();
             while (text) |t| {
-                for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ (t.y / 2) + 1, t.x + 1 })) |c| {
+                for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ @divFloor(t.y, 2) + 1, t.x + 1 })) |c| {
                     self.terminal_buffer[buffer_len] = c;
                     buffer_len += 1;
                 }
@@ -163,7 +229,7 @@ pub const Graphics = struct {
                 }
 
                 for (t.value, 0..) |c, z| {
-                    const bg_pixel = self.pixel_buffer[(t.y + 1) * width + t.x + z];
+                    const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
                     if (prev_bg_pixel != bg_pixel) {
                         prev_bg_pixel = bg_pixel;
                         for (term.BG[bg_pixel]) |ci| {
