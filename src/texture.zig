@@ -4,12 +4,7 @@ const image = @import("image");
 
 pub const Error = error{} || std.mem.Allocator.Error;
 
-pub const ColorMode = enum {
-    color_256,
-    color_true,
-};
-
-pub fn Texture(comptime T: ColorMode) type {
+pub fn Texture(comptime T: utils.ColorMode) type {
     return struct {
         allocator: std.mem.Allocator,
         x: i32 = undefined,
@@ -52,7 +47,15 @@ pub fn Texture(comptime T: ColorMode) type {
         pub fn scale(self: *Self, width: usize, height: usize) Error!void {
             var new_buffer = try self.allocator.alloc(PixelType, width * height);
             switch (T) {
-                .color_256 => {},
+                .color_256 => {
+                    for (0..height) |y| {
+                        for (0..width) |x| {
+                            const src_x: usize = @min(self.width - 1, @as(usize, @intFromFloat(@as(f32, @floatFromInt(x)) / @as(f32, @floatFromInt(width)) * @as(f32, @floatFromInt(self.width)))));
+                            const src_y: usize = @min(self.height - 1, @as(usize, @intFromFloat(@as(f32, @floatFromInt(y)) / @as(f32, @floatFromInt(height)) * @as(f32, @floatFromInt(self.height)))));
+                            new_buffer[y * width + x] = self.pixel_buffer[src_y * self.width + src_x];
+                        }
+                    }
+                },
                 .color_true => {
                     for (0..height) |y| {
                         for (0..width) |x| {

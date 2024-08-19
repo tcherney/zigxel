@@ -4,7 +4,7 @@ const utils = @import("utils.zig");
 const image = @import("image");
 
 var running: bool = true;
-var e: engine.Engine = undefined;
+var e: engine.Engine(utils.ColorMode.color_256) = undefined;
 var fps_buffer: [64]u8 = undefined;
 var tex: engine.TextureTrue = undefined;
 pub fn on_key_press(key: engine.KEYS) void {
@@ -37,11 +37,11 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     try utils.gen_rand();
     tex = engine.TextureTrue.init(allocator);
-    e = try engine.Engine.init(allocator);
+    e = try engine.Engine(utils.ColorMode.color_256).init(allocator);
     var img = image.Image(image.JPEGImage){};
     try img.load("../img2ascii/tests/jpeg/cat.jpg", allocator);
     try tex.load_image(5, 5, img);
-    try tex.scale(68, 45);
+    //try tex.scale(68, 45);
     //std.debug.print("{any}\n", .{tex.pixel_buffer});
     //std.debug.print("{d}\n", .{utils.rgb_256(255, 255, 255)});
     e.on_key_press(on_key_press);

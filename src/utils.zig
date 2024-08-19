@@ -2,6 +2,11 @@ const std = @import("std");
 
 pub const Error = std.posix.GetRandomError;
 
+pub const ColorMode = enum {
+    color_256,
+    color_true,
+};
+
 fn colour_dist_sq(R: i32, G: i32, B: i32, r: i32, g: i32, b: i32) i32 {
     return ((R - r) * (R - r) + (G - g) * (G - g) + (B - b) * (B - b));
 }
