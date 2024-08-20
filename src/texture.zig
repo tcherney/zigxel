@@ -44,6 +44,7 @@ pub fn Texture(comptime T: utils.ColorMode) type {
             self.alpha_index = alpha_index;
         }
 
+        //TODO look into using other algos other NN
         pub fn scale(self: *Self, width: usize, height: usize) Error!void {
             var new_buffer = try self.allocator.alloc(PixelType, width * height);
             switch (T) {

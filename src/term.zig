@@ -61,9 +61,8 @@ fn init_color(color_code: []const u8) [MAX_COLOR][]const u8 {
     return colors;
 }
 
-//TODO RGB true color
-//"ESC[38;2;{r};{g};{b}m" Set foreground color as RGB
-//"ESC[48;2;{r};{g};{b}m" Set background color as RGB
+pub const FG_RGB = "38;2;{d};{d};{d}m";
+pub const BG_RGB = "48;2;{d};{d};{d}m";
 
 pub const FG: [MAX_COLOR][]const u8 = init_color("{s}38;5;{d}m");
 pub const BG: [MAX_COLOR][]const u8 = init_color("{s}48;5;{d}m");

@@ -23,7 +23,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         first_render: bool = true,
         pub const PixelType: type = switch (color_type) {
             .color_256 => u8,
-            .color_true => struct { r: u8, g: u8, b: u8 },
+            .color_true => struct { r: u8 = 0, g: u8 = 0, b: u8 = 0 },
         };
         const Self = @This();
         pub const Text = struct { x: i32, y: i32, r: u8, g: u8, b: u8, value: []const u8 };
@@ -32,11 +32,19 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             const terminal = try term.Term.init(allocator);
             var pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 2);
             for (0..pixel_buffer.len) |i| {
-                pixel_buffer[i] = 0;
+                if (color_type == .color_256) {
+                    pixel_buffer[i] = 0;
+                } else {
+                    pixel_buffer[i] = PixelType{};
+                }
             }
             var last_frame = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 2);
             for (0..last_frame.len) |i| {
-                last_frame[i] = 0;
+                if (color_type == .color_256) {
+                    last_frame[i] = 0;
+                } else {
+                    last_frame[i] = PixelType{};
+                }
             }
             return Self{
                 .terminal = terminal,
@@ -58,7 +66,11 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             self.allocator.free(self.pixel_buffer);
             self.pixel_buffer = try self.allocator.alloc(PixelType, self.terminal.size.height * self.terminal.size.width * 2);
             for (0..self.pixel_buffer.len) |i| {
-                self.pixel_buffer[i] = 0;
+                if (color_type == .color_256) {
+                    self.pixel_buffer[i] = 0;
+                } else {
+                    self.pixel_buffer[i] = PixelType{};
+                }
             }
             self.last_frame = try self.allocator.alloc(PixelType, self.pixel_buffer.len);
             for (0..self.pixel_buffer.len) |i| {
@@ -78,16 +90,20 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         pub fn set_bg(self: *Self, r: u8, g: u8, b: u8) void {
             const bg_color_indx = utils.rgb_256(r, g, b);
             for (0..self.pixel_buffer.len) |i| {
-                self.pixel_buffer[i] = bg_color_indx;
+                if (color_type == .color_256) {
+                    self.pixel_buffer[i] = bg_color_indx;
+                } else {
+                    self.pixel_buffer[i] = .{ .r = r, .g = g, .b = b };
+                }
             }
         }
 
-        pub fn draw_texture(self: *Self, tex: anytype) Error!void {
+        pub fn draw_texture(self: *Self, tex: texture.Texture(color_type)) void {
             var tex_indx: usize = 0;
             const height: i32 = @as(i32, @intCast(@as(i64, @bitCast(tex.height))));
             const width: i32 = @as(i32, @intCast(@as(i64, @bitCast(tex.width))));
-            switch (@TypeOf(tex)) {
-                texture.Texture(utils.ColorMode.color_256) => {
+            switch (color_type) {
+                .color_256 => {
                     var j: i32 = tex.y;
                     while (j < (tex.y + height)) : (j += 1) {
                         if (j < 0) {
@@ -119,7 +135,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                         }
                     }
                 },
-                texture.Texture(utils.ColorMode.color_true) => {
+                .color_true => {
                     var j: i32 = tex.y;
                     while (j < (tex.y + height)) : (j += 1) {
                         if (j < 0) {
@@ -145,7 +161,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                             var b: u8 = tex.pixel_buffer[tex_indx].b;
                             if (tex.pixel_buffer[tex_indx].a) |alpha| {
                                 const max_pixel = 255.0;
-                                const bkgd = utils.indx_rgb(self.pixel_buffer[j_usize * self.terminal.size.width + i_usize]);
+                                const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
                                 var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
                                 var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(g));
                                 var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(b));
@@ -156,14 +172,13 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                                 g = @as(u8, @intFromFloat(gf));
                                 b = @as(u8, @intFromFloat(bf));
                             }
-                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = utils.rgb_256(r, g, b);
+                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = r;
+                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].g = g;
+                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = b;
 
                             tex_indx += 1;
                         }
                     }
-                },
-                else => {
-                    return Error.TextureError;
                 },
             }
         }
@@ -172,7 +187,16 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             const color_indx = utils.rgb_256(r, g, b);
             for (y..y + h) |j| {
                 for (x..x + w) |i| {
-                    self.pixel_buffer[j * self.terminal.size.width + i] = color_indx;
+                    switch (color_type) {
+                        .color_256 => {
+                            self.pixel_buffer[j * self.terminal.size.width + i] = color_indx;
+                        },
+                        .color_true => {
+                            self.pixel_buffer[j * self.terminal.size.width + i].r = r;
+                            self.pixel_buffer[j * self.terminal.size.width + i].g = g;
+                            self.pixel_buffer[j * self.terminal.size.width + i].b = b;
+                        },
+                    }
                 }
             }
         }
@@ -185,13 +209,35 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         pub fn flip(self: *Self) Error!void {
             // fill terminal buffer with pixel colors
             var buffer_len: usize = 0;
-            var prev_fg_pixel: u8 = 0;
-            var prev_bg_pixel: u8 = 0;
+
             var j: usize = 0;
             var i: usize = 0;
             const width = self.terminal.size.width;
             const height = self.terminal.size.height * 2;
+            var prev_fg_pixel: PixelType = self.pixel_buffer[j * width + i];
+            var prev_bg_pixel: PixelType = self.pixel_buffer[(j + 1) * width + i];
             var dirty_pixel_buffer: [48]u8 = undefined;
+            if (color_type == .color_256) {
+                for (term.FG[prev_fg_pixel]) |c| {
+                    self.terminal_buffer[buffer_len] = c;
+                    buffer_len += 1;
+                }
+                for (term.BG[prev_bg_pixel]) |c| {
+                    self.terminal_buffer[buffer_len] = c;
+                    buffer_len += 1;
+                }
+            } else {
+                for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.FG_RGB, .{ prev_fg_pixel.r, prev_fg_pixel.g, prev_fg_pixel.b })) |c| {
+                    self.terminal_buffer[buffer_len] = c;
+                    buffer_len += 1;
+                }
+
+                for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ prev_bg_pixel.r, prev_bg_pixel.g, prev_bg_pixel.b })) |c| {
+                    self.terminal_buffer[buffer_len] = c;
+                    buffer_len += 1;
+                }
+            }
+
             if (self.first_render) {
                 std.debug.print("first render\n", .{});
                 try self.terminal.out(term.CURSOR_HOME);
@@ -201,49 +247,109 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             while (j < height) : (j += 2) {
                 i = 0;
                 while (i < width) : (i += 1) {
+                    const fg_pixel = self.pixel_buffer[j * width + i];
+                    const bg_pixel = self.pixel_buffer[(j + 1) * width + i];
+                    const last_fg_pixel = self.last_frame[j * width + i];
+                    const last_bg_pixel = self.last_frame[(j + 1) * width + i];
                     if (!self.first_render) {
-                        if (self.pixel_buffer[j * width + i] == self.last_frame[j * width + i] and self.pixel_buffer[(j + 1) * width + i] == self.last_frame[(j + 1) * width + i]) {
-                            continue;
+                        switch (color_type) {
+                            .color_256 => {
+                                if (fg_pixel == last_fg_pixel and bg_pixel == last_bg_pixel) {
+                                    continue;
+                                }
+                                self.last_frame[j * width + i] = fg_pixel;
+                                self.last_frame[(j + 1) * width + i] = bg_pixel;
+                            },
+                            .color_true => {
+                                if (fg_pixel.r == last_fg_pixel.r and bg_pixel.r == last_bg_pixel.r and fg_pixel.g == last_fg_pixel.g and bg_pixel.g == last_bg_pixel.g and fg_pixel.b == last_fg_pixel.b and bg_pixel.b == last_bg_pixel.b) {
+                                    continue;
+                                }
+                                self.last_frame[j * width + i].r = fg_pixel.r;
+                                self.last_frame[j * width + i].g = fg_pixel.g;
+                                self.last_frame[j * width + i].b = fg_pixel.b;
+                                self.last_frame[(j + 1) * width + i].r = bg_pixel.r;
+                                self.last_frame[(j + 1) * width + i].g = bg_pixel.g;
+                                self.last_frame[(j + 1) * width + i].b = bg_pixel.b;
+                            },
                         }
-                        self.last_frame[j * width + i] = self.pixel_buffer[j * width + i];
-                        self.last_frame[(j + 1) * width + i] = self.pixel_buffer[(j + 1) * width + i];
+
                         for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ (j / 2) + 1, i + 1 })) |c| {
                             self.terminal_buffer[buffer_len] = c;
                             buffer_len += 1;
                         }
                     }
-                    const fg_pixel = self.pixel_buffer[j * width + i];
-                    const bg_pixel = self.pixel_buffer[(j + 1) * width + i];
-                    if (bg_pixel == prev_fg_pixel and fg_pixel == prev_bg_pixel) {
-                        for (LOWER_PX) |c| {
-                            self.terminal_buffer[buffer_len] = c;
-                            buffer_len += 1;
-                        }
-                    } else {
-                        if (prev_fg_pixel != fg_pixel) {
-                            prev_fg_pixel = fg_pixel;
-                            for (term.FG[fg_pixel]) |c| {
-                                self.terminal_buffer[buffer_len] = c;
-                                buffer_len += 1;
-                            }
-                        }
-                        if (prev_bg_pixel != bg_pixel) {
-                            prev_bg_pixel = bg_pixel;
-                            for (term.BG[bg_pixel]) |c| {
-                                self.terminal_buffer[buffer_len] = c;
-                                buffer_len += 1;
-                            }
-                        }
 
-                        if (fg_pixel == bg_pixel) {
-                            self.terminal_buffer[buffer_len] = ' ';
-                            buffer_len += 1;
-                        } else {
-                            for (UPPER_PX) |c| {
-                                self.terminal_buffer[buffer_len] = c;
-                                buffer_len += 1;
+                    switch (color_type) {
+                        .color_256 => {
+                            if (bg_pixel == prev_fg_pixel and fg_pixel == prev_bg_pixel) {
+                                for (LOWER_PX) |c| {
+                                    self.terminal_buffer[buffer_len] = c;
+                                    buffer_len += 1;
+                                }
+                            } else {
+                                if (prev_fg_pixel != fg_pixel) {
+                                    prev_fg_pixel = fg_pixel;
+                                    for (term.FG[fg_pixel]) |c| {
+                                        self.terminal_buffer[buffer_len] = c;
+                                        buffer_len += 1;
+                                    }
+                                }
+                                if (prev_bg_pixel != bg_pixel) {
+                                    prev_bg_pixel = bg_pixel;
+                                    for (term.BG[bg_pixel]) |c| {
+                                        self.terminal_buffer[buffer_len] = c;
+                                        buffer_len += 1;
+                                    }
+                                }
+
+                                if (fg_pixel == bg_pixel) {
+                                    self.terminal_buffer[buffer_len] = ' ';
+                                    buffer_len += 1;
+                                } else {
+                                    for (UPPER_PX) |c| {
+                                        self.terminal_buffer[buffer_len] = c;
+                                        buffer_len += 1;
+                                    }
+                                }
                             }
-                        }
+                        },
+                        .color_true => {
+                            if (bg_pixel.r == prev_fg_pixel.r and fg_pixel.r == prev_bg_pixel.r and bg_pixel.g == prev_fg_pixel.g and fg_pixel.g == prev_bg_pixel.g and bg_pixel.b == prev_fg_pixel.b and fg_pixel.b == prev_bg_pixel.b) {
+                                for (LOWER_PX) |c| {
+                                    self.terminal_buffer[buffer_len] = c;
+                                    buffer_len += 1;
+                                }
+                            } else {
+                                if (prev_fg_pixel.r != fg_pixel.r or prev_fg_pixel.g != fg_pixel.g or prev_fg_pixel.b != fg_pixel.b) {
+                                    prev_fg_pixel.r = fg_pixel.r;
+                                    prev_fg_pixel.g = fg_pixel.g;
+                                    prev_fg_pixel.b = fg_pixel.b;
+                                    for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.FG_RGB, .{ fg_pixel.r, fg_pixel.g, fg_pixel.b })) |c| {
+                                        self.terminal_buffer[buffer_len] = c;
+                                        buffer_len += 1;
+                                    }
+                                }
+                                if (prev_bg_pixel.r != bg_pixel.r or prev_bg_pixel.g != bg_pixel.g or prev_bg_pixel.b != bg_pixel.b) {
+                                    prev_bg_pixel.r = bg_pixel.r;
+                                    prev_bg_pixel.g = bg_pixel.g;
+                                    prev_bg_pixel.b = bg_pixel.b;
+                                    for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ bg_pixel.r, bg_pixel.g, bg_pixel.b })) |c| {
+                                        self.terminal_buffer[buffer_len] = c;
+                                        buffer_len += 1;
+                                    }
+                                }
+
+                                if (fg_pixel.r == bg_pixel.r and fg_pixel.g == bg_pixel.g and fg_pixel.b == bg_pixel.b) {
+                                    self.terminal_buffer[buffer_len] = ' ';
+                                    buffer_len += 1;
+                                } else {
+                                    for (UPPER_PX) |c| {
+                                        self.terminal_buffer[buffer_len] = c;
+                                        buffer_len += 1;
+                                    }
+                                }
+                            }
+                        },
                     }
                 }
             }
@@ -255,27 +361,62 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                             self.terminal_buffer[buffer_len] = c;
                             buffer_len += 1;
                         }
-                        const fg_pixel = utils.rgb_256(t.r, t.g, t.b);
 
-                        if (prev_fg_pixel != fg_pixel) {
-                            prev_fg_pixel = fg_pixel;
-                            for (term.FG[fg_pixel]) |c| {
-                                self.terminal_buffer[buffer_len] = c;
-                                buffer_len += 1;
-                            }
-                        }
+                        switch (color_type) {
+                            .color_256 => {
+                                const fg_pixel = utils.rgb_256(t.r, t.g, t.b);
 
-                        for (t.value, 0..) |c, z| {
-                            const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
-                            if (prev_bg_pixel != bg_pixel) {
-                                prev_bg_pixel = bg_pixel;
-                                for (term.BG[bg_pixel]) |ci| {
-                                    self.terminal_buffer[buffer_len] = ci;
+                                if (prev_fg_pixel != fg_pixel) {
+                                    prev_fg_pixel.r = fg_pixel.r;
+                                    prev_fg_pixel.g = fg_pixel.g;
+                                    prev_fg_pixel.b = fg_pixel.b;
+                                    for (term.FG[fg_pixel]) |c| {
+                                        self.terminal_buffer[buffer_len] = c;
+                                        buffer_len += 1;
+                                    }
+                                }
+
+                                for (t.value, 0..) |c, z| {
+                                    const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
+                                    if (prev_bg_pixel != bg_pixel) {
+                                        prev_bg_pixel.r = bg_pixel.r;
+                                        prev_bg_pixel.g = bg_pixel.g;
+                                        prev_bg_pixel.b = bg_pixel.b;
+                                        for (term.BG[bg_pixel]) |ci| {
+                                            self.terminal_buffer[buffer_len] = ci;
+                                            buffer_len += 1;
+                                        }
+                                    }
+                                    self.terminal_buffer[buffer_len] = c;
                                     buffer_len += 1;
                                 }
-                            }
-                            self.terminal_buffer[buffer_len] = c;
-                            buffer_len += 1;
+                            },
+                            .color_true => {
+                                if (prev_fg_pixel.r != t.r or prev_fg_pixel.g != t.g or prev_fg_pixel.b != t.b) {
+                                    prev_fg_pixel.r = t.r;
+                                    prev_fg_pixel.g = t.g;
+                                    prev_fg_pixel.b = t.b;
+                                    for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.FG_RGB, .{ t.r, t.g, t.b })) |c| {
+                                        self.terminal_buffer[buffer_len] = c;
+                                        buffer_len += 1;
+                                    }
+                                }
+
+                                for (t.value, 0..) |c, z| {
+                                    const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
+                                    if (prev_bg_pixel.r != bg_pixel.r or prev_bg_pixel.g != bg_pixel.g or prev_bg_pixel.b != bg_pixel.b) {
+                                        prev_bg_pixel.r = bg_pixel.r;
+                                        prev_bg_pixel.g = bg_pixel.g;
+                                        prev_bg_pixel.b = bg_pixel.b;
+                                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ bg_pixel.r, bg_pixel.g, bg_pixel.b })) |ci| {
+                                            self.terminal_buffer[buffer_len] = ci;
+                                            buffer_len += 1;
+                                        }
+                                    }
+                                    self.terminal_buffer[buffer_len] = c;
+                                    buffer_len += 1;
+                                }
+                            },
                         }
                     }
                     text = self.text_to_render.popOrNull();
