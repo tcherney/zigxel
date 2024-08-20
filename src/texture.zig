@@ -15,7 +15,12 @@ pub fn Texture(comptime T: utils.ColorMode) type {
         alpha_index: ?u8 = null,
         pub const PixelType: type = switch (T) {
             .color_256 => u8,
-            .color_true => struct { r: u8 = 0, g: u8 = 0, b: u8 = 0, a: ?u8 = null },
+            .color_true => struct {
+                r: u8 = 0,
+                g: u8 = 0,
+                b: u8 = 0,
+                a: ?u8 = null,
+            },
         };
         const Self = @This();
         pub fn init(allocator: std.mem.Allocator) Self {
@@ -71,6 +76,114 @@ pub fn Texture(comptime T: utils.ColorMode) type {
             self.allocator.free(self.pixel_buffer);
             self.pixel_buffer = new_buffer;
         }
+
+        const BicubicPixel = struct {
+            r: f32 = 0,
+            g: f32 = 0,
+            b: f32 = 0,
+            a: ?f32 = null,
+            pub fn sub(self: *const BicubicPixel, other: BicubicPixel) BicubicPixel {
+                return .{
+                    .r = self.r - other.r,
+                    .g = self.g - other.g,
+                    .b = self.b - other.b,
+                    .a = if (self.a != null and other.a != null) self.a.? - other.a.? else null,
+                };
+            }
+            pub fn add(self: *const BicubicPixel, other: BicubicPixel) BicubicPixel {
+                return .{
+                    .r = self.r + other.r,
+                    .g = self.g + other.g,
+                    .b = self.b + other.b,
+                    .a = if (self.a != null and other.a != null) self.a.? + other.a.? else null,
+                };
+            }
+            pub fn scale(self: *const BicubicPixel, scalar: f32) BicubicPixel {
+                return .{
+                    .r = self.r * scalar,
+                    .g = self.g * scalar,
+                    .b = self.b * scalar,
+                    .a = if (self.a != null) self.a.? * scalar else null,
+                };
+            }
+        };
+
+        fn bicubic_get_pixel(self: *Self, y: i64, x: i64) BicubicPixel {
+            if (x < self.width and y < self.height and x > 0 and y > 0) {
+                if (T == .color_256) {
+                    const color = utils.indx_rgb(self.pixel_buffer[@as(usize, @bitCast(y)) * self.width + @as(usize, @bitCast(x))]);
+                    return BicubicPixel{
+                        .r = @as(f32, @floatFromInt(color.r)),
+                        .g = @as(f32, @floatFromInt(color.g)),
+                        .b = @as(f32, @floatFromInt(color.b)),
+                    };
+                } else {
+                    return BicubicPixel{
+                        .r = @as(f32, @floatFromInt(self.pixel_buffer[@as(usize, @bitCast(y)) * self.width + @as(usize, @bitCast(x))].r)),
+                        .g = @as(f32, @floatFromInt(self.pixel_buffer[@as(usize, @bitCast(y)) * self.width + @as(usize, @bitCast(x))].g)),
+                        .b = @as(f32, @floatFromInt(self.pixel_buffer[@as(usize, @bitCast(y)) * self.width + @as(usize, @bitCast(x))].b)),
+                    };
+                }
+            } else {
+                return BicubicPixel{};
+            }
+        }
+
+        fn bicubic(self: *Self, width: usize, height: usize) Error!void {
+            var new_buffer = try self.allocator.alloc(PixelType, width * height);
+            const width_scale: f32 = @as(f32, @floatFromInt(self.width)) / @as(f32, @floatFromInt(width));
+            const height_scale: f32 = @as(f32, @floatFromInt(self.height)) / @as(f32, @floatFromInt(height));
+            var C: [5]BicubicPixel = undefined;
+            for (0..5) |i| {
+                C[i] = BicubicPixel{};
+            }
+            for (0..height) |y| {
+                for (0..width) |x| {
+                    const src_x: i64 = @as(i64, @intFromFloat(@as(f32, @floatFromInt(x)) * width_scale));
+                    const src_y: i64 = @as(i64, @intFromFloat(@as(f32, @floatFromInt(y)) * height_scale));
+                    const dx: f32 = width_scale * @as(f32, @floatFromInt(x)) - @as(f32, @floatFromInt(src_x));
+                    const dy: f32 = height_scale * @as(f32, @floatFromInt(y)) - @as(f32, @floatFromInt(src_y));
+                    var new_pixel: BicubicPixel = BicubicPixel{};
+
+                    for (0..4) |jj| {
+                        const z: i64 = src_y + @as(i64, @bitCast(jj)) - 1;
+                        const a0 = self.bicubic_get_pixel(z, src_x);
+                        const d0 = self.bicubic_get_pixel(z, src_x - 1).sub(a0);
+                        const d2 = self.bicubic_get_pixel(z, src_x + 1).sub(a0);
+                        const d3 = self.bicubic_get_pixel(z, src_x + 2).sub(a0);
+
+                        const a1 = d0.scale(-1.0 / 3.0).add(d2.sub(d3.scale(1.0 / 6.0)));
+                        const a2 = d0.scale(1.0 / 2.0).add(d2.scale(1.0 / 2.0));
+                        const a3 = d0.scale(-1.0 / 6.0).sub(d2.scale(1.0 / 2.0).add(d3.scale(1.0 / 6.0)));
+
+                        C[jj] = a0.add(a1.scale(dx)).add(a2.scale(dx * dx)).add(a3.scale(dx * dx * dx));
+                    }
+                    const d0 = C[0].sub(C[1]);
+                    const d2 = C[2].sub(C[1]);
+                    const d3 = C[3].sub(C[1]);
+                    const a0 = C[1];
+
+                    const a1 = d0.scale(-1.0 / 3.0).add(d2.sub(d3.scale(1.0 / 6.0)));
+                    const a2 = d0.scale(1.0 / 2.0).add(d2.scale(1.0 / 2.0));
+                    const a3 = d0.scale(-1.0 / 6.0).sub(d2.scale(1.0 / 2.0).add(d3.scale(1.0 / 6.0)));
+                    new_pixel = a0.add(a1.scale(dy)).add(a2.scale(dy * dy)).add(a3.scale(dy * dy * dy));
+                    if (T == .color_256) {
+                        new_buffer[y * width + x] = utils.rgb_256(@as(u8, @intFromFloat(new_pixel.r)), @as(u8, @intFromFloat(new_pixel.g)), @as(u8, @intFromFloat(new_pixel.b)));
+                    } else {
+                        new_buffer[y * width + x].r = @as(u8, @intFromFloat(new_pixel.r));
+                        new_buffer[y * width + x].g = @as(u8, @intFromFloat(new_pixel.g));
+                        new_buffer[y * width + x].b = @as(u8, @intFromFloat(new_pixel.b));
+                        new_buffer[y * width + x].a = if (new_pixel.a != null) @as(u8, @intFromFloat(new_pixel.a.?)) else null;
+                    }
+                }
+            }
+
+            self.width = width;
+            self.height = height;
+            self.allocator.free(self.pixel_buffer);
+            self.pixel_buffer = new_buffer;
+        }
+
         fn bilinear(self: *Self, width: usize, height: usize) Error!void {
             var new_buffer = try self.allocator.alloc(PixelType, width * height);
             const width_scale: f32 = @as(f32, @floatFromInt(self.width)) / @as(f32, @floatFromInt(width));
@@ -203,7 +316,7 @@ pub fn Texture(comptime T: utils.ColorMode) type {
         }
 
         pub fn scale(self: *Self, width: usize, height: usize) Error!void {
-            return self.bilinear(width, height);
+            return self.nearest_neighbor(width, height);
         }
 
         pub fn load_image(self: *Self, x: i32, y: i32, img: anytype) Error!void {
