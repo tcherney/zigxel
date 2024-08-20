@@ -160,6 +160,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                             var g: u8 = tex.pixel_buffer[tex_indx].g;
                             var b: u8 = tex.pixel_buffer[tex_indx].b;
                             if (tex.pixel_buffer[tex_indx].a) |alpha| {
+                                std.debug.print("computing alpha {any}", .{alpha});
                                 const max_pixel = 255.0;
                                 const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
                                 var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
