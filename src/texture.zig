@@ -77,6 +77,77 @@ pub fn Texture(comptime T: utils.ColorMode) type {
             self.pixel_buffer = new_buffer;
         }
 
+        inline fn gaussian_kernel(x: i32, y: i32, sigma: f32) f32 {
+            const coeff: f32 = 1.0 / (2.0 * std.math.pi * sigma * sigma);
+            const exponent: f32 = -(@as(f32, @floatFromInt(x)) * @as(f32, @floatFromInt(x)) + @as(f32, @floatFromInt(y)) * @as(f32, @floatFromInt(y))) / (2.0 * sigma * sigma);
+            return coeff * std.math.exp(exponent);
+        }
+
+        fn gaussian_kernel_2d(self: *Self, sigma: f32) Error![]f32 {
+            var kernel_size: usize = @as(usize, @intFromFloat(@ceil(2 * sigma + 1)));
+            if (kernel_size % 2 == 0) {
+                kernel_size += 1;
+            }
+            var kernel_2d: []f32 = try self.allocator.alloc(f32, kernel_size * kernel_size);
+            var sum: f32 = 0.0;
+            for (0..kernel_size) |i| {
+                for (0..kernel_size) |j| {
+                    const x: i32 = @as(i32, @intCast(@as(i64, @bitCast(j)))) - @divFloor(@as(i32, @intCast(@as(i64, @bitCast(kernel_size)))), 2);
+                    const y: i32 = @as(i32, @intCast(@as(i64, @bitCast(i)))) - @divFloor(@as(i32, @intCast(@as(i64, @bitCast(kernel_size)))), 2);
+                    const val: f32 = gaussian_kernel(x, y, sigma);
+                    kernel_2d[i * kernel_size + j] = val;
+                    sum += val;
+                }
+            }
+
+            for (0..kernel_size) |i| {
+                for (0..kernel_size) |j| {
+                    kernel_2d[i * kernel_size + j] /= sum;
+                }
+            }
+            return kernel_2d;
+        }
+
+        pub fn gaussian_blur(self: *Self, sigma: f32) Error!void {
+            const kernel_2d = try self.gaussian_kernel_2d(sigma);
+            defer self.allocator.free(kernel_2d);
+            var kernel_size: usize = @as(usize, @intFromFloat(@ceil(2 * sigma + 1)));
+            if (kernel_size % 2 == 0) {
+                kernel_size += 1;
+            }
+
+            for (kernel_size / 2..self.height - kernel_size / 2) |y| {
+                for (kernel_size / 2..self.width - kernel_size / 2) |x| {
+                    var r: f32 = 0.0;
+                    var g: f32 = 0.0;
+                    var b: f32 = 0.0;
+                    var a: f32 = 0.0;
+                    for (0..kernel_size) |i| {
+                        for (0..kernel_size) |j| {
+                            var curr_pixel: PixelType = undefined;
+                            if (T == .color_256) {
+                                curr_pixel = utils.indx_rgb(self.pixel_buffer[(y + i - kernel_size / 2) * self.width + (x + j - kernel_size / 2)]);
+                            } else {
+                                curr_pixel = self.pixel_buffer[(y + i - kernel_size / 2) * self.width + (x + j - kernel_size / 2)];
+                            }
+                            r += kernel_2d[i * kernel_size + j] * @as(f32, @floatFromInt(curr_pixel.r));
+                            g += kernel_2d[i * kernel_size + j] * @as(f32, @floatFromInt(curr_pixel.g));
+                            b += kernel_2d[i * kernel_size + j] * @as(f32, @floatFromInt(curr_pixel.b));
+                            a += if (curr_pixel.a != null) kernel_2d[i * kernel_size + j] * @as(f32, @floatFromInt(curr_pixel.a.?)) else 0.0;
+                        }
+                    }
+                    if (T == .color_256) {
+                        self.pixel_buffer[y * self.width + x] = utils.rgb_256(@as(u8, @intFromFloat(r)), @as(u8, @intFromFloat(g)), @as(u8, @intFromFloat(b)));
+                    } else {
+                        self.pixel_buffer[y * self.width + x].r = @as(u8, @intFromFloat(r));
+                        self.pixel_buffer[y * self.width + x].g = @as(u8, @intFromFloat(g));
+                        self.pixel_buffer[y * self.width + x].b = @as(u8, @intFromFloat(b));
+                        self.pixel_buffer[y * self.width + x].a = if (self.pixel_buffer[y * self.width + x].a != null) @as(u8, @intFromFloat(a)) else null;
+                    }
+                }
+            }
+        }
+
         const BicubicPixel = struct {
             r: f32 = 0,
             g: f32 = 0,
@@ -144,7 +215,6 @@ pub fn Texture(comptime T: utils.ColorMode) type {
                     const dx: f32 = width_scale * @as(f32, @floatFromInt(x)) - @as(f32, @floatFromInt(src_x));
                     const dy: f32 = height_scale * @as(f32, @floatFromInt(y)) - @as(f32, @floatFromInt(src_y));
                     var new_pixel: BicubicPixel = BicubicPixel{};
-
                     for (0..4) |jj| {
                         const z: i64 = src_y + @as(i64, @bitCast(jj)) - 1;
                         const a0 = self.bicubic_get_pixel(z, src_x);
@@ -316,7 +386,7 @@ pub fn Texture(comptime T: utils.ColorMode) type {
         }
 
         pub fn scale(self: *Self, width: usize, height: usize) Error!void {
-            return self.nearest_neighbor(width, height);
+            return self.bicubic(width, height);
         }
 
         pub fn load_image(self: *Self, x: i32, y: i32, img: anytype) Error!void {

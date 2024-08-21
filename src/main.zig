@@ -41,6 +41,7 @@ pub fn main() !void {
     var img = image.Image(image.JPEGImage){};
     try img.load("../img2ascii/tests/jpeg/cat.jpg", allocator);
     try tex.load_image(5, 5, img);
+    try tex.gaussian_blur(3.0);
     try tex.scale(68, 45);
     //std.debug.print("{any}\n", .{tex.pixel_buffer});
     //std.debug.print("{d}\n", .{utils.rgb_256(255, 255, 255)});
