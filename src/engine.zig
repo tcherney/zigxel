@@ -15,11 +15,13 @@ pub const KEYS = event_manager.KEYS;
 
 pub const Error = error{} || event_manager.Error || graphics.Error || std.time.Timer.Error || utils.Error;
 
+pub const RenderCallback = utils.CallbackError(u64);
+
 pub fn Engine(comptime color_type: utils.ColorMode) type {
     return struct {
         renderer: Graphics(color_type) = undefined,
         events: EventManager = undefined,
-        render_fn: ?*const fn () Error!void = null,
+        render_callback: ?RenderCallback = null,
         render_thread: std.Thread = undefined,
         running: bool = false,
         frame_limit: u64 = 16_666_667,
@@ -34,7 +36,7 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
 
         pub fn deinit(self: *Self) Error!void {
             self.stop();
-            if (self.render_fn != null) {
+            if (self.render_callback != null) {
                 self.render_thread.join();
             }
             try self.renderer.deinit();
@@ -46,18 +48,19 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
             self.window_change_size = term.Size{ .width = @as(usize, @intCast(coord.X)), .height = @as(usize, @intCast(coord.Y)) };
         }
 
-        fn render_loop(self: *Self) Error!void {
+        fn render_loop(self: *Self) !void {
             var timer: std.time.Timer = try std.time.Timer.start();
             var elapsed: f64 = 0.0;
             var frames: u32 = 0;
+            var delta: u64 = 0;
             while (self.running) {
-                try self.render_fn.?();
+                try self.render_callback.?.call(delta);
                 // check window change
                 if (self.window_changed) {
                     try self.renderer.size_change(self.window_change_size);
                     self.window_changed = false;
                 }
-                const delta = timer.read();
+                delta = timer.read();
                 timer.reset();
                 elapsed += @as(f64, @floatFromInt(delta)) / 1_000_000_000.0;
                 frames += 1;
@@ -90,25 +93,25 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
             self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
             self.running = true;
             try self.events.start();
-            if (self.render_fn) |_| {
+            if (self.render_callback) |_| {
                 self.render_thread = try std.Thread.spawn(.{}, render_loop, .{self});
             }
         }
 
-        pub fn on_key_down(self: *Self, func: *const fn (KEYS) void) void {
-            self.events.key_down_callback = func;
+        pub fn on_key_down(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+            self.events.key_down_callback = event_manager.KeyChangeCallback.init(CONTEXT_TYPE, func, context);
         }
 
-        pub fn on_key_up(self: *Self, func: *const fn (KEYS) void) void {
-            self.events.key_up_callback = func;
+        pub fn on_key_up(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+            self.events.key_up_callback = event_manager.KeyChangeCallback.init(CONTEXT_TYPE, func, context);
         }
 
-        pub fn on_key_press(self: *Self, func: *const fn (KEYS) void) void {
-            self.events.key_press_callback = func;
+        pub fn on_key_press(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+            self.events.key_press_callback = event_manager.KeyChangeCallback.init(CONTEXT_TYPE, func, context);
         }
 
-        pub fn on_render(self: *Self, func: *const fn () Error!void) void {
-            self.render_fn = func;
+        pub fn on_render(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+            self.render_callback = RenderCallback.init(CONTEXT_TYPE, func, context);
         }
     };
 }

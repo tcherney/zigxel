@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const utils = @import("utils.zig");
 //https://www.asciitable.com/
 const win32 = struct {
     pub const EVENT_RECORD = extern union { KeyEvent: KEY_EVENT_RECORD, WindowBufferSizeEvent: WINDOW_BUFFER_SIZE_RECORD };
@@ -35,25 +36,15 @@ pub const KEYS = enum(u8) { KEY_0 = '0', KEY_1 = '1', KEY_2 = '2', KEY_3 = '3', 
 
 pub const Error = error{ WindowsInit, WindowsRead } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError;
 
-pub const WindowChangeCallback = struct {
-    function: *const fn (context: *anyopaque, std.os.windows.COORD) void,
-    context: *anyopaque,
-
-    pub fn init(comptime T: type, function: *const fn (context: *T, std.os.windows.COORD) void, context: *T) WindowChangeCallback {
-        return WindowChangeCallback{ .function = @ptrCast(function), .context = context };
-    }
-
-    pub fn call(callback: WindowChangeCallback, coord: std.os.windows.COORD) void {
-        return callback.function(callback.context, coord);
-    }
-};
+pub const WindowChangeCallback = utils.Callback(std.os.windows.COORD);
+pub const KeyChangeCallback = utils.Callback(KEYS);
 
 pub const EventManager = struct {
     main_thread: std.Thread = undefined,
     running: bool = false,
-    key_up_callback: ?*const fn (KEYS) void = null,
-    key_down_callback: ?*const fn (KEYS) void = null,
-    key_press_callback: ?*const fn (KEYS) void = null,
+    key_up_callback: ?KeyChangeCallback = null,
+    key_down_callback: ?KeyChangeCallback = null,
+    key_press_callback: ?KeyChangeCallback = null,
     window_change_callback: ?WindowChangeCallback = null,
     original_termios: termios = undefined,
     stdin: std.fs.File,
@@ -135,11 +126,11 @@ pub const EventManager = struct {
                             switch (irInBuf[i].EventType) {
                                 @intFromEnum(win32.EventType.KEY_EVENT) => {
                                     if (self.key_down_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.TRUE) {
-                                        self.key_down_callback.?(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                        self.key_down_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
                                     } else if (self.key_up_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.FALSE) {
-                                        self.key_press_callback.?(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                        self.key_press_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
                                     } else if (self.key_press_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.FALSE) {
-                                        self.key_press_callback.?(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                        self.key_press_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
                                     }
                                 },
                                 @intFromEnum(win32.EventType.WINDOW_BUFFER_SIZE) => {
