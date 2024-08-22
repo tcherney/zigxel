@@ -9,7 +9,7 @@ pub const Game = struct {
     running: bool = true,
     e: engine.Engine(utils.ColorMode.color_true) = undefined,
     fps_buffer: [64]u8 = undefined,
-    tex: engine.TextureTrue = undefined,
+    tex: engine.Texture = undefined,
     allocator: std.mem.Allocator = undefined,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
@@ -45,7 +45,7 @@ pub const Game = struct {
     }
     pub fn run(self: *Self) !void {
         try utils.gen_rand();
-        self.tex = engine.TextureTrue.init(self.allocator);
+        self.tex = engine.Texture.init(self.allocator);
         self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
         var img = image.Image(image.JPEGImage){};
         try img.load("../img2ascii/tests/jpeg/cat.jpg", self.allocator);

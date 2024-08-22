@@ -98,89 +98,61 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             }
         }
 
-        pub fn draw_texture(self: *Self, tex: texture.Texture(color_type)) void {
+        pub fn draw_texture(self: *Self, tex: texture.Texture) void {
             var tex_indx: usize = 0;
-            const height: i32 = @as(i32, @intCast(@as(i64, @bitCast(tex.height))));
-            const width: i32 = @as(i32, @intCast(@as(i64, @bitCast(tex.width))));
-            switch (color_type) {
-                .color_256 => {
-                    var j: i32 = tex.y;
-                    while (j < (tex.y + height)) : (j += 1) {
-                        if (j < 0) {
-                            tex_indx += tex.width;
-                            continue;
-                        } else if (j >= self.terminal.size.height) {
-                            break;
-                        }
-                        var i: i32 = tex.x;
-                        while (i < (tex.x + width) and tex_indx < tex.pixel_buffer.len) : (i += 1) {
-                            const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
-                            const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
-                            if (i < 0) {
-                                tex_indx += 1;
-                                continue;
-                            } else if (i >= self.terminal.size.width) {
-                                tex_indx += @as(usize, @intCast(@as(u32, @bitCast((tex.x + width) - i))));
-                                break;
-                            }
-                            if (tex.alpha_index) |a| {
-                                if (tex.pixel_buffer[tex_indx] != a) {
-                                    self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = tex.pixel_buffer[tex_indx];
-                                }
-                            } else {
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = tex.pixel_buffer[tex_indx];
-                            }
-
-                            tex_indx += 1;
-                        }
+            const height: i32 = @as(i32, @bitCast(tex.height));
+            const width: i32 = @as(i32, @bitCast(tex.width));
+            var j: i32 = tex.y;
+            while (j < (tex.y + height)) : (j += 1) {
+                if (j < 0) {
+                    tex_indx += tex.width;
+                    continue;
+                } else if (j >= self.terminal.size.height) {
+                    break;
+                }
+                var i: i32 = tex.x;
+                while (i < (tex.x + width) and tex_indx < tex.pixel_buffer.len) : (i += 1) {
+                    const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
+                    const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
+                    if (i < 0) {
+                        tex_indx += 1;
+                        continue;
+                    } else if (i >= self.terminal.size.width) {
+                        tex_indx += @as(usize, @intCast(@as(u32, @bitCast((tex.x + width) - i))));
+                        break;
                     }
-                },
-                .color_true => {
-                    var j: i32 = tex.y;
-                    while (j < (tex.y + height)) : (j += 1) {
-                        if (j < 0) {
-                            tex_indx += tex.width;
-                            continue;
-                        } else if (j >= self.terminal.size.height) {
-                            break;
-                        }
-                        var i: i32 = tex.x;
-                        while (i < (tex.x + width) and tex_indx < tex.pixel_buffer.len) : (i += 1) {
-                            const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
-                            const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
-                            if (i < 0) {
-                                tex_indx += 1;
-                                continue;
-                            } else if (i >= self.terminal.size.width) {
-                                tex_indx += @as(usize, @intCast(@as(u32, @bitCast((tex.x + width) - i))));
-                                break;
-                            }
-                            // have alpha channel
-                            var r: u8 = tex.pixel_buffer[tex_indx].r;
-                            var g: u8 = tex.pixel_buffer[tex_indx].g;
-                            var b: u8 = tex.pixel_buffer[tex_indx].b;
-                            if (tex.pixel_buffer[tex_indx].a) |alpha| {
-                                std.debug.print("computing alpha {any}", .{alpha});
-                                const max_pixel = 255.0;
-                                const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
-                                var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
-                                var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(g));
-                                var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(b));
-                                rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                                gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                                bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
-                                r = @as(u8, @intFromFloat(rf));
-                                g = @as(u8, @intFromFloat(gf));
-                                b = @as(u8, @intFromFloat(bf));
-                            }
+                    // have alpha channel
+                    var r: u8 = tex.pixel_buffer[tex_indx].r;
+                    var g: u8 = tex.pixel_buffer[tex_indx].g;
+                    var b: u8 = tex.pixel_buffer[tex_indx].b;
+                    if (tex.pixel_buffer[tex_indx].a) |alpha| {
+                        std.debug.print("computing alpha {any}", .{alpha});
+                        const max_pixel = 255.0;
+                        const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
+                        var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
+                        var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(g));
+                        var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(b));
+                        rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                        gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                        bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                        r = @as(u8, @intFromFloat(rf));
+                        g = @as(u8, @intFromFloat(gf));
+                        b = @as(u8, @intFromFloat(bf));
+                    }
+
+                    switch (color_type) {
+                        .color_256 => {
+                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = utils.rgb_256(r, g, b);
+                        },
+                        .color_true => {
                             self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = r;
                             self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].g = g;
                             self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = b;
-
-                            tex_indx += 1;
-                        }
+                        },
                     }
-                },
+
+                    tex_indx += 1;
+                }
             }
         }
 

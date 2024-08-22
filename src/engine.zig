@@ -9,8 +9,7 @@ const image = @import("image");
 
 pub const EventManager = event_manager.EventManager;
 pub const Graphics = graphics.Graphics;
-pub const Texture256 = texture.Texture(utils.ColorMode.color_256);
-pub const TextureTrue = texture.Texture(utils.ColorMode.color_true);
+pub const Texture = texture.Texture;
 pub const KEYS = event_manager.KEYS;
 
 pub const Error = error{} || event_manager.Error || graphics.Error || std.time.Timer.Error || utils.Error;
