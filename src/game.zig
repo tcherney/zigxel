@@ -2,6 +2,7 @@ const std = @import("std");
 const engine = @import("engine.zig");
 const utils = @import("utils.zig");
 const image = @import("image");
+const sprite = @import("sprite.zig");
 
 pub const Error = error{} || image.Error || engine.Error || utils.Error;
 
@@ -10,6 +11,7 @@ pub const Game = struct {
     e: engine.Engine(utils.ColorMode.color_true) = undefined,
     fps_buffer: [64]u8 = undefined,
     tex: engine.Texture = undefined,
+    player: sprite.Sprite = undefined,
     allocator: std.mem.Allocator = undefined,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
@@ -24,13 +26,13 @@ pub const Game = struct {
         if (key == engine.KEYS.KEY_q) {
             self.running = false;
         } else if (key == engine.KEYS.KEY_a) {
-            self.tex.x -= 1;
+            self.player.dest.x -= 1;
         } else if (key == engine.KEYS.KEY_d) {
-            self.tex.x += 1;
+            self.player.dest.x += 1;
         } else if (key == engine.KEYS.KEY_w) {
-            self.tex.y -= 1;
+            self.player.dest.y -= 1;
         } else if (key == engine.KEYS.KEY_s) {
-            self.tex.y += 1;
+            self.player.dest.y += 1;
         }
     }
 
@@ -39,7 +41,7 @@ pub const Game = struct {
         self.e.renderer.draw_rect(60, 8, 2, 3, 0, 255, 255);
         self.e.renderer.draw_rect(60, 8, 3, 1, 128, 75, 0);
         self.e.renderer.draw_rect(95, 15, 2, 1, 255, 128, 0);
-        self.e.renderer.draw_texture(self.tex);
+        try self.e.renderer.draw_sprite(self.player);
         try self.e.renderer.draw_text(try std.fmt.bufPrint(&self.fps_buffer, "FPS:{d:.2}", .{self.e.fps}), 30, 40, 0, 255, 0);
         try self.e.renderer.flip();
     }
@@ -50,9 +52,10 @@ pub const Game = struct {
         var img = image.Image(image.JPEGImage){};
         try img.load("../img2ascii/tests/jpeg/cat.jpg", self.allocator);
         defer img.deinit();
-        try self.tex.load_image(5, 5, img);
-        try self.tex.gaussian_blur(3.0);
-        try self.tex.scale(68, 45);
+        try self.tex.load_image(img);
+        //try self.tex.gaussian_blur(3.0);
+        //try self.tex.scale(68, 45);
+        self.player = sprite.Sprite.init(self.allocator, .{ .x = 260, .y = 175, .width = 50, .height = 50 }, .{ .x = 5, .y = 5, .width = 50, .height = 50 }, self.tex);
         //std.debug.print("{any}\n", .{tex.pixel_buffer});
         //std.debug.print("{d}\n", .{utils.rgb_256(255, 255, 255)});
         self.e.on_key_press(Self, on_key_press, self);

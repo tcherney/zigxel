@@ -2,6 +2,7 @@ const std = @import("std");
 const term = @import("term.zig");
 const texture = @import("texture.zig");
 const utils = @import("utils.zig");
+const sprite = @import("sprite.zig");
 
 //https://www.compart.com/en/unicode/U+2580
 const UPPER_PX = "▀";
@@ -98,27 +99,37 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             }
         }
 
-        pub fn draw_texture(self: *Self, tex: texture.Texture) void {
-            var tex_indx: usize = 0;
-            const height: i32 = @as(i32, @bitCast(tex.height));
-            const width: i32 = @as(i32, @bitCast(tex.width));
-            var j: i32 = tex.y;
-            while (j < (tex.y + height)) : (j += 1) {
+        pub fn draw_sprite(self: *Self, s: sprite.Sprite) Error!void {
+            try self.draw_texture(s.tex, s.src, s.dest);
+        }
+
+        //TODO take in src and dest rectangles instead then sprite call can use this function with its rectangle members
+        pub fn draw_texture(self: *Self, tex: texture.Texture, src: utils.Rectangle, dest: utils.Rectangle) Error!void {
+            var tex_indx: usize = (@as(u32, @bitCast(src.y)) * tex.width + @as(u32, @bitCast(src.x)));
+            if (src.height > tex.height or src.width > tex.width) {
+                return Error.TextureError;
+            }
+            //const height_i: i32 = @as(i32, @bitCast(tex.height));
+            const width_i: i32 = @as(i32, @bitCast(tex.width));
+            const src_height_i: i32 = @as(i32, @bitCast(src.height));
+            const src_width_i: i32 = @as(i32, @bitCast(src.width));
+            var j: i32 = dest.y;
+            while (j < (dest.y + src_height_i)) : (j += 1) {
                 if (j < 0) {
                     tex_indx += tex.width;
                     continue;
                 } else if (j >= self.terminal.size.height) {
                     break;
                 }
-                var i: i32 = tex.x;
-                while (i < (tex.x + width) and tex_indx < tex.pixel_buffer.len) : (i += 1) {
+                var i: i32 = dest.x;
+                while (i < (dest.x + src_width_i) and tex_indx < tex.pixel_buffer.len) : (i += 1) {
                     const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
                     const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
                     if (i < 0) {
                         tex_indx += 1;
                         continue;
                     } else if (i >= self.terminal.size.width) {
-                        tex_indx += @as(usize, @intCast(@as(u32, @bitCast((tex.x + width) - i))));
+                        tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest.x + width_i) - i))));
                         break;
                     }
                     // have alpha channel
@@ -153,6 +164,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
 
                     tex_indx += 1;
                 }
+                tex_indx += tex.width - src.width;
             }
         }
 

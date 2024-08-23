@@ -32,6 +32,13 @@ pub fn CallbackError(comptime DATA_TYPE: type) type {
     };
 }
 
+pub const Rectangle = struct {
+    x: i32 = 0,
+    y: i32 = 0,
+    width: u32 = 0,
+    height: u32 = 0,
+};
+
 pub const ColorMode = enum {
     color_256,
     color_true,

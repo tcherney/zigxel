@@ -7,8 +7,6 @@ pub const Pixel = image.Pixel;
 
 pub const Texture = struct {
     allocator: std.mem.Allocator,
-    x: i32 = undefined,
-    y: i32 = undefined,
     height: u32 = undefined,
     width: u32 = undefined,
     pixel_buffer: []Pixel = undefined,
@@ -23,9 +21,7 @@ pub const Texture = struct {
         self.allocator.free(self.pixel_buffer);
     }
 
-    pub fn rect(self: *Self, x: i32, y: i32, width: u32, height: u32, r: u8, g: u8, b: u8) Error!void {
-        self.x = x;
-        self.y = y;
+    pub fn rect(self: *Self, width: u32, height: u32, r: u8, g: u8, b: u8) Error!void {
         self.height = height;
         self.width = width;
         if (self.loaded) {
@@ -81,9 +77,7 @@ pub const Texture = struct {
         return self.bicubic(width, height);
     }
 
-    pub fn load_image(self: *Self, x: i32, y: i32, img: anytype) Error!void {
-        self.x = x;
-        self.y = y;
+    pub fn load_image(self: *Self, img: anytype) Error!void {
         self.width = img.width;
         self.height = img.height;
         if (self.loaded) {
@@ -110,32 +104,6 @@ pub const Texture = struct {
 //     var texture = Texture(ColorMode.color_256).init(allocator);
 //     try texture.load_image(5, 5, img);
 //     img.deinit();
-//     texture.deinit();
-//     if (gpa.deinit() == .leak) {
-//         std.debug.print("Leaked!\n", .{});
-//     }
-// }
-
-// test "256" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     const allocator = gpa.allocator();
-//     var texture = Texture(ColorMode.color_256).init(allocator);
-//     try texture.rect(5, 5, 10, 10, 255, 0, 0);
-//     std.debug.print("{}\n", .{texture});
-//     try std.testing.expect(texture.pixel_buffer[0] == 196);
-//     texture.deinit();
-//     if (gpa.deinit() == .leak) {
-//         std.debug.print("Leaked!\n", .{});
-//     }
-// }
-
-// test "true" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     const allocator = gpa.allocator();
-//     var texture = Texture(ColorMode.color_true).init(allocator);
-//     try texture.rect(5, 5, 10, 10, 255, 0, 0);
-//     std.debug.print("{}\n", .{texture});
-//     try std.testing.expect(texture.pixel_buffer[0].r == 255);
 //     texture.deinit();
 //     if (gpa.deinit() == .leak) {
 //         std.debug.print("Leaked!\n", .{});
