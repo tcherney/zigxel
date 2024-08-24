@@ -48,6 +48,9 @@
         .imglib = .{
             .path = "../zig-image",
         },
+        .terminal = .{
+            .path = "../terminal",
+        },
     },
 
     // Specifies the set of files and directories that are included in this package.

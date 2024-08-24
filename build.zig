@@ -27,6 +27,12 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     exe.root_module.addImport("image", imglib.module("image"));
+
+    const termlib = b.dependency("terminal", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("term", termlib.module("term"));
     exe.linkLibC();
 
     // This declares intent for the executable to be installed into the
@@ -80,6 +86,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     engine_unit_tests.root_module.addImport("image", imglib.module("image"));
+    engine_unit_tests.root_module.addImport("term", termlib.module("term"));
     engine_unit_tests.linkLibC();
     const run_engine_unit_tests = b.addRunArtifact(engine_unit_tests);
     // Similar to creating the run step earlier, this exposes a `test` step to

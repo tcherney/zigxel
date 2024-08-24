@@ -1,5 +1,5 @@
 const std = @import("std");
-const term = @import("term.zig");
+const term = @import("term");
 const texture = @import("texture.zig");
 const utils = @import("utils.zig");
 const sprite = @import("sprite.zig");
@@ -89,7 +89,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         }
 
         pub fn set_bg(self: *Self, r: u8, g: u8, b: u8) void {
-            const bg_color_indx = utils.rgb_256(r, g, b);
+            const bg_color_indx = term.rgb_256(r, g, b);
             for (0..self.pixel_buffer.len) |i| {
                 if (color_type == .color_256) {
                     self.pixel_buffer[i] = bg_color_indx;
@@ -159,7 +159,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
 
                     switch (color_type) {
                         .color_256 => {
-                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = utils.rgb_256(r, g, b);
+                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = term.rgb_256(r, g, b);
                         },
                         .color_true => {
                             self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = r;
@@ -179,7 +179,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         }
 
         pub fn draw_rect(self: *Self, x: usize, y: usize, w: usize, h: usize, r: u8, g: u8, b: u8) void {
-            const color_indx = utils.rgb_256(r, g, b);
+            const color_indx = term.rgb_256(r, g, b);
             for (y..y + h) |j| {
                 for (x..x + w) |i| {
                     switch (color_type) {
@@ -360,7 +360,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
 
                         switch (color_type) {
                             .color_256 => {
-                                const fg_pixel = utils.rgb_256(t.r, t.g, t.b);
+                                const fg_pixel = term.rgb_256(t.r, t.g, t.b);
 
                                 if (prev_fg_pixel != fg_pixel) {
                                     prev_fg_pixel.r = fg_pixel.r;
