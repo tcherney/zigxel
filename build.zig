@@ -22,12 +22,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const img2ascii = b.dependency("img2ascii", .{
+    const imglib = b.dependency("imglib", .{
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("image", img2ascii.module("image"));
-    exe.linkLibrary(img2ascii.artifact("image"));
+    exe.root_module.addImport("image", imglib.module("image"));
     exe.linkLibC();
 
     // This declares intent for the executable to be installed into the
@@ -71,7 +70,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    texture_unit_tests.root_module.addImport("image", img2ascii.module("image"));
+    texture_unit_tests.root_module.addImport("image", imglib.module("image"));
     texture_unit_tests.linkLibC();
     const run_texture_unit_tests = b.addRunArtifact(texture_unit_tests);
 
@@ -80,7 +79,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    engine_unit_tests.root_module.addImport("image", img2ascii.module("image"));
+    engine_unit_tests.root_module.addImport("image", imglib.module("image"));
     engine_unit_tests.linkLibC();
     const run_engine_unit_tests = b.addRunArtifact(engine_unit_tests);
     // Similar to creating the run step earlier, this exposes a `test` step to

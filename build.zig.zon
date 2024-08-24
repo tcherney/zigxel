@@ -45,8 +45,8 @@
         //    // build root. In this case the package's hash is irrelevant and therefore not
         //    // computed. This field and `url` are mutually exclusive.
         //    .path = "foo",
-        .img2ascii = .{
-            .path = "../img2ascii",
+        .imglib = .{
+            .path = "../zig-image",
         },
     },
 
