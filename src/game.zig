@@ -20,6 +20,7 @@ pub const Game = struct {
     pub fn deinit(self: *Self) Error!void {
         try self.e.deinit();
         self.tex.deinit();
+        self.player.deinit();
     }
     pub fn on_key_press(self: *Self, key: engine.KEYS) void {
         //std.debug.print("{}\n", .{key});
@@ -55,7 +56,7 @@ pub const Game = struct {
         try self.tex.load_image(img);
         //try self.tex.gaussian_blur(3.0);
         //try self.tex.scale(68, 45);
-        self.player = sprite.Sprite.init(self.allocator, .{ .x = 260, .y = 175, .width = 50, .height = 50 }, .{ .x = 5, .y = 5, .width = 50, .height = 50 }, self.tex);
+        self.player = try sprite.Sprite.init(self.allocator, .{ .x = 260, .y = 175, .width = 50, .height = 50 }, .{ .x = 5, .y = 5, .width = 100, .height = 35 }, self.tex);
         //std.debug.print("{any}\n", .{tex.pixel_buffer});
         //std.debug.print("{d}\n", .{utils.rgb_256(255, 255, 255)});
         self.e.on_key_press(Self, on_key_press, self);
