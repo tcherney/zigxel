@@ -34,7 +34,7 @@ const win32 = struct {
 
 pub const KEYS = enum(u8) { KEY_0 = '0', KEY_1 = '1', KEY_2 = '2', KEY_3 = '3', KEY_4 = '4', KEY_5 = '5', KEY_6 = '6', KEY_7 = '7', KEY_8 = '8', KEY_9 = '9', KEY_A = 'A', KEY_B = 'B', KEY_C = 'C', KEY_D = 'D', KEY_E = 'E', KEY_F = 'F', KEY_G = 'G', KEY_H = 'H', KEY_I = 'I', KEY_J = 'J', KEY_K = 'K', KEY_L = 'L', KEY_M = 'M', KEY_N = 'N', KEY_O = 'O', KEY_P = 'P', KEY_Q = 'Q', KEY_R = 'R', KEY_S = 'S', KEY_T = 'T', KEY_U = 'U', KEY_V = 'V', KEY_W = 'W', KEY_X = 'X', KEY_Y = 'Y', KEY_Z = 'Z', KEY_a = 'a', KEY_b = 'b', KEY_c = 'c', KEY_d = 'd', KEY_e = 'e', KEY_f = 'f', KEY_g = 'g', KEY_h = 'h', KEY_i = 'i', KEY_j = 'j', KEY_k = 'k', KEY_l = 'l', KEY_m = 'm', KEY_n = 'n', KEY_o = 'o', KEY_p = 'p', KEY_q = 'q', KEY_r = 'r', KEY_s = 's', KEY_t = 't', KEY_u = 'u', KEY_v = 'v', KEY_w = 'w', KEY_x = 'x', KEY_y = 'y', KEY_z = 'z', KEY_enter = '\n', KEY_CR = '\r', KEY_TAB = 9, KEY_ESC = 27, KEY_SPACE = 32, KEY_TILDE = 192, _ };
 
-pub const Error = error{ WindowsInit, WindowsRead } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError;
+pub const Error = error{ WindowsInit, WindowsRead, PosixInit } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError;
 
 pub const WindowChangeCallback = utils.Callback(std.os.windows.COORD);
 pub const KeyChangeCallback = utils.Callback(KEYS);
@@ -73,7 +73,9 @@ pub const EventManager = struct {
         if (builtin.os.tag == .windows) {
             _ = std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, self.original_termios);
         } else {
-            try std.posix.tcsetattr(self.stdin.handle, .FLUSH, self.original_termios);
+            if(std.c.tcsetattr(self.stdin.handle, .FLUSH, &self.original_termios) == 1){
+                return Error.PosixInit;
+            }
         }
     }
 
@@ -100,9 +102,11 @@ pub const EventManager = struct {
             raw.iflag.INPCK = false;
             raw.iflag.ISTRIP = false;
 
-            raw.cc[std.posix.V.TIME] = 0;
-            raw.cc[std.posix.V.MIN] = 1;
-            try std.c.tcsetattr(self.stdin.handle, .FLUSH, raw);
+            raw.cc[@as(usize, @intFromEnum(std.posix.V.TIME))] = 0;
+            raw.cc[@as(usize, @intFromEnum(std.posix.V.MIN))] = 1;
+            if(std.c.tcsetattr(self.stdin.handle, .FLUSH, &raw) == 1){
+                return Error.PosixInit;
+            }
         }
     }
 
@@ -152,7 +156,7 @@ pub const EventManager = struct {
             while (self.running) {
                 const byte = try stdin.readByte();
                 if (self.key_press_callback != null) {
-                    self.key_press_callback.?(@enumFromInt(byte));
+                    self.key_press_callback.?.call(@enumFromInt(byte));
                 }
             }
         }
