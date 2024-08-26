@@ -73,7 +73,7 @@ pub const EventManager = struct {
         if (builtin.os.tag == .windows) {
             _ = std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, self.original_termios);
         } else {
-            if(std.c.tcsetattr(self.stdin.handle, .FLUSH, &self.original_termios) == 1){
+            if (std.c.tcsetattr(self.stdin.handle, .FLUSH, &self.original_termios) == 1) {
                 return Error.PosixInit;
             }
         }
@@ -104,7 +104,7 @@ pub const EventManager = struct {
 
             raw.cc[@as(usize, @intFromEnum(std.posix.V.TIME))] = 0;
             raw.cc[@as(usize, @intFromEnum(std.posix.V.MIN))] = 1;
-            if(std.c.tcsetattr(self.stdin.handle, .FLUSH, &raw) == 1){
+            if (std.c.tcsetattr(self.stdin.handle, .FLUSH, &raw) == 1) {
                 return Error.PosixInit;
             }
         }
@@ -115,7 +115,7 @@ pub const EventManager = struct {
         self.running = true;
         self.main_thread = try std.Thread.spawn(.{}, event_loop, .{self});
     }
-    //TODO test on linux
+
     fn event_loop(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             var irInBuf: [128]win32.INPUT_RECORD = undefined;
