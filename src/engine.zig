@@ -43,8 +43,10 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
         }
 
         pub fn window_change(self: *Self, coord: std.os.windows.COORD) void {
-            self.window_changed = true;
-            self.window_change_size = term.Size{ .width = @as(usize, @intCast(coord.X)), .height = @as(usize, @intCast(coord.Y)) };
+            if (builtin.os.tag == .windows) {
+                self.window_changed = true;
+                self.window_change_size = term.Size{ .width = @as(usize, @intCast(coord.X)), .height = @as(usize, @intCast(coord.Y)) };
+            }
         }
 
         fn render_loop(self: *Self) !void {
@@ -55,6 +57,12 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
             while (self.running) {
                 try self.render_callback.?.call(delta);
                 // check window change
+                if (builtin.os.tag != .windows) {
+                    const check_size = try term.Term.get_Size(self.renderer.terminal.stdout.context.handle);
+                    if (check_size.width != self.renderer.terminal.size.width or check_size.height * 2 != self.renderer.terminal.size.height) {
+                        try self.renderer.size_change(check_size);
+                    }
+                }
                 if (self.window_changed) {
                     try self.renderer.size_change(self.window_change_size);
                     self.window_changed = false;
@@ -89,7 +97,9 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
 
         pub fn start(self: *Self) Error!void {
             std.debug.print("Window size {d}x{d}\n", .{ self.renderer.terminal.size.width, self.renderer.terminal.size.height });
-            self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
+            if (builtin.os.tag == .windows) {
+                self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
+            }
             self.running = true;
             try self.events.start();
             if (self.render_callback) |_| {
