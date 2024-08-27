@@ -18,7 +18,7 @@ pub const Sprite = struct {
             return Error.OutOfBounds;
         }
         var ret = Self{ .allocator = allocator, .src = src, .dest = dest, .tex = tex };
-        if (src.width != dest.width or src.height != src.height) {
+        if (src.width != dest.width or src.height != dest.height) {
             try ret.scale_buffer();
         }
         return ret;

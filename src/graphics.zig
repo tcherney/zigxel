@@ -99,6 +99,31 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             }
         }
 
+        pub fn draw_pixel(self: *Self, x: i32, y: i32, p: texture.Pixel) void {
+            if (x < 0 or x > self.terminal.size.width or y > self.terminal.size.height) {
+                return;
+            }
+            const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));
+            const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
+            if (p.a) |alpha| {
+                const max_pixel = 255.0;
+                const bkgd = self.pixel_buffer[y_indx * self.terminal.size.width + x_indx];
+                var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.r));
+                var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.g));
+                var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.b));
+                rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = @as(u8, @intFromFloat(rf));
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = @as(u8, @intFromFloat(gf));
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = @as(u8, @intFromFloat(bf));
+            } else {
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = p.r;
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = p.g;
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.b;
+            }
+        }
+
         pub fn draw_sprite(self: *Self, s: sprite.Sprite) Error!void {
             if (s.scaled_buffer == null) {
                 try self.draw_pixel_buffer(s.tex.pixel_buffer, s.tex.width, s.tex.height, s.src, s.dest);

@@ -43,6 +43,7 @@ pub const Game = struct {
         self.e.renderer.draw_rect(60, 8, 3, 1, 128, 75, 0);
         self.e.renderer.draw_rect(95, 15, 2, 1, 255, 128, 0);
         try self.e.renderer.draw_sprite(self.player);
+        self.e.renderer.draw_pixel(100, 50, .{ .r = 255, .g = 0, .b = 175 });
         try self.e.renderer.draw_text(try std.fmt.bufPrint(&self.fps_buffer, "FPS:{d:.2}", .{self.e.fps}), 30, 40, 0, 255, 0);
         try self.e.renderer.flip();
     }
@@ -57,7 +58,7 @@ pub const Game = struct {
         //try self.tex.gaussian_blur(3.0);
         //try self.tex.scale(68, 45);
         try self.tex.rect(50, 50, 255, 128, 0);
-        self.player = try sprite.Sprite.init(self.allocator, .{ .x = 0, .y = 0, .width = 50, .height = 50 }, .{ .x = 5, .y = 5, .width = 100, .height = 35 }, self.tex);
+        self.player = try sprite.Sprite.init(self.allocator, .{ .x = 0, .y = 0, .width = 50, .height = 50 }, .{ .x = 5, .y = 5, .width = 65, .height = 35 }, self.tex);
         self.e.on_key_press(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
         self.e.set_fps(60);
