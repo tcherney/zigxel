@@ -15,6 +15,7 @@ pub const Game = struct {
     placement_pixel: PhysicsPixel = undefined,
     pixels: std.ArrayList(PhysicsPixel) = undefined,
     allocator: std.mem.Allocator = undefined,
+    frame_limit: u64 = 16_666_667,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{ .allocator = allocator };
@@ -62,9 +63,19 @@ pub const Game = struct {
         self.e.set_fps(60);
         try self.e.start();
 
+        var timer: std.time.Timer = try std.time.Timer.start();
+        var delta: u64 = 0;
         while (self.running) {
-            // do game logic on seperate thread
-            std.time.sleep(self.e.frame_limit);
+            for (self.pixels.items) |*p| {
+                p.update(delta, self.pixels, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)));
+            }
+            delta = timer.read();
+            timer.reset();
+            const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));
+            //std.debug.print("time to sleep {d}\n", .{time_to_sleep});
+            if (time_to_sleep > 0) {
+                std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
+            }
         }
     }
 };
