@@ -3,15 +3,17 @@ const engine = @import("engine.zig");
 const utils = @import("utils.zig");
 const image = @import("image");
 const sprite = @import("sprite.zig");
+const physic_pixel = @import("physics_pixel.zig");
 
+pub const PhysicsPixel = physic_pixel.PhysicsPixel;
 pub const Error = error{} || image.Error || engine.Error || utils.Error;
 
 pub const Game = struct {
     running: bool = true,
     e: engine.Engine(utils.ColorMode.color_true) = undefined,
     fps_buffer: [64]u8 = undefined,
-    tex: engine.Texture = undefined,
-    player: sprite.Sprite = undefined,
+    placement_pixel: PhysicsPixel = undefined,
+    pixels: std.ArrayList(PhysicsPixel) = undefined,
     allocator: std.mem.Allocator = undefined,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
@@ -19,46 +21,42 @@ pub const Game = struct {
     }
     pub fn deinit(self: *Self) Error!void {
         try self.e.deinit();
-        self.tex.deinit();
-        self.player.deinit();
+        self.pixels.deinit();
     }
     pub fn on_key_press(self: *Self, key: engine.KEYS) void {
         //std.debug.print("{}\n", .{key});
         if (key == engine.KEYS.KEY_q) {
             self.running = false;
         } else if (key == engine.KEYS.KEY_a) {
-            self.player.dest.x -= 1;
+            self.placement_pixel.x -= 1;
         } else if (key == engine.KEYS.KEY_d) {
-            self.player.dest.x += 1;
+            self.placement_pixel.x += 1;
         } else if (key == engine.KEYS.KEY_w) {
-            self.player.dest.y -= 1;
+            self.placement_pixel.y -= 1;
         } else if (key == engine.KEYS.KEY_s) {
-            self.player.dest.y += 1;
+            self.placement_pixel.y += 1;
+        } else if (key == engine.KEYS.KEY_SPACE) {
+            std.debug.print("placed \n", .{});
+            self.pixels.append(PhysicsPixel.init(self.placement_pixel.x, self.placement_pixel.y, self.placement_pixel.pixel.r, self.placement_pixel.pixel.g, self.placement_pixel.pixel.b)) catch |err| {
+                std.debug.print("{any}\n", .{err});
+                self.running = false;
+            };
         }
     }
 
     pub fn on_render(self: *Self, _: u64) !void {
         self.e.renderer.set_bg(0, 0, 0);
-        self.e.renderer.draw_rect(60, 8, 2, 3, 0, 255, 255);
-        self.e.renderer.draw_rect(60, 8, 3, 1, 128, 75, 0);
-        self.e.renderer.draw_rect(95, 15, 2, 1, 255, 128, 0);
-        try self.e.renderer.draw_sprite(self.player);
-        self.e.renderer.draw_pixel(100, 50, .{ .r = 255, .g = 0, .b = 175 });
-        try self.e.renderer.draw_text(try std.fmt.bufPrint(&self.fps_buffer, "FPS:{d:.2}", .{self.e.fps}), 30, 40, 0, 255, 0);
+        for (self.pixels.items) |p| {
+            self.e.renderer.draw_pixel(p.x, p.y, p.pixel);
+        }
+        self.e.renderer.draw_pixel(self.placement_pixel.x, self.placement_pixel.y, self.placement_pixel.pixel);
         try self.e.renderer.flip();
     }
     pub fn run(self: *Self) !void {
-        try utils.gen_rand();
-        self.tex = engine.Texture.init(self.allocator);
+        //try utils.gen_rand();
         self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
-        // var img = image.Image(image.JPEGImage){};
-        // try img.load("../img2ascii/tests/jpeg/cat.jpg", self.allocator);
-        // defer img.deinit();
-        // try self.tex.load_image(img);
-        //try self.tex.gaussian_blur(3.0);
-        //try self.tex.scale(68, 45);
-        try self.tex.rect(50, 50, 255, 128, 0);
-        self.player = try sprite.Sprite.init(self.allocator, .{ .x = 0, .y = 0, .width = 50, .height = 50 }, .{ .x = 5, .y = 5, .width = 65, .height = 35 }, self.tex);
+        self.placement_pixel = PhysicsPixel.init(0, 0, 0, 0, 255);
+        self.pixels = std.ArrayList(PhysicsPixel).init(self.allocator);
         self.e.on_key_press(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
         self.e.set_fps(60);
