@@ -151,7 +151,7 @@ pub const EventManager = struct {
                 }
             }
         } else {
-            //TODO xlib for window events?
+            //TODO xlib for window events?, std.io.poll??
             const stdin: std.fs.File.Reader = self.stdin.reader();
             while (self.running) {
                 const byte = try stdin.readByte();

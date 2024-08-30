@@ -38,7 +38,7 @@ pub const Game = struct {
             self.placement_pixel.y += 1;
         } else if (key == engine.KEYS.KEY_SPACE) {
             std.debug.print("placed \n", .{});
-            self.pixels.append(PhysicsPixel.init(self.placement_pixel.x, self.placement_pixel.y, self.placement_pixel.pixel.r, self.placement_pixel.pixel.g, self.placement_pixel.pixel.b)) catch |err| {
+            self.pixels.append(PhysicsPixel.init(self.placement_pixel.pixel_type, self.placement_pixel.x, self.placement_pixel.y, self.placement_pixel.pixel.r, self.placement_pixel.pixel.g, self.placement_pixel.pixel.b)) catch |err| {
                 std.debug.print("{any}\n", .{err});
                 self.running = false;
             };
@@ -56,7 +56,7 @@ pub const Game = struct {
     pub fn run(self: *Self) !void {
         //try utils.gen_rand();
         self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
-        self.placement_pixel = PhysicsPixel.init(0, 0, 0, 0, 255);
+        self.placement_pixel = PhysicsPixel.init(physic_pixel.PixelType.Sand, 0, 0, 210, 180, 125);
         self.pixels = std.ArrayList(PhysicsPixel).init(self.allocator);
         self.e.on_key_press(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
