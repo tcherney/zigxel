@@ -44,9 +44,10 @@ pub const ColorMode = enum {
     color_true,
 };
 
+var prng: std.Random.Xoshiro256 = undefined;
 pub var rand: std.Random = undefined;
 pub fn gen_rand() Error!void {
-    var prng = std.Random.DefaultPrng.init(blk: {
+    prng = std.Random.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
         try std.posix.getrandom(std.mem.asBytes(&seed));
         break :blk seed;

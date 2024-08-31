@@ -47,7 +47,6 @@ pub const Game = struct {
         try self.e.renderer.flip();
     }
     pub fn run(self: *Self) !void {
-        try utils.gen_rand();
         self.tex = engine.Texture.init(self.allocator);
         self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
         // var img = image.Image(image.JPEGImage){};

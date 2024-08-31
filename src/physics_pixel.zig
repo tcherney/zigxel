@@ -27,6 +27,8 @@ pub const Velocity = struct {
     y: f64,
 };
 
+pub const SAND_COLOR = Pixel{ .r = 210, .g = 180, .b = 125 };
+
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
     x: i32,
@@ -36,7 +38,24 @@ pub const PhysicsPixel = struct {
     vel: Velocity = Velocity{ .x = 0, .y = 0 },
     pixel_type: PixelType,
     const Self = @This();
-    pub fn init(pixel_type: PixelType, x: i32, y: i32, r: u8, g: u8, b: u8) Self {
+    pub fn init(pixel_type: PixelType, x: i32, y: i32) Self {
+        var r: u8 = undefined;
+        var g: u8 = undefined;
+        var b: u8 = undefined;
+        switch (pixel_type) {
+            .Sand => {
+                std.debug.print("sand color\n", .{});
+                const variation = utils.rand.intRangeAtMost(i16, -30, 30);
+                r = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(SAND_COLOR.r)))) + variation))));
+                g = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(SAND_COLOR.g)))) + variation))));
+                b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(SAND_COLOR.b)))) + variation))));
+                std.debug.print("{d} {d} {d}\n", .{ r, g, b });
+                // r = SAND_COLOR.r;
+                // g = SAND_COLOR.g;
+                // b = SAND_COLOR.b;
+            },
+            .Water => {},
+        }
         return Self{ .x = x, .y = y, .xf = @floatFromInt(x), .yf = @floatFromInt(y), .pixel = Pixel{ .r = r, .g = g, .b = b }, .pixel_type = pixel_type };
     }
 
@@ -45,9 +64,7 @@ pub const PhysicsPixel = struct {
         switch (self.pixel_type) {
             .Sand => {
                 self.vel.y += GRAVITY.y * to_seconds(delta);
-                std.debug.print("{d} new vel\n", .{self.vel.y});
                 self.yf += self.vel.y * to_seconds(delta);
-                std.debug.print("{d} new y\n", .{self.yf});
                 self.xf += self.vel.x * to_seconds(delta);
                 const diff = @as(i32, @intFromFloat(self.yf)) - self.y;
                 for (0..@as(usize, @intCast(diff))) |_| {
