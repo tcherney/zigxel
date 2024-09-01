@@ -50,9 +50,6 @@ pub const PhysicsPixel = struct {
                 g = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(SAND_COLOR.g)))) + variation))));
                 b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(SAND_COLOR.b)))) + variation))));
                 std.debug.print("{d} {d} {d}\n", .{ r, g, b });
-                // r = SAND_COLOR.r;
-                // g = SAND_COLOR.g;
-                // b = SAND_COLOR.b;
             },
             .Water => {},
         }
@@ -61,6 +58,7 @@ pub const PhysicsPixel = struct {
 
     // delta in nanoseconds
     pub fn update(self: *Self, delta: u64, pixels: std.ArrayList(PhysicsPixel), xlimit: u32, ylimit: u32) void {
+        _ = xlimit;
         switch (self.pixel_type) {
             .Sand => {
                 self.vel.y += GRAVITY.y * to_seconds(delta);
@@ -69,10 +67,10 @@ pub const PhysicsPixel = struct {
                 const diff = @as(i32, @intFromFloat(self.yf)) - self.y;
                 for (0..@as(usize, @intCast(diff))) |_| {
                     if (pixel_at_x_y(self.x, self.y + 1, pixels)) {
-                        if (self.x - 1 >= 0 and !pixel_at_x_y(self.x - 1, self.y + 1, pixels)) {
+                        if (!pixel_at_x_y(self.x - 1, self.y + 1, pixels)) {
                             self.x -= 1;
                             self.xf = @as(f64, @floatFromInt(self.x));
-                        } else if (self.x + 1 <= xlimit and !pixel_at_x_y(self.x + 1, self.y + 1, pixels)) {
+                        } else if (!pixel_at_x_y(self.x + 1, self.y + 1, pixels)) {
                             self.x += 1;
                             self.xf = @as(f64, @floatFromInt(self.x));
                         } else {
