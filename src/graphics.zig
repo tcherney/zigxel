@@ -99,42 +99,67 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             }
         }
 
-        pub fn draw_pixel(self: *Self, x: i32, y: i32, p: texture.Pixel) void {
-            if (x < 0 or x > self.terminal.size.width or y > self.terminal.size.height) {
-                return;
-            }
-            const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));
-            const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
-            if (p.a) |alpha| {
-                const max_pixel = 255.0;
-                const bkgd = self.pixel_buffer[y_indx * self.terminal.size.width + x_indx];
-                var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.r));
-                var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.g));
-                var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.b));
-                rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
-                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = @as(u8, @intFromFloat(rf));
-                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = @as(u8, @intFromFloat(gf));
-                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = @as(u8, @intFromFloat(bf));
+        pub fn draw_pixel(self: *Self, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture) void {
+            if (dest == null) {
+                if (x < 0 or x > self.terminal.size.width or y > self.terminal.size.height) {
+                    return;
+                }
+                const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));
+                const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
+                if (p.a) |alpha| {
+                    const max_pixel = 255.0;
+                    const bkgd = self.pixel_buffer[y_indx * self.terminal.size.width + x_indx];
+                    var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.r));
+                    var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.g));
+                    var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.b));
+                    rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                    gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                    bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = @as(u8, @intFromFloat(rf));
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = @as(u8, @intFromFloat(gf));
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = @as(u8, @intFromFloat(bf));
+                } else {
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = p.r;
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = p.g;
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.b;
+                }
             } else {
-                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = p.r;
-                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = p.g;
-                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.b;
+                if (x < 0 or x > dest.?.width or y > dest.?.height) {
+                    return;
+                }
+                const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));
+                const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
+                if (p.a) |alpha| {
+                    const max_pixel = 255.0;
+                    const bkgd = dest.?.pixel_buffer[y_indx * dest.?.width + x_indx];
+                    var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.r));
+                    var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.g));
+                    var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.b));
+                    rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                    gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                    bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].r = @as(u8, @intFromFloat(rf));
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].g = @as(u8, @intFromFloat(gf));
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].b = @as(u8, @intFromFloat(bf));
+                } else {
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].r = p.r;
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].g = p.g;
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].b = p.b;
+                }
             }
         }
 
-        pub fn draw_sprite(self: *Self, s: sprite.Sprite) Error!void {
+        pub fn draw_sprite(self: *Self, s: sprite.Sprite, dest: ?texture.Texture) Error!void {
             if (s.scaled_buffer == null) {
-                try self.draw_pixel_buffer(s.tex.pixel_buffer, s.tex.width, s.tex.height, s.src, s.dest);
+                try self.draw_pixel_buffer(s.tex.pixel_buffer, s.tex.width, s.tex.height, s.src, s.dest, dest);
             } else {
                 std.debug.print("rendering scaled\n", .{});
                 const src_rect = utils.Rectangle{ .x = 0, .y = 0, .width = s.dest.width, .height = s.dest.height };
-                try self.draw_pixel_buffer(s.scaled_buffer.?, s.dest.width, s.dest.height, src_rect, s.dest);
+                try self.draw_pixel_buffer(s.scaled_buffer.?, s.dest.width, s.dest.height, src_rect, s.dest, dest);
             }
         }
 
-        fn draw_pixel_buffer(self: *Self, pixel_buffer: []texture.Pixel, width: u32, height: u32, src: utils.Rectangle, dest: utils.Rectangle) Error!void {
+        fn draw_pixel_buffer(self: *Self, pixel_buffer: []texture.Pixel, width: u32, height: u32, src: utils.Rectangle, dest_rect: utils.Rectangle, dest: ?texture.Texture) Error!void {
             var tex_indx: usize = (@as(u32, @bitCast(src.y)) * width + @as(u32, @bitCast(src.x)));
             if (src.height > height or src.width > width) {
                 return Error.TextureError;
@@ -144,78 +169,151 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             const src_height_i: i32 = @as(i32, @bitCast(src.height));
             const src_width_i: i32 = @as(i32, @bitCast(src.width));
             std.debug.print("{d} {d}\n", .{ width_i, src_width_i });
-            var j: i32 = dest.y;
-            while (j < (dest.y + src_height_i)) : (j += 1) {
-                if (j < 0) {
-                    tex_indx += width;
-                    continue;
-                } else if (j >= self.terminal.size.height) {
-                    break;
-                }
-                var i: i32 = dest.x;
-                while (i < (dest.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
-                    const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
-                    const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
-                    if (i < 0) {
-                        tex_indx += 1;
+            var j: i32 = dest_rect.y;
+            if (dest == null) {
+                while (j < (dest_rect.y + src_height_i)) : (j += 1) {
+                    if (j < 0) {
+                        tex_indx += width;
                         continue;
-                    } else if (i >= self.terminal.size.width) {
-                        tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest.x + width_i) - i))));
+                    } else if (j >= self.terminal.size.height) {
                         break;
                     }
-                    // have alpha channel
-                    var r: u8 = pixel_buffer[tex_indx].r;
-                    var g: u8 = pixel_buffer[tex_indx].g;
-                    var b: u8 = pixel_buffer[tex_indx].b;
-                    if (pixel_buffer[tex_indx].a) |alpha| {
-                        std.debug.print("computing alpha {any}", .{alpha});
-                        const max_pixel = 255.0;
-                        const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
-                        var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
-                        var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(g));
-                        var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(b));
-                        rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                        gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                        bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
-                        r = @as(u8, @intFromFloat(rf));
-                        g = @as(u8, @intFromFloat(gf));
-                        b = @as(u8, @intFromFloat(bf));
-                    }
+                    var i: i32 = dest_rect.x;
+                    while (i < (dest_rect.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
+                        const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
+                        const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
+                        if (i < 0) {
+                            tex_indx += 1;
+                            continue;
+                        } else if (i >= self.terminal.size.width) {
+                            tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
+                            break;
+                        }
+                        // have alpha channel
+                        var r: u8 = pixel_buffer[tex_indx].r;
+                        var g: u8 = pixel_buffer[tex_indx].g;
+                        var b: u8 = pixel_buffer[tex_indx].b;
+                        if (pixel_buffer[tex_indx].a) |alpha| {
+                            std.debug.print("computing alpha {any}", .{alpha});
+                            const max_pixel = 255.0;
+                            const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
+                            var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
+                            var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(g));
+                            var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(b));
+                            rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                            gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                            bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                            r = @as(u8, @intFromFloat(rf));
+                            g = @as(u8, @intFromFloat(gf));
+                            b = @as(u8, @intFromFloat(bf));
+                        }
 
-                    switch (color_type) {
-                        .color_256 => {
-                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = term.rgb_256(r, g, b);
-                        },
-                        .color_true => {
-                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = r;
-                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].g = g;
-                            self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = b;
-                        },
-                    }
+                        switch (color_type) {
+                            .color_256 => {
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = term.rgb_256(r, g, b);
+                            },
+                            .color_true => {
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = r;
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].g = g;
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = b;
+                            },
+                        }
 
-                    tex_indx += 1;
+                        tex_indx += 1;
+                    }
+                    tex_indx += width - src.width;
                 }
-                tex_indx += width - src.width;
+            } else {
+                while (j < (dest_rect.y + src_height_i)) : (j += 1) {
+                    if (j < 0) {
+                        tex_indx += width;
+                        continue;
+                    } else if (j >= dest.?.height) {
+                        break;
+                    }
+                    var i: i32 = dest_rect.x;
+                    while (i < (dest_rect.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
+                        const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
+                        const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
+                        if (i < 0) {
+                            tex_indx += 1;
+                            continue;
+                        } else if (i >= dest.?.width) {
+                            tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
+                            break;
+                        }
+                        // have alpha channel
+                        var r: u8 = pixel_buffer[tex_indx].r;
+                        var g: u8 = pixel_buffer[tex_indx].g;
+                        var b: u8 = pixel_buffer[tex_indx].b;
+                        if (pixel_buffer[tex_indx].a) |alpha| {
+                            std.debug.print("computing alpha {any}", .{alpha});
+                            const max_pixel = 255.0;
+                            const bkgd = dest.?.pixel_buffer[j_usize * dest.?.width + i_usize];
+                            var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
+                            var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(g));
+                            var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(b));
+                            rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                            gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                            bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                            r = @as(u8, @intFromFloat(rf));
+                            g = @as(u8, @intFromFloat(gf));
+                            b = @as(u8, @intFromFloat(bf));
+                        }
+
+                        switch (color_type) {
+                            .color_256 => {
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize] = term.rgb_256(r, g, b);
+                            },
+                            .color_true => {
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].r = r;
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].g = g;
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].b = b;
+                            },
+                        }
+
+                        tex_indx += 1;
+                    }
+                    tex_indx += width - src.width;
+                }
             }
         }
 
-        pub fn draw_texture(self: *Self, tex: texture.Texture, src: utils.Rectangle, dest: utils.Rectangle) Error!void {
-            try self.draw_pixel_buffer(tex.pixel_buffer, tex.width, tex.height, src, dest);
+        pub fn draw_texture(self: *Self, tex: texture.Texture, src_rect: utils.Rectangle, dest_rect: utils.Rectangle, dest: ?texture.Texture) Error!void {
+            try self.draw_pixel_buffer(tex.pixel_buffer, tex.width, tex.height, src_rect, dest_rect, dest);
         }
 
-        pub fn draw_rect(self: *Self, x: usize, y: usize, w: usize, h: usize, r: u8, g: u8, b: u8) void {
-            const color_indx = term.rgb_256(r, g, b);
-            for (y..y + h) |j| {
-                for (x..x + w) |i| {
-                    switch (color_type) {
-                        .color_256 => {
-                            self.pixel_buffer[j * self.terminal.size.width + i] = color_indx;
-                        },
-                        .color_true => {
-                            self.pixel_buffer[j * self.terminal.size.width + i].r = r;
-                            self.pixel_buffer[j * self.terminal.size.width + i].g = g;
-                            self.pixel_buffer[j * self.terminal.size.width + i].b = b;
-                        },
+        pub fn draw_rect(self: *Self, x: usize, y: usize, w: usize, h: usize, r: u8, g: u8, b: u8, dest: ?texture.Texture) void {
+            if (dest == null) {
+                const color_indx = term.rgb_256(r, g, b);
+                for (y..y + h) |j| {
+                    for (x..x + w) |i| {
+                        switch (color_type) {
+                            .color_256 => {
+                                self.pixel_buffer[j * self.terminal.size.width + i] = color_indx;
+                            },
+                            .color_true => {
+                                self.pixel_buffer[j * self.terminal.size.width + i].r = r;
+                                self.pixel_buffer[j * self.terminal.size.width + i].g = g;
+                                self.pixel_buffer[j * self.terminal.size.width + i].b = b;
+                            },
+                        }
+                    }
+                }
+            } else {
+                const color_indx = term.rgb_256(r, g, b);
+                for (y..y + h) |j| {
+                    for (x..x + w) |i| {
+                        switch (color_type) {
+                            .color_256 => {
+                                dest.?.pixel_buffer[j * dest.?.width + i].r = color_indx;
+                            },
+                            .color_true => {
+                                dest.?.pixel_buffer[j * dest.?.width + i].r = r;
+                                dest.?.pixel_buffer[j * dest.?.width + i].g = g;
+                                dest.?.pixel_buffer[j * dest.?.width + i].b = b;
+                            },
+                        }
                     }
                 }
             }
@@ -227,8 +325,22 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         }
 
         //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
-        pub fn flip(self: *Self) Error!void {
-            // fill terminal buffer with pixel colors
+        pub fn flip(self: *Self, dest: ?texture.Texture) Error!void {
+            if (dest != null) {
+                if (dest.?.pixel_buffer.len > self.pixel_buffer.len) {
+                    return Error.TextureError;
+                } else {
+                    for (0..dest.?.pixel_buffer.len) |i| {
+                        if (color_type == .color_256) {
+                            self.pixel_buffer[i] = dest.?.pixel_buffer[i].r;
+                        } else {
+                            self.pixel_buffer[i].r = dest.?.pixel_buffer[i].r;
+                            self.pixel_buffer[i].g = dest.?.pixel_buffer[i].g;
+                            self.pixel_buffer[i].b = dest.?.pixel_buffer[i].b;
+                        }
+                    }
+                }
+            }
             var buffer_len: usize = 0;
 
             var j: usize = 0;

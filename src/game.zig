@@ -48,10 +48,10 @@ pub const Game = struct {
     pub fn on_render(self: *Self, _: u64) !void {
         self.e.renderer.set_bg(0, 0, 0);
         for (self.pixels.items) |p| {
-            self.e.renderer.draw_pixel(p.x, p.y, p.pixel);
+            self.e.renderer.draw_pixel(p.x, p.y, p.pixel, null);
         }
-        self.e.renderer.draw_pixel(self.placement_pixel.x, self.placement_pixel.y, self.placement_pixel.pixel);
-        try self.e.renderer.flip();
+        self.e.renderer.draw_pixel(self.placement_pixel.x, self.placement_pixel.y, self.placement_pixel.pixel, null);
+        try self.e.renderer.flip(null);
     }
     pub fn run(self: *Self) !void {
         try utils.gen_rand();
