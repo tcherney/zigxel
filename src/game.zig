@@ -81,9 +81,11 @@ pub const Game = struct {
         self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
         self.placement_pixel = PhysicsPixel.init(physic_pixel.PixelType.Sand, 0, 0);
         self.pixels = std.ArrayList(PhysicsPixel).init(self.allocator);
-        self.current_world = try World.init(1920, @as(u32, @intCast(self.e.renderer.terminal.size.height)), @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
+        self.current_world = try World.init(1920, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
         self.current_world.viewport.x = STARTING_POS;
+        self.current_world.viewport.y = 10;
         self.placement_pixel.x = STARTING_POS;
+        self.placement_pixel.y = 10;
         self.e.on_key_press(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
         self.e.set_fps(60);
@@ -93,7 +95,7 @@ pub const Game = struct {
         var delta: u64 = 0;
         while (self.running) {
             for (self.pixels.items) |*p| {
-                p.update(delta, self.pixels, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)));
+                p.update(delta, self.pixels, self.current_world.tex.width, self.current_world.tex.height);
             }
             delta = timer.read();
             timer.reset();
