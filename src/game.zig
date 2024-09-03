@@ -5,6 +5,7 @@ const image = @import("image");
 const sprite = @import("sprite.zig");
 const physic_pixel = @import("physics_pixel.zig");
 
+pub const World = @import("world.zig").World;
 pub const PhysicsPixel = physic_pixel.PhysicsPixel;
 pub const Error = error{} || image.Error || engine.Error || utils.Error;
 
@@ -13,6 +14,7 @@ pub const Game = struct {
     e: engine.Engine(utils.ColorMode.color_true) = undefined,
     fps_buffer: [64]u8 = undefined,
     placement_pixel: PhysicsPixel = undefined,
+    current_world: World = undefined,
     pixels: std.ArrayList(PhysicsPixel) = undefined,
     allocator: std.mem.Allocator = undefined,
     frame_limit: u64 = 16_666_667,
@@ -23,6 +25,7 @@ pub const Game = struct {
     pub fn deinit(self: *Self) Error!void {
         try self.e.deinit();
         self.pixels.deinit();
+        self.current_world.deinit();
     }
     pub fn on_key_press(self: *Self, key: engine.KEYS) void {
         //std.debug.print("{}\n", .{key});
@@ -37,27 +40,50 @@ pub const Game = struct {
         } else if (key == engine.KEYS.KEY_s) {
             self.placement_pixel.y += 1;
         } else if (key == engine.KEYS.KEY_SPACE) {
-            std.debug.print("placed \n", .{});
+            std.debug.print("placed {d} {d} \n", .{ self.placement_pixel.x, self.placement_pixel.y });
+            std.debug.print("{d} {d}\n", .{ self.current_world.tex.width, self.current_world.tex.height });
             self.pixels.append(PhysicsPixel.init(self.placement_pixel.pixel_type, self.placement_pixel.x, self.placement_pixel.y)) catch |err| {
                 std.debug.print("{any}\n", .{err});
                 self.running = false;
             };
         }
+        //TODO probably should pull the viewport updating into the world struct
+        else if (key == engine.KEYS.KEY_i) {
+            if (self.current_world.viewport.y > 0) {
+                self.current_world.viewport.y -= 1;
+            }
+        } else if (key == engine.KEYS.KEY_k) {
+            if (@as(u32, @bitCast(self.current_world.viewport.y)) + self.current_world.viewport.height < self.current_world.bounds.height) {
+                self.current_world.viewport.y += 1;
+            }
+        } else if (key == engine.KEYS.KEY_j) {
+            if (self.current_world.viewport.x > 0) {
+                self.current_world.viewport.x -= 1;
+            }
+        } else if (key == engine.KEYS.KEY_l) {
+            if (@as(u32, @bitCast(self.current_world.viewport.x)) + self.current_world.viewport.width < self.current_world.bounds.width) {
+                self.current_world.viewport.x += 1;
+            }
+        }
     }
 
     pub fn on_render(self: *Self, _: u64) !void {
-        self.e.renderer.set_bg(0, 0, 0);
+        self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
         for (self.pixels.items) |p| {
-            self.e.renderer.draw_pixel(p.x, p.y, p.pixel, null);
+            self.e.renderer.draw_pixel(p.x, p.y, p.pixel, self.current_world.tex);
         }
-        self.e.renderer.draw_pixel(self.placement_pixel.x, self.placement_pixel.y, self.placement_pixel.pixel, null);
-        try self.e.renderer.flip(null);
+        self.e.renderer.draw_pixel(self.placement_pixel.x, self.placement_pixel.y, self.placement_pixel.pixel, self.current_world.tex);
+        try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
+        const STARTING_POS = 1920 / 2;
         try utils.gen_rand();
         self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
         self.placement_pixel = PhysicsPixel.init(physic_pixel.PixelType.Sand, 0, 0);
         self.pixels = std.ArrayList(PhysicsPixel).init(self.allocator);
+        self.current_world = try World.init(1920, @as(u32, @intCast(self.e.renderer.terminal.size.height)), @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
+        self.current_world.viewport.x = STARTING_POS;
+        self.placement_pixel.x = STARTING_POS;
         self.e.on_key_press(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
         self.e.set_fps(60);

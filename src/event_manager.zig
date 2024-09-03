@@ -143,6 +143,7 @@ pub const EventManager = struct {
                                         self.window_change_callback.?.call(irInBuf[i].Event.WindowBufferSizeEvent.dwSize);
                                     }
                                 },
+                                //TODO ARROW KEYS
                                 //TODO potenial to use  https://learn.microsoft.com/en-us/windows/console/setcurrentconsolefontex https://learn.microsoft.com/en-us/windows/console/getcurrentconsolefontex for zoom
                                 //TODO handle non key events
                                 else => {},

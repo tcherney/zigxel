@@ -88,13 +88,24 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             self.text_to_render.deinit();
         }
 
-        pub fn set_bg(self: *Self, r: u8, g: u8, b: u8) void {
-            const bg_color_indx = term.rgb_256(r, g, b);
-            for (0..self.pixel_buffer.len) |i| {
-                if (color_type == .color_256) {
-                    self.pixel_buffer[i] = bg_color_indx;
-                } else {
-                    self.pixel_buffer[i] = .{ .r = r, .g = g, .b = b };
+        pub fn set_bg(self: *Self, r: u8, g: u8, b: u8, dest: ?texture.Texture) void {
+            if (dest == null) {
+                const bg_color_indx = term.rgb_256(r, g, b);
+                for (0..self.pixel_buffer.len) |i| {
+                    if (color_type == .color_256) {
+                        self.pixel_buffer[i] = bg_color_indx;
+                    } else {
+                        self.pixel_buffer[i] = .{ .r = r, .g = g, .b = b };
+                    }
+                }
+            } else {
+                const bg_color_indx = term.rgb_256(r, g, b);
+                for (0..dest.?.pixel_buffer.len) |i| {
+                    if (color_type == .color_256) {
+                        dest.?.pixel_buffer[i].r = bg_color_indx;
+                    } else {
+                        dest.?.pixel_buffer[i] = .{ .r = r, .g = g, .b = b };
+                    }
                 }
             }
         }
@@ -325,18 +336,28 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         }
 
         //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
-        pub fn flip(self: *Self, dest: ?texture.Texture) Error!void {
-            if (dest != null) {
-                if (dest.?.pixel_buffer.len > self.pixel_buffer.len) {
+        pub fn flip(self: *Self, dest: ?texture.Texture, bounds: ?utils.Rectangle) Error!void {
+            if (dest != null and bounds != null) {
+                if (bounds.?.width > @as(u32, @intCast(self.terminal.size.width)) or bounds.?.height > @as(u32, @intCast(self.terminal.size.height))) {
                     return Error.TextureError;
                 } else {
-                    for (0..dest.?.pixel_buffer.len) |i| {
-                        if (color_type == .color_256) {
-                            self.pixel_buffer[i] = dest.?.pixel_buffer[i].r;
-                        } else {
-                            self.pixel_buffer[i].r = dest.?.pixel_buffer[i].r;
-                            self.pixel_buffer[i].g = dest.?.pixel_buffer[i].g;
-                            self.pixel_buffer[i].b = dest.?.pixel_buffer[i].b;
+                    std.debug.print("{d} {d}\n", .{ self.pixel_buffer.len, bounds.?.width * bounds.?.height });
+                    var y: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.y))));
+                    var buffer_indx: usize = 0;
+                    const y_bound = bounds.?.height + y;
+                    var x: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
+                    const x_bound = bounds.?.width + x;
+                    while (y < y_bound) : (y += 1) {
+                        x = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
+                        while (x < x_bound) : (x += 1) {
+                            if (color_type == .color_256) {
+                                self.pixel_buffer[buffer_indx] = dest.?.pixel_buffer[y * dest.?.width + x].r;
+                            } else {
+                                self.pixel_buffer[buffer_indx].r = dest.?.pixel_buffer[y * dest.?.width + x].r;
+                                self.pixel_buffer[buffer_indx].g = dest.?.pixel_buffer[y * dest.?.width + x].g;
+                                self.pixel_buffer[buffer_indx].b = dest.?.pixel_buffer[y * dest.?.width + x].b;
+                            }
+                            buffer_indx += 1;
                         }
                     }
                 }
