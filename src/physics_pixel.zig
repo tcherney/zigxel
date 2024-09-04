@@ -28,6 +28,7 @@ pub const Velocity = struct {
 };
 
 pub const SAND_COLOR = Pixel{ .r = 210, .g = 180, .b = 125 };
+pub const WATER_COLOR = Pixel{ .r = 50, .g = 133, .b = 168 };
 
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
@@ -51,42 +52,72 @@ pub const PhysicsPixel = struct {
                 b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(SAND_COLOR.b)))) + variation))));
                 std.debug.print("{d} {d} {d}\n", .{ r, g, b });
             },
-            .Water => {},
+            .Water => {
+                std.debug.print("water color\n", .{});
+                const variation = utils.rand.intRangeAtMost(i16, -30, 30);
+                r = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(WATER_COLOR.r)))) + variation))));
+                g = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(WATER_COLOR.g)))) + variation))));
+                b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(WATER_COLOR.b)))) + variation))));
+                std.debug.print("{d} {d} {d}\n", .{ r, g, b });
+            },
         }
         return Self{ .x = x, .y = y, .xf = @floatFromInt(x), .yf = @floatFromInt(y), .pixel = Pixel{ .r = r, .g = g, .b = b }, .pixel_type = pixel_type };
     }
 
+    fn sand_update(self: *Self, delta: u64, pixels: std.ArrayList(PhysicsPixel), xlimit: u32, ylimit: u32) void {
+        _ = xlimit;
+        self.vel.y += GRAVITY.y * to_seconds(delta);
+        self.yf += self.vel.y * to_seconds(delta);
+        self.xf += self.vel.x * to_seconds(delta);
+        const diff = @as(i32, @intFromFloat(self.yf)) - self.y;
+        for (0..@as(usize, @intCast(diff))) |_| {
+            if (pixel_at_x_y(self.x, self.y + 1, pixels)) {
+                if (!pixel_at_x_y(self.x - 1, self.y + 1, pixels)) {
+                    self.x -= 1;
+                    self.xf = @as(f64, @floatFromInt(self.x));
+                } else if (!pixel_at_x_y(self.x + 1, self.y + 1, pixels)) {
+                    self.x += 1;
+                    self.xf = @as(f64, @floatFromInt(self.x));
+                } else {
+                    self.yf = @as(f64, @floatFromInt(self.y));
+                    self.vel.y = 0;
+                    break;
+                }
+            }
+            if (self.y + 1 >= ylimit) {
+                break;
+            } else {
+                self.y += 1;
+            }
+        }
+    }
+
+    fn base_update(self: *Self, delta: u64, pixels: std.ArrayList(PhysicsPixel), xlimit: u32, ylimit: u32) void {
+        _ = xlimit;
+        self.vel.y += GRAVITY.y * to_seconds(delta);
+        self.yf += self.vel.y * to_seconds(delta);
+        self.xf += self.vel.x * to_seconds(delta);
+        const diff = @as(i32, @intFromFloat(self.yf)) - self.y;
+        for (0..@as(usize, @intCast(diff))) |_| {
+            if (pixel_at_x_y(self.x, self.y + 1, pixels)) {
+                self.yf = @as(f64, @floatFromInt(self.y));
+                self.vel.y = 0;
+                break;
+            } else if (self.y + 1 >= ylimit) {
+                break;
+            } else {
+                self.y += 1;
+            }
+        }
+    }
+
     // delta in nanoseconds
     pub fn update(self: *Self, delta: u64, pixels: std.ArrayList(PhysicsPixel), xlimit: u32, ylimit: u32) void {
-        _ = xlimit;
         switch (self.pixel_type) {
             .Sand => {
-                self.vel.y += GRAVITY.y * to_seconds(delta);
-                self.yf += self.vel.y * to_seconds(delta);
-                self.xf += self.vel.x * to_seconds(delta);
-                const diff = @as(i32, @intFromFloat(self.yf)) - self.y;
-                for (0..@as(usize, @intCast(diff))) |_| {
-                    if (pixel_at_x_y(self.x, self.y + 1, pixels)) {
-                        if (!pixel_at_x_y(self.x - 1, self.y + 1, pixels)) {
-                            self.x -= 1;
-                            self.xf = @as(f64, @floatFromInt(self.x));
-                        } else if (!pixel_at_x_y(self.x + 1, self.y + 1, pixels)) {
-                            self.x += 1;
-                            self.xf = @as(f64, @floatFromInt(self.x));
-                        } else {
-                            self.yf = @as(f64, @floatFromInt(self.y));
-                            self.vel.y = 0;
-                            break;
-                        }
-                    }
-                    if (self.y + 1 >= ylimit) {
-                        break;
-                    } else {
-                        self.y += 1;
-                    }
-                }
+                self.sand_update(delta, pixels, xlimit, ylimit);
             },
-            .Water => {},
+            else => self.base_update(delta, pixels, xlimit, ylimit),
         }
     }
 };

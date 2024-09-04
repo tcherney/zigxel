@@ -341,7 +341,6 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 if (bounds.?.width > @as(u32, @intCast(self.terminal.size.width)) or bounds.?.height > @as(u32, @intCast(self.terminal.size.height))) {
                     return Error.TextureError;
                 } else {
-                    std.debug.print("{d} {d}\n", .{ self.pixel_buffer.len, bounds.?.width * bounds.?.height });
                     var y: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.y))));
                     var buffer_indx: usize = 0;
                     const y_bound = bounds.?.height + y;
