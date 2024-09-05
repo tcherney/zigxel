@@ -2,6 +2,8 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const Pixel = @import("image").Pixel;
 
+//https://tomforsyth1000.github.io/papers/cellular_automata_for_physical_modelling.html
+
 pub const GRAVITY: Velocity = Velocity{ .x = 0, .y = 9.8 };
 
 pub inline fn to_seconds(nano: u64) f64 {
@@ -72,16 +74,31 @@ pub const PhysicsPixel = struct {
         const diff = @as(i32, @intFromFloat(self.yf)) - self.y;
         for (0..@as(usize, @intCast(diff))) |_| {
             if (pixel_at_x_y(self.x, self.y + 1, pixels)) {
-                if (!pixel_at_x_y(self.x - 1, self.y + 1, pixels)) {
-                    self.x -= 1;
-                    self.xf = @as(f64, @floatFromInt(self.x));
-                } else if (!pixel_at_x_y(self.x + 1, self.y + 1, pixels)) {
-                    self.x += 1;
-                    self.xf = @as(f64, @floatFromInt(self.x));
+                const left_first = utils.rand.intRangeAtMost(u8, 0, 1);
+                if (left_first == 1) {
+                    if (!pixel_at_x_y(self.x - 1, self.y + 1, pixels)) {
+                        self.x -= 1;
+                        self.xf = @as(f64, @floatFromInt(self.x));
+                    } else if (!pixel_at_x_y(self.x + 1, self.y + 1, pixels)) {
+                        self.x += 1;
+                        self.xf = @as(f64, @floatFromInt(self.x));
+                    } else {
+                        self.yf = @as(f64, @floatFromInt(self.y));
+                        self.vel.y = 0;
+                        break;
+                    }
                 } else {
-                    self.yf = @as(f64, @floatFromInt(self.y));
-                    self.vel.y = 0;
-                    break;
+                    if (!pixel_at_x_y(self.x + 1, self.y + 1, pixels)) {
+                        self.x += 1;
+                        self.xf = @as(f64, @floatFromInt(self.x));
+                    } else if (!pixel_at_x_y(self.x - 1, self.y + 1, pixels)) {
+                        self.x -= 1;
+                        self.xf = @as(f64, @floatFromInt(self.x));
+                    } else {
+                        self.yf = @as(f64, @floatFromInt(self.y));
+                        self.vel.y = 0;
+                        break;
+                    }
                 }
             }
             if (self.y + 1 >= ylimit) {
