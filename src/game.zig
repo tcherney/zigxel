@@ -18,9 +18,10 @@ pub const Game = struct {
     placement_pixel: []PhysicsPixel = undefined,
     placement_index: usize = 0,
     current_world: World = undefined,
-    pixels: std.ArrayList(PhysicsPixel) = undefined,
+    pixels: std.ArrayList(?*PhysicsPixel) = undefined,
     allocator: std.mem.Allocator = undefined,
     frame_limit: u64 = 16_666_667,
+    lock: std.Thread.Mutex = undefined,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator };
@@ -32,10 +33,54 @@ pub const Game = struct {
     }
     pub fn deinit(self: *Self) Error!void {
         try self.e.deinit();
+        for (0..self.pixels.items.len) |i| {
+            if (self.pixels.items[i] != null) {
+                self.allocator.destroy(self.pixels.items[i].?);
+            }
+        }
         self.pixels.deinit();
         self.current_world.deinit();
         self.allocator.free(self.placement_pixel);
     }
+
+    pub fn place_pixel(self: *Self) !void {
+        var indx: u32 = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
+        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
+            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
+        } else if (indx >= 0 and indx < self.pixels.items.len) {
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
+        }
+        indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
+        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
+            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
+        } else if (indx >= 0 and indx < self.pixels.items.len) {
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
+        }
+        indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x + 1));
+        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
+            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
+        } else if (indx >= 0 and indx < self.pixels.items.len) {
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
+        }
+        indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y - 1)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
+        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
+            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y - 1);
+        } else if (indx >= 0 and indx < self.pixels.items.len) {
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y - 1);
+        }
+        indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x - 1));
+        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
+            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x - 1, self.placement_pixel[self.placement_index].y);
+        } else if (indx >= 0 and indx < self.pixels.items.len) {
+            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x - 1, self.placement_pixel[self.placement_index].y);
+        }
+    }
+
     pub fn on_key_press(self: *Self, key: engine.KEYS) void {
         //std.debug.print("{}\n", .{key});
         if (key == engine.KEYS.KEY_q) {
@@ -50,13 +95,14 @@ pub const Game = struct {
             self.placement_pixel[self.placement_index].y += 1;
         } else if (key == engine.KEYS.KEY_SPACE) {
             std.debug.print("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-            self.pixels.append(PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y)) catch |err| {
+            self.lock.lock();
+            self.place_pixel() catch |err| {
                 std.debug.print("{any}\n", .{err});
                 self.running = false;
+                return;
             };
-        }
-        //TODO probably should pull the viewport updating into the world struct
-        else if (key == engine.KEYS.KEY_i) {
+            self.lock.unlock();
+        } else if (key == engine.KEYS.KEY_i) {
             if (self.current_world.viewport.y > 0) {
                 self.current_world.viewport.y -= 1;
             }
@@ -82,15 +128,21 @@ pub const Game = struct {
     pub fn on_render(self: *Self, _: u64) !void {
         self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
         for (self.pixels.items) |p| {
-            self.e.renderer.draw_pixel(p.x, p.y, p.pixel, self.current_world.tex);
+            if (p != null) {
+                self.e.renderer.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
+            }
         }
         self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
+        self.lock = std.Thread.Mutex{};
         self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
-        self.pixels = std.ArrayList(PhysicsPixel).init(self.allocator);
         self.current_world = try World.init(1920, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
+        self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
+        for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
+            try self.pixels.append(null);
+        }
         self.current_world.viewport.x = self.starting_pos_x;
         self.current_world.viewport.y = self.starting_pos_y;
 
@@ -102,14 +154,32 @@ pub const Game = struct {
         var timer: std.time.Timer = try std.time.Timer.start();
         var delta: u64 = 0;
         while (self.running) {
-            //TODO update viewport if window size changes
-            for (self.pixels.items) |*p| {
-                p.update(delta, self.pixels, self.current_world.tex.width, self.current_world.tex.height);
+            for (0..self.pixels.items.len) |i| {
+                if (self.pixels.items[i] != null) {
+                    self.pixels.items[i].?.*.dirty = false;
+                }
             }
+            const y_start = self.current_world.tex.height - 1;
+            const x_start = self.current_world.tex.width - 1;
+            var y = y_start;
+            self.lock.lock();
+            while (y >= 0) : (y -= 1) {
+                var x = x_start;
+                while (x >= 0) : (x -= 1) {
+                    var p = self.pixels.items[y * self.current_world.tex.width + x];
+                    if (p != null and !p.?.*.dirty) {
+                        std.debug.print("updating {any}\n", .{p.?});
+                        p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                    }
+                    if (x == 0) break;
+                }
+                if (y == 0) break;
+            }
+            self.lock.unlock();
             delta = timer.read();
             timer.reset();
             const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));
-            //std.debug.print("time to sleep {d}\n", .{time_to_sleep});
+            std.debug.print("time to sleep {d}\n", .{time_to_sleep});
             if (time_to_sleep > 0) {
                 std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
             }
