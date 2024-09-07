@@ -26,9 +26,11 @@ pub const Game = struct {
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator };
         try utils.gen_rand();
-        ret.placement_pixel = try ret.allocator.alloc(PhysicsPixel, 2);
+        ret.placement_pixel = try ret.allocator.alloc(PhysicsPixel, 4);
         ret.placement_pixel[0] = PhysicsPixel.init(physic_pixel.PixelType.Sand, ret.starting_pos_x, ret.starting_pos_y);
         ret.placement_pixel[1] = PhysicsPixel.init(physic_pixel.PixelType.Water, ret.starting_pos_x, ret.starting_pos_y);
+        ret.placement_pixel[2] = PhysicsPixel.init(physic_pixel.PixelType.Empty, ret.starting_pos_x, ret.starting_pos_y);
+        ret.placement_pixel[3] = PhysicsPixel.init(physic_pixel.PixelType.Wall, ret.starting_pos_x, ret.starting_pos_y);
         return ret;
     }
     pub fn deinit(self: *Self) Error!void {
@@ -81,6 +83,21 @@ pub const Game = struct {
         }
     }
 
+    pub fn on_mouse_change(self: *Self, mouse_event: engine.MouseEvent) void {
+        self.placement_pixel[self.placement_index].x = @as(i32, @intCast(mouse_event.x)) + self.current_world.viewport.x;
+        self.placement_pixel[self.placement_index].y = @as(i32, @intCast(mouse_event.y)) * 2 + self.current_world.viewport.y;
+        if (mouse_event.clicked) {
+            std.debug.print("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
+            self.lock.lock();
+            self.place_pixel() catch |err| {
+                std.debug.print("{any}\n", .{err});
+                self.running = false;
+                return;
+            };
+            self.lock.unlock();
+        }
+    }
+
     pub fn on_key_press(self: *Self, key: engine.KEYS) void {
         //std.debug.print("{}\n", .{key});
         if (key == engine.KEYS.KEY_q) {
@@ -128,7 +145,7 @@ pub const Game = struct {
     pub fn on_render(self: *Self, _: u64) !void {
         self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
         for (self.pixels.items) |p| {
-            if (p != null) {
+            if (p != null and p.?.*.pixel_type != .Empty) {
                 self.e.renderer.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
             }
         }
@@ -148,12 +165,16 @@ pub const Game = struct {
 
         self.e.on_key_press(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
+        self.e.on_mouse_change(Self, on_mouse_change, self);
         self.e.set_fps(60);
         try self.e.start();
 
         var timer: std.time.Timer = try std.time.Timer.start();
         var delta: u64 = 0;
         while (self.running) {
+            delta = timer.read();
+            timer.reset();
+            self.lock.lock();
             for (0..self.pixels.items.len) |i| {
                 if (self.pixels.items[i] != null) {
                     self.pixels.items[i].?.*.dirty = false;
@@ -162,13 +183,13 @@ pub const Game = struct {
             const y_start = self.current_world.tex.height - 1;
             const x_start = self.current_world.tex.width - 1;
             var y = y_start;
-            self.lock.lock();
+
             while (y >= 0) : (y -= 1) {
                 var x = x_start;
                 while (x >= 0) : (x -= 1) {
                     var p = self.pixels.items[y * self.current_world.tex.width + x];
-                    if (p != null and !p.?.*.dirty) {
-                        std.debug.print("updating {any}\n", .{p.?});
+                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty) {
+                        //std.debug.print("updating {any}\n", .{p.?});
                         p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
                     }
                     if (x == 0) break;

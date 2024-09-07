@@ -13,14 +13,18 @@ pub inline fn to_seconds(nano: u64) f64 {
 pub const PixelType = enum {
     Sand,
     Water,
+    Empty,
+    Wall,
 };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
-    return if (x < 0 or x >= width or y < 0 or y >= height) false else pixels[@as(u32, @bitCast(y)) * width + @as(u32, @bitCast(x))] != null;
+    return if (x < 0 or x >= width or y < 0 or y >= height) false else if (pixels[@as(u32, @bitCast(y)) * width + @as(u32, @bitCast(x))] == null) false else pixels[@as(u32, @bitCast(y)) * width + @as(u32, @bitCast(x))].?.pixel_type != .Empty;
 }
 
 pub const SAND_COLOR = Pixel{ .r = 210, .g = 180, .b = 125 };
 pub const WATER_COLOR = Pixel{ .r = 50, .g = 133, .b = 168 };
+pub const EMPTY_COLOR = Pixel{ .r = 252, .g = 3, .b = 190 };
+pub const WALL_COLOR = Pixel{ .r = 46, .g = 7, .b = 0 };
 
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
@@ -50,6 +54,16 @@ pub const PhysicsPixel = struct {
                 g = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(WATER_COLOR.g)))) + variation))));
                 b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(WATER_COLOR.b)))) + variation))));
                 std.debug.print("{d} {d} {d}\n", .{ r, g, b });
+            },
+            .Empty => {
+                r = EMPTY_COLOR.r;
+                g = EMPTY_COLOR.g;
+                b = EMPTY_COLOR.b;
+            },
+            .Wall => {
+                r = WALL_COLOR.r;
+                g = WALL_COLOR.g;
+                b = WALL_COLOR.b;
             },
         }
         return Self{ .x = x, .y = y, .pixel = Pixel{ .r = r, .g = g, .b = b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1 };
@@ -133,6 +147,7 @@ pub const PhysicsPixel = struct {
             .Water => {
                 self.water_update(pixels, xlimit, ylimit);
             },
+            else => {},
             //else => self.sand_update(pixels, xlimit, ylimit),
         }
     }

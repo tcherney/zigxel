@@ -11,7 +11,7 @@ pub const EventManager = event_manager.EventManager;
 pub const Graphics = graphics.Graphics;
 pub const Texture = texture.Texture;
 pub const KEYS = event_manager.KEYS;
-
+pub const MouseEvent = event_manager.MouseEvent;
 pub const Error = error{} || event_manager.Error || graphics.Error || std.time.Timer.Error || utils.Error;
 
 pub const RenderCallback = utils.CallbackError(u64);
@@ -55,6 +55,7 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
             var frames: u32 = 0;
             var delta: u64 = 0;
             while (self.running) {
+                timer.reset();
                 try self.render_callback.?.call(delta);
                 // check window change
                 if (builtin.os.tag != .windows) {
@@ -68,7 +69,6 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
                     self.window_changed = false;
                 }
                 delta = timer.read();
-                timer.reset();
                 elapsed += @as(f64, @floatFromInt(delta)) / 1_000_000_000.0;
                 frames += 1;
                 //std.debug.print("elapsed {d}\n", .{elapsed});
@@ -101,10 +101,10 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
                 self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
             }
             self.running = true;
-            try self.events.start();
             if (self.render_callback) |_| {
                 self.render_thread = try std.Thread.spawn(.{}, render_loop, .{self});
             }
+            try self.events.start();
         }
 
         pub fn on_key_down(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
@@ -117,6 +117,10 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
 
         pub fn on_key_press(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
             self.events.key_press_callback = event_manager.KeyChangeCallback.init(CONTEXT_TYPE, func, context);
+        }
+
+        pub fn on_mouse_change(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+            self.events.mouse_event_callback = event_manager.MouseChangeCallback.init(CONTEXT_TYPE, func, context);
         }
 
         pub fn on_render(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {

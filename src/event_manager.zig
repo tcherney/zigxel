@@ -3,7 +3,11 @@ const builtin = @import("builtin");
 const utils = @import("utils.zig");
 //https://www.asciitable.com/
 const win32 = struct {
-    pub const EVENT_RECORD = extern union { KeyEvent: KEY_EVENT_RECORD, WindowBufferSizeEvent: WINDOW_BUFFER_SIZE_RECORD };
+    pub const EVENT_RECORD = extern union {
+        KeyEvent: KEY_EVENT_RECORD,
+        WindowBufferSizeEvent: WINDOW_BUFFER_SIZE_RECORD,
+        MouseEvent: MOUSE_EVENT_RECORD,
+    };
     pub const KEY_EVENT_RECORD_CHAR = extern union { UnicodeChar: std.os.windows.WCHAR, AsciiChar: std.os.windows.CHAR };
     pub const KEY_EVENT_RECORD = extern struct {
         bKeyDown: std.os.windows.BOOL,
@@ -12,6 +16,12 @@ const win32 = struct {
         wVirtualScanCode: std.os.windows.WORD,
         uChar: KEY_EVENT_RECORD_CHAR,
         dwControlKeyState: std.os.windows.DWORD,
+    };
+    pub const MOUSE_EVENT_RECORD = extern struct {
+        dwMousePosition: std.os.windows.COORD,
+        dwButtonState: std.os.windows.DWORD,
+        dwControlKeyState: std.os.windows.DWORD,
+        dwEventFlags: std.os.windows.DWORD,
     };
     pub const WINDOW_BUFFER_SIZE_RECORD = extern struct {
         dwSize: std.os.windows.COORD,
@@ -38,6 +48,13 @@ pub const Error = error{ WindowsInit, WindowsRead, PosixInit } || std.posix.Term
 
 pub const WindowChangeCallback = utils.Callback(std.os.windows.COORD);
 pub const KeyChangeCallback = utils.Callback(KEYS);
+pub const MouseChangeCallback = utils.Callback(MouseEvent);
+
+pub const MouseEvent = struct {
+    x: i16,
+    y: i16,
+    clicked: bool,
+};
 
 pub const EventManager = struct {
     main_thread: std.Thread = undefined,
@@ -46,6 +63,7 @@ pub const EventManager = struct {
     key_down_callback: ?KeyChangeCallback = null,
     key_press_callback: ?KeyChangeCallback = null,
     window_change_callback: ?WindowChangeCallback = null,
+    mouse_event_callback: ?MouseChangeCallback = null,
     original_termios: termios = undefined,
     stdin: std.fs.File,
     const Self = @This();
@@ -84,8 +102,18 @@ pub const EventManager = struct {
             if (std.os.windows.kernel32.GetConsoleMode(self.stdin.handle, &self.original_termios) != std.os.windows.TRUE) {
                 return Error.WindowsInit;
             }
+            var raw: termios = self.original_termios;
             const ENABLE_ECHO_INPUT: std.os.windows.DWORD = 0x0004;
-            if (std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, self.original_termios & ~(ENABLE_ECHO_INPUT)) != std.os.windows.TRUE) {
+            const ENABLE_MOUSE_INPUT: std.os.windows.DWORD = 0x0010;
+            const ENABLE_EXTENDED_FLAGS: std.os.windows.DWORD = 0x0080;
+            const ENABLE_LINE_INPUT: std.os.windows.DWORD = 0x0002;
+            const ENABLE_PROCESSED_INPUT: std.os.windows.DWORD = 0x0001;
+            const ENABLE_WINDOW_INPUT: std.os.windows.DWORD = 0x0008;
+            raw = 0;
+            raw = raw & ~(ENABLE_ECHO_INPUT) | ENABLE_MOUSE_INPUT | (ENABLE_EXTENDED_FLAGS) & ~(ENABLE_LINE_INPUT) & ~(ENABLE_PROCESSED_INPUT) | ENABLE_WINDOW_INPUT;
+            std.debug.print("old mode {x}\n", .{self.original_termios});
+            std.debug.print("setting mode {x}\n", .{self.original_termios & ~(ENABLE_ECHO_INPUT) | ENABLE_MOUSE_INPUT | (ENABLE_EXTENDED_FLAGS) & ~(ENABLE_LINE_INPUT) & ~(ENABLE_PROCESSED_INPUT) | ENABLE_WINDOW_INPUT});
+            if (std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, raw) != std.os.windows.TRUE) {
                 return Error.WindowsInit;
             }
         } else {
@@ -126,7 +154,9 @@ pub const EventManager = struct {
                     if (win32.ReadConsoleInputW(self.stdin.handle, &irInBuf, 128, &numRead) != std.os.windows.TRUE) {
                         return Error.WindowsRead;
                     } else {
+                        //std.debug.print("{any}\n", .{irInBuf});
                         for (0..numRead) |i| {
+                            std.debug.print("{any}\n", .{irInBuf[i].EventType});
                             switch (irInBuf[i].EventType) {
                                 @intFromEnum(win32.EventType.KEY_EVENT) => {
                                     if (self.key_down_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.TRUE) {
@@ -141,6 +171,12 @@ pub const EventManager = struct {
                                     if (self.window_change_callback != null) {
                                         std.debug.print("{any}\n", .{irInBuf[i].Event.WindowBufferSizeEvent.dwSize});
                                         self.window_change_callback.?.call(irInBuf[i].Event.WindowBufferSizeEvent.dwSize);
+                                    }
+                                },
+                                @intFromEnum(win32.EventType.MOUSE_EVENT) => {
+                                    if (self.mouse_event_callback != null) {
+                                        std.debug.print("{any}\n", .{irInBuf[i].Event.MouseEvent});
+                                        self.mouse_event_callback.?.call(.{ .x = irInBuf[i].Event.MouseEvent.dwMousePosition.X, .y = irInBuf[i].Event.MouseEvent.dwMousePosition.Y, .clicked = (irInBuf[i].Event.MouseEvent.dwButtonState & 0x01) != 0 });
                                     }
                                 },
                                 //TODO ARROW KEYS
@@ -164,19 +200,3 @@ pub const EventManager = struct {
         }
     }
 };
-// var running: bool = false;
-// pub fn on_key_press(key: KEYS) void {
-//     std.debug.print("{}\n", .{key});
-//     if (key == KEYS.KEY_q) {
-//         running = false;
-//     }
-// }
-
-// test "input" {
-//     var event_manager = EventManager.init();
-//     event_manager.key_press_callback = on_key_press;
-//     try event_manager.start();
-//     running = true;
-//     while (running) {}
-//     try event_manager.deinit();
-// }
