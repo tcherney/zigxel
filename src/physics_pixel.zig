@@ -17,6 +17,7 @@ pub const PixelType = enum {
     Wall,
     Oil,
     Rock,
+    Steam,
 };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
@@ -29,6 +30,7 @@ pub const EMPTY_COLOR = Pixel{ .r = 252, .g = 3, .b = 190 };
 pub const WALL_COLOR = Pixel{ .r = 46, .g = 7, .b = 0 };
 pub const OIL_COLOR = Pixel{ .r = 65, .g = 35, .b = 10 };
 pub const ROCK_COLOR = Pixel{ .r = 50, .g = 50, .b = 50 };
+pub const STEAM_COLOR = Pixel{ .r = 190, .g = 230, .b = 229 };
 
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
@@ -39,6 +41,8 @@ pub const PhysicsPixel = struct {
     last_dir: i32 = undefined,
     density: f32,
     solid: bool,
+    duration: u32 = 0,
+    max_duration: u32,
     const Self = @This();
     pub fn init(pixel_type: PixelType, x: i32, y: i32) Self {
         var r: u8 = undefined;
@@ -46,6 +50,7 @@ pub const PhysicsPixel = struct {
         var b: u8 = undefined;
         var density: f32 = undefined;
         var solid: bool = undefined;
+        var max_duration: u32 = 0;
         switch (pixel_type) {
             .Sand => {
                 std.debug.print("sand color\n", .{});
@@ -101,8 +106,19 @@ pub const PhysicsPixel = struct {
                 density = 5.0;
                 solid = true;
             },
+            .Steam => {
+                std.debug.print("steam color\n", .{});
+                const variation = utils.rand.intRangeAtMost(i16, -10, 10);
+                r = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(STEAM_COLOR.r)))) + variation))));
+                g = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(STEAM_COLOR.g)))) + variation))));
+                b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(STEAM_COLOR.b)))) + variation))));
+                std.debug.print("{d} {d} {d}\n", .{ r, g, b });
+                density = 0.1;
+                solid = false;
+                max_duration = 100;
+            },
         }
-        return Self{ .x = x, .y = y, .pixel = Pixel{ .r = r, .g = g, .b = b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .solid = solid, .density = density };
+        return Self{ .x = x, .y = y, .pixel = Pixel{ .r = r, .g = g, .b = b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .solid = solid, .density = density, .max_duration = max_duration };
     }
 
     inline fn swap_pixel(self: *Self, pixels: []?*PhysicsPixel, x: i32, y: i32, xlimit: u32, _: u32) void {
@@ -165,6 +181,15 @@ pub const PhysicsPixel = struct {
         if (!self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
     }
 
+    fn gas_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        const first = self.last_dir;
+        const second = -first;
+        if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+        if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+        if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+        if (!self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+    }
+
     // fn base_update(self: *Self, delta: u64, pixels: std.ArrayList(PhysicsPixel), xlimit: u32, ylimit: u32) void {
     //     _ = xlimit;
     //     self.vel.y += GRAVITY.y * to_seconds(delta);
@@ -185,6 +210,12 @@ pub const PhysicsPixel = struct {
     // }
 
     pub fn update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        if (self.max_duration > 0) {
+            self.duration += 1;
+            if (self.duration >= self.max_duration) {
+                self.pixel_type = PixelType.Empty;
+            }
+        }
         switch (self.pixel_type) {
             .Sand => {
                 self.sand_update(pixels, xlimit, ylimit);
@@ -197,6 +228,9 @@ pub const PhysicsPixel = struct {
             },
             .Rock => {
                 self.rock_update(pixels, xlimit, ylimit);
+            },
+            .Steam => {
+                self.gas_update(pixels, xlimit, ylimit);
             },
             else => {},
             //else => self.sand_update(pixels, xlimit, ylimit),
