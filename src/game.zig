@@ -13,6 +13,7 @@ pub const Game = struct {
     running: bool = true,
     e: engine.Engine(utils.ColorMode.color_true) = undefined,
     fps_buffer: [64]u8 = undefined,
+    world_width: u32 = 1920,
     starting_pos_x: i32 = 1920 / 2,
     starting_pos_y: i32 = 10,
     placement_pixel: []PhysicsPixel = undefined,
@@ -81,6 +82,7 @@ pub const Game = struct {
     }
 
     pub fn on_mouse_change(self: *Self, mouse_event: engine.MouseEvent) void {
+        std.debug.print("{any}\n", .{mouse_event});
         if (self.old_mouse_x == -1 or self.old_mouse_y == -1) {
             self.old_mouse_x = @as(i32, @intCast(mouse_event.x)) + self.current_world.viewport.x;
             self.old_mouse_y = @as(i32, @intCast(mouse_event.y)) * 2 + self.current_world.viewport.y;
@@ -116,10 +118,64 @@ pub const Game = struct {
                 self.placement_index = (self.placement_index - 1) % self.placement_pixel.len;
             }
         }
-        if (mouse_event.shift_pressed) {
-            self.current_world.viewport.x += mouse_diff_x;
-            self.current_world.viewport.y += mouse_diff_y;
+        if (mouse_event.ctrl_pressed) {
+            std.debug.print("{any} mouse {d} {d}\n", .{ mouse_event, mouse_diff_x, mouse_diff_y });
+            self.current_world.viewport.x += if (mouse_diff_x > 0) 1 else if (mouse_diff_x < 0) -1 else 0;
+            self.current_world.viewport.y += if (mouse_diff_y > 0) 1 else if (mouse_diff_y < 0) -1 else 0;
+            if (self.current_world.viewport.x < 0) {
+                self.current_world.viewport.x = 0;
+            }
+            if (self.current_world.viewport.y < 0) {
+                self.current_world.viewport.y = 0;
+            }
+            if (@as(u32, @bitCast(self.current_world.viewport.x)) + self.current_world.viewport.width > self.current_world.bounds.width) {
+                self.current_world.viewport.x = @as(i32, @bitCast(self.current_world.bounds.width - self.current_world.viewport.width));
+            }
+            if (@as(u32, @bitCast(self.current_world.viewport.y)) + self.current_world.viewport.height > self.current_world.bounds.height) {
+                self.current_world.viewport.y = @as(i32, @bitCast(self.current_world.bounds.height - self.current_world.viewport.height));
+            }
         }
+    }
+    pub fn on_window_change(self: *Self, win_size: engine.WindowSize) void {
+        self.lock.lock();
+        std.debug.print("changed height {d}\n", .{win_size.height});
+        const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;
+        var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator) catch |err| {
+            std.debug.print("{any}\n", .{err});
+            self.running = false;
+            return;
+        };
+        var new_pixels: std.ArrayList(?*PhysicsPixel) = std.ArrayList(?*PhysicsPixel).init(self.allocator);
+        for (0..new_world.tex.width * new_world.tex.height) |i| {
+            if (i < self.pixels.items.len) {
+                new_pixels.append(self.pixels.items[i]) catch |err| {
+                    std.debug.print("{any}\n", .{err});
+                    self.running = false;
+                    return;
+                };
+            } else {
+                new_pixels.append(null) catch |err| {
+                    std.debug.print("{any}\n", .{err});
+                    self.running = false;
+                    return;
+                };
+            }
+        }
+        const pixels_to_delete: i64 = @as(i64, @bitCast(self.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
+        if (pixels_to_delete > 0) {
+            for (new_pixels.items.len..self.pixels.items.len) |i| {
+                if (self.pixels.items[i] != null) {
+                    self.allocator.destroy(self.pixels.items[i].?);
+                }
+            }
+        }
+        new_world.viewport.x = self.starting_pos_x;
+        new_world.viewport.y = self.starting_pos_y;
+        self.pixels.deinit();
+        self.current_world.deinit();
+        self.pixels = new_pixels;
+        self.current_world = new_world;
+        self.lock.unlock();
     }
 
     pub fn on_key_press(self: *Self, key: engine.KEYS) void {
@@ -179,7 +235,8 @@ pub const Game = struct {
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
         self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
-        self.current_world = try World.init(1920, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
+        std.debug.print("starting height {d}\n", .{self.e.renderer.terminal.size.height});
+        self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
         for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
             try self.pixels.append(null);
@@ -190,6 +247,7 @@ pub const Game = struct {
         self.e.on_key_down(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
         self.e.on_mouse_change(Self, on_mouse_change, self);
+        self.e.on_window_change(Self, on_window_change, self);
         self.e.set_fps(60);
         try self.e.start();
 

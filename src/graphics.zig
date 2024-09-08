@@ -135,7 +135,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                     self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.b;
                 }
             } else {
-                if (x < 0 or x > dest.?.width or y > dest.?.height) {
+                if (x < 0 or x >= dest.?.width or y >= dest.?.height or y < 0) {
                     return;
                 }
                 const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));

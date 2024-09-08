@@ -14,6 +14,7 @@ pub const KEYS = event_manager.KEYS;
 pub const MouseEvent = event_manager.MouseEvent;
 pub const Error = error{} || event_manager.Error || graphics.Error || std.time.Timer.Error || utils.Error;
 
+pub const WindowSize = event_manager.WindowSize;
 pub const RenderCallback = utils.CallbackError(u64);
 
 pub fn Engine(comptime color_type: utils.ColorMode) type {
@@ -27,6 +28,7 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
         fps: f64 = 0.0,
         window_changed: bool = false,
         window_change_size: term.Size = undefined,
+        window_change_callback: ?event_manager.WindowChangeCallback = null,
 
         const Self = @This();
         pub fn init(allocator: std.mem.Allocator) Error!Self {
@@ -42,10 +44,10 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
             try self.events.deinit();
         }
 
-        pub fn window_change(self: *Self, coord: std.os.windows.COORD) void {
+        pub fn window_change(self: *Self, win_size: WindowSize) void {
             if (builtin.os.tag == .windows) {
                 self.window_changed = true;
-                self.window_change_size = term.Size{ .width = @as(usize, @intCast(coord.X)), .height = @as(usize, @intCast(coord.Y)) };
+                self.window_change_size = term.Size{ .width = @as(usize, @intCast(win_size.width)), .height = @as(usize, @intCast(win_size.height)) };
             }
         }
 
@@ -66,6 +68,9 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
                 }
                 if (self.window_changed) {
                     try self.renderer.size_change(self.window_change_size);
+                    if (self.window_change_callback != null) {
+                        self.window_change_callback.?.call(.{ .width = @as(u32, @intCast(self.window_change_size.width)), .height = @as(u32, @intCast(self.window_change_size.height)) });
+                    }
                     self.window_changed = false;
                 }
                 delta = timer.read();
@@ -121,6 +126,9 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
 
         pub fn on_mouse_change(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
             self.events.mouse_event_callback = event_manager.MouseChangeCallback.init(CONTEXT_TYPE, func, context);
+        }
+        pub fn on_window_change(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+            self.window_change_callback = event_manager.WindowChangeCallback.init(CONTEXT_TYPE, func, context);
         }
 
         pub fn on_render(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
