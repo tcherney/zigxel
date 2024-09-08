@@ -15,6 +15,8 @@ pub const PixelType = enum {
     Water,
     Empty,
     Wall,
+    Oil,
+    Rock,
 };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
@@ -25,6 +27,8 @@ pub const SAND_COLOR = Pixel{ .r = 210, .g = 180, .b = 125 };
 pub const WATER_COLOR = Pixel{ .r = 50, .g = 133, .b = 168 };
 pub const EMPTY_COLOR = Pixel{ .r = 252, .g = 3, .b = 190 };
 pub const WALL_COLOR = Pixel{ .r = 46, .g = 7, .b = 0 };
+pub const OIL_COLOR = Pixel{ .r = 65, .g = 35, .b = 10 };
+pub const ROCK_COLOR = Pixel{ .r = 50, .g = 50, .b = 50 };
 
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
@@ -77,6 +81,26 @@ pub const PhysicsPixel = struct {
                 density = 10.0;
                 solid = true;
             },
+            .Oil => {
+                std.debug.print("oil color\n", .{});
+                const variation = utils.rand.intRangeAtMost(i16, -10, 10);
+                r = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(OIL_COLOR.r)))) + variation))));
+                g = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(OIL_COLOR.g)))) + variation))));
+                b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(OIL_COLOR.b)))) + variation))));
+                std.debug.print("{d} {d} {d}\n", .{ r, g, b });
+                density = 0.5;
+                solid = false;
+            },
+            .Rock => {
+                std.debug.print("rock color\n", .{});
+                const variation = utils.rand.intRangeAtMost(i16, -10, 10);
+                r = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(ROCK_COLOR.r)))) + variation))));
+                g = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(ROCK_COLOR.g)))) + variation))));
+                b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(ROCK_COLOR.b)))) + variation))));
+                std.debug.print("{d} {d} {d}\n", .{ r, g, b });
+                density = 5.0;
+                solid = true;
+            },
         }
         return Self{ .x = x, .y = y, .pixel = Pixel{ .r = r, .g = g, .b = b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .solid = solid, .density = density };
     }
@@ -110,6 +134,10 @@ pub const PhysicsPixel = struct {
         if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
     }
 
+    fn rock_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+    }
+
     inline fn execute_move(self: *Self, pixels: []?*PhysicsPixel, x: i32, y: i32, xlimit: u32, ylimit: u32) bool {
         if (in_bounds(x, y, xlimit, ylimit)) {
             const indx: u32 = @as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x));
@@ -128,7 +156,7 @@ pub const PhysicsPixel = struct {
         return false;
     }
 
-    fn water_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+    fn fluid_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         const first = self.last_dir;
         const second = -first;
         if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
@@ -162,7 +190,13 @@ pub const PhysicsPixel = struct {
                 self.sand_update(pixels, xlimit, ylimit);
             },
             .Water => {
-                self.water_update(pixels, xlimit, ylimit);
+                self.fluid_update(pixels, xlimit, ylimit);
+            },
+            .Oil => {
+                self.fluid_update(pixels, xlimit, ylimit);
+            },
+            .Rock => {
+                self.rock_update(pixels, xlimit, ylimit);
             },
             else => {},
             //else => self.sand_update(pixels, xlimit, ylimit),

@@ -54,6 +54,9 @@ pub const MouseEvent = struct {
     x: i16,
     y: i16,
     clicked: bool,
+    scroll_up: bool,
+    scroll_down: bool,
+    shift_pressed: bool,
 };
 
 pub const EventManager = struct {
@@ -176,7 +179,14 @@ pub const EventManager = struct {
                                 @intFromEnum(win32.EventType.MOUSE_EVENT) => {
                                     if (self.mouse_event_callback != null) {
                                         std.debug.print("{any}\n", .{irInBuf[i].Event.MouseEvent});
-                                        self.mouse_event_callback.?.call(.{ .x = irInBuf[i].Event.MouseEvent.dwMousePosition.X, .y = irInBuf[i].Event.MouseEvent.dwMousePosition.Y, .clicked = (irInBuf[i].Event.MouseEvent.dwButtonState & 0x01) != 0 });
+                                        self.mouse_event_callback.?.call(.{
+                                            .x = irInBuf[i].Event.MouseEvent.dwMousePosition.X,
+                                            .y = irInBuf[i].Event.MouseEvent.dwMousePosition.Y,
+                                            .clicked = (irInBuf[i].Event.MouseEvent.dwButtonState & 0x01) != 0,
+                                            .scroll_up = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10) != 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
+                                            .scroll_down = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10) == 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
+                                            .shift_pressed = irInBuf[i].Event.MouseEvent.dwControlKeyState & 0x10 != 0,
+                                        });
                                     }
                                 },
                                 //TODO ARROW KEYS
