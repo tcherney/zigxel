@@ -20,6 +20,7 @@ pub const PixelType = enum {
     Steam,
     Fire,
     Lava,
+    Wood,
 };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
@@ -35,6 +36,7 @@ pub const ROCK_COLOR = Pixel{ .r = 50, .g = 50, .b = 50 };
 pub const STEAM_COLOR = Pixel{ .r = 190, .g = 230, .b = 229 };
 pub const FIRE_COLOR = Pixel{ .r = 245, .g = 57, .b = 36 };
 pub const LAVA_COLOR = Pixel{ .r = 133, .g = 34, .b = 32 };
+pub const WOOD_COLOR = Pixel{ .r = 97, .g = 69, .b = 47 };
 
 const Properties = struct {
     color: Pixel,
@@ -114,6 +116,13 @@ const LAVA_PROPERTIES: Properties = Properties{
     .density = 2.0,
 };
 
+const WOOD_PROPERTIES: Properties = Properties{
+    .color = .{ .r = WOOD_COLOR.r, .g = WOOD_COLOR.g, .b = WOOD_COLOR.b },
+    .solid = true,
+    .max_duration = 0,
+    .density = 8.0,
+};
+
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
     x: i32,
@@ -180,6 +189,12 @@ pub const PhysicsPixel = struct {
                 color = properties.vary_color(10);
                 std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
+            .Wood => {
+                std.debug.print("wood color\n", .{});
+                properties = WOOD_PROPERTIES;
+                color = properties.vary_color(10);
+                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
+            },
         }
         return Self{ .x = x, .y = y, .pixel = Pixel{ .r = color.r, .g = color.g, .b = color.b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .properties = properties };
     }
@@ -223,14 +238,12 @@ pub const PhysicsPixel = struct {
             self.duration = 0;
             self.pixel_type = .Rock;
             self.pixel = self.properties.vary_color(10);
-        }
-        // else if (self.pixel_type == .Lava and pixel.pixel_type == .Wood) {
-        //     pixel.properties = FIRE_PROPERTIES;
-        //     pixel.duration = 0;
-        //     pixel.pixel_type = .Fire;
-        //     pixel.pixel = pixel.properties.vary_color(10);
-        // }
-        else if (self.pixel_type == .Lava and pixel.pixel_type == .Oil) {
+        } else if (self.pixel_type == .Lava and pixel.pixel_type == .Wood) {
+            pixel.properties = FIRE_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Fire;
+            pixel.pixel = pixel.properties.vary_color(10);
+        } else if (self.pixel_type == .Lava and pixel.pixel_type == .Oil) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
@@ -240,14 +253,12 @@ pub const PhysicsPixel = struct {
             pixel.duration = 0;
             pixel.pixel_type = .Water;
             pixel.pixel = pixel.properties.vary_color(10);
-        }
-        // else if (self.pixel_type == .Fire and pixel.pixel_type == .Wood) {
-        //     pixel.properties = FIRE_PROPERTIES;
-        //     pixel.duration = 0;
-        //     pixel.pixel_type = .Fire;
-        //     pixel.pixel = self.properties.vary_color(10);
-        // }
-        else if (self.pixel_type == .Fire and pixel.pixel_type == .Oil) {
+        } else if (self.pixel_type == .Fire and pixel.pixel_type == .Wood) {
+            pixel.properties = FIRE_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Fire;
+            pixel.pixel = self.properties.vary_color(10);
+        } else if (self.pixel_type == .Fire and pixel.pixel_type == .Oil) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
@@ -303,25 +314,6 @@ pub const PhysicsPixel = struct {
         if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
         _ = self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit);
     }
-
-    // fn base_update(self: *Self, delta: u64, pixels: std.ArrayList(PhysicsPixel), xlimit: u32, ylimit: u32) void {
-    //     _ = xlimit;
-    //     self.vel.y += GRAVITY.y * to_seconds(delta);
-    //     self.yf += self.vel.y * to_seconds(delta);
-    //     self.xf += self.vel.x * to_seconds(delta);
-    //     const diff = @as(i32, @intFromFloat(self.yf)) - self.y;
-    //     for (0..@as(usize, @intCast(diff))) |_| {
-    //         if (pixel_at_x_y(self.x, self.y + 1, pixels)) {
-    //             self.yf = @as(f64, @floatFromInt(self.y));
-    //             self.vel.y = 0;
-    //             break;
-    //         } else if (self.y + 1 >= ylimit) {
-    //             break;
-    //         } else {
-    //             self.y += 1;
-    //         }
-    //     }
-    // }
 
     pub fn update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         if (self.properties.max_duration > 0) {

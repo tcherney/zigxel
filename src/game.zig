@@ -29,7 +29,7 @@ pub const Game = struct {
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator };
         try utils.gen_rand();
-        ret.placement_pixel = try ret.allocator.alloc(PhysicsPixel, 9);
+        ret.placement_pixel = try ret.allocator.alloc(PhysicsPixel, 10);
         ret.placement_pixel[0] = PhysicsPixel.init(physic_pixel.PixelType.Sand, ret.starting_pos_x, ret.starting_pos_y);
         ret.placement_pixel[1] = PhysicsPixel.init(physic_pixel.PixelType.Water, ret.starting_pos_x, ret.starting_pos_y);
         ret.placement_pixel[2] = PhysicsPixel.init(physic_pixel.PixelType.Oil, ret.starting_pos_x, ret.starting_pos_y);
@@ -37,8 +37,9 @@ pub const Game = struct {
         ret.placement_pixel[4] = PhysicsPixel.init(physic_pixel.PixelType.Steam, ret.starting_pos_x, ret.starting_pos_y);
         ret.placement_pixel[5] = PhysicsPixel.init(physic_pixel.PixelType.Fire, ret.starting_pos_x, ret.starting_pos_y);
         ret.placement_pixel[6] = PhysicsPixel.init(physic_pixel.PixelType.Rock, ret.starting_pos_x, ret.starting_pos_y);
-        ret.placement_pixel[7] = PhysicsPixel.init(physic_pixel.PixelType.Wall, ret.starting_pos_x, ret.starting_pos_y);
-        ret.placement_pixel[8] = PhysicsPixel.init(physic_pixel.PixelType.Empty, ret.starting_pos_x, ret.starting_pos_y);
+        ret.placement_pixel[7] = PhysicsPixel.init(physic_pixel.PixelType.Wood, ret.starting_pos_x, ret.starting_pos_y);
+        ret.placement_pixel[8] = PhysicsPixel.init(physic_pixel.PixelType.Wall, ret.starting_pos_x, ret.starting_pos_y);
+        ret.placement_pixel[9] = PhysicsPixel.init(physic_pixel.PixelType.Empty, ret.starting_pos_x, ret.starting_pos_y);
         return ret;
     }
     pub fn deinit(self: *Self) Error!void {
@@ -182,7 +183,7 @@ pub const Game = struct {
     }
 
     pub fn on_key_press(self: *Self, key: engine.KEYS) void {
-        //std.debug.print("{}\n", .{key});
+        std.debug.print("{}\n", .{key});
         if (key == engine.KEYS.KEY_q) {
             self.running = false;
         } else if (key == engine.KEYS.KEY_a) {
@@ -222,6 +223,11 @@ pub const Game = struct {
             self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
             self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].y = self.placement_pixel[self.placement_index].y;
             self.placement_index = (self.placement_index + 1) % self.placement_pixel.len;
+        } else if (key == engine.KEYS.KEY_p) {
+            self.current_world.print() catch |err| {
+                std.debug.print("{any}\n", .{err});
+                self.running = false;
+            };
         }
     }
 

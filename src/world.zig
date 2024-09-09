@@ -33,6 +33,10 @@ pub const World = struct {
         };
     }
 
+    pub fn print(self: *Self) !void {
+        try self.tex.image_core().write_BMP("world.bmp");
+    }
+
     pub fn deinit(self: *Self) void {
         self.tex.deinit();
     }
