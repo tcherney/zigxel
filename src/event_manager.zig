@@ -186,8 +186,8 @@ pub const EventManager = struct {
                                             .x = irInBuf[i].Event.MouseEvent.dwMousePosition.X,
                                             .y = irInBuf[i].Event.MouseEvent.dwMousePosition.Y,
                                             .clicked = (irInBuf[i].Event.MouseEvent.dwButtonState & 0x01) != 0,
-                                            .scroll_up = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10) != 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
-                                            .scroll_down = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10) == 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
+                                            .scroll_up = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10000000) != 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
+                                            .scroll_down = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10000000) == 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
                                             .ctrl_pressed = irInBuf[i].Event.MouseEvent.dwControlKeyState & 0x08 != 0,
                                         });
                                     }
