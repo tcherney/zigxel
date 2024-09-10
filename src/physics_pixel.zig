@@ -371,7 +371,7 @@ pub const PhysicsPixel = struct {
             pixel.duration = 0;
             pixel.pixel_type = .Plant;
             pixel.pixel = pixel.properties.vary_color(10);
-        } else if (self.pixel_type == .Explosive and pixel.pixel_type != .Empty and pixel.pixel_type != .Explosive) {
+        } else if (self.pixel_type == .Explosive and pixel.pixel_type != .Empty and pixel.pixel_type != .Explosive and pixel.pixel_type != .Steam) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
@@ -576,7 +576,6 @@ pub const PhysicsPixel = struct {
         }
     }
 
-    //TODO pixels that operate at different speeds
     //TODO RIGID BODIES maybe box2d?
     pub fn update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         if (self.properties.max_duration > 0) {

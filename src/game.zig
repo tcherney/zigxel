@@ -265,6 +265,7 @@ pub const Game = struct {
 
         var timer: std.time.Timer = try std.time.Timer.start();
         var delta: u64 = 0;
+        var active_pixels: u64 = 0;
         while (self.running) {
             delta = timer.read();
             timer.reset();
@@ -285,6 +286,7 @@ pub const Game = struct {
                     if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty) {
                         //std.debug.print("updating {any}\n", .{p.?});
                         p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                        active_pixels += 1;
                     }
                     if (x == 0) break;
                 }
@@ -294,10 +296,11 @@ pub const Game = struct {
             delta = timer.read();
             timer.reset();
             const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));
-            std.debug.print("time to sleep {d}\n", .{time_to_sleep});
+            std.debug.print("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
             if (time_to_sleep > 0) {
                 std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
             }
+            active_pixels = 0;
         }
     }
 };
