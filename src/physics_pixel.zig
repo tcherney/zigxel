@@ -21,6 +21,9 @@ pub const PixelType = enum {
     Fire,
     Lava,
     Wood,
+    Ice,
+    Plant,
+    Explosive,
 };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
@@ -37,12 +40,17 @@ pub const STEAM_COLOR = Pixel{ .r = 190, .g = 230, .b = 229 };
 pub const FIRE_COLOR = Pixel{ .r = 245, .g = 57, .b = 36 };
 pub const LAVA_COLOR = Pixel{ .r = 133, .g = 34, .b = 32 };
 pub const WOOD_COLOR = Pixel{ .r = 97, .g = 69, .b = 47 };
+pub const ICE_COLOR = Pixel{ .r = 160, .g = 205, .b = 230 };
+pub const PLANT_COLOR = Pixel{ .r = 45, .g = 160, .b = 45 };
+pub const EXPLOSIVE_COLOR = Pixel{ .r = 235, .g = 200, .b = 60 };
 
 const Properties = struct {
     color: Pixel,
     solid: bool,
     max_duration: u32,
     density: f32,
+    speed: u32,
+    piercing: bool,
     pub fn vary_color(self: *Properties, variance: i16) Pixel {
         const variation = utils.rand.intRangeAtMost(i16, -variance, variance);
         return Pixel{
@@ -58,6 +66,8 @@ const SAND_PROPERTIES: Properties = Properties{
     .solid = true,
     .max_duration = 0,
     .density = 3.0,
+    .speed = 1,
+    .piercing = false,
 };
 
 const WATER_PROPERTIES: Properties = Properties{
@@ -65,6 +75,8 @@ const WATER_PROPERTIES: Properties = Properties{
     .solid = false,
     .max_duration = 0,
     .density = 1.0,
+    .speed = 1,
+    .piercing = false,
 };
 
 const EMPTY_PROPERTIES: Properties = Properties{
@@ -72,6 +84,8 @@ const EMPTY_PROPERTIES: Properties = Properties{
     .solid = false,
     .max_duration = 0,
     .density = 0,
+    .speed = 1,
+    .piercing = false,
 };
 
 const WALL_PROPERTIES: Properties = Properties{
@@ -79,6 +93,8 @@ const WALL_PROPERTIES: Properties = Properties{
     .solid = true,
     .max_duration = 0,
     .density = 10.0,
+    .speed = 1,
+    .piercing = false,
 };
 
 const OIL_PROPERTIES: Properties = Properties{
@@ -86,6 +102,8 @@ const OIL_PROPERTIES: Properties = Properties{
     .solid = false,
     .max_duration = 0,
     .density = 0.5,
+    .speed = 1,
+    .piercing = false,
 };
 
 const ROCK_PROPERTIES: Properties = Properties{
@@ -93,6 +111,8 @@ const ROCK_PROPERTIES: Properties = Properties{
     .solid = true,
     .max_duration = 0,
     .density = 5.0,
+    .speed = 1,
+    .piercing = false,
 };
 
 const STEAM_PROPERTIES: Properties = Properties{
@@ -100,6 +120,8 @@ const STEAM_PROPERTIES: Properties = Properties{
     .solid = false,
     .max_duration = 125,
     .density = 0.1,
+    .speed = 1,
+    .piercing = false,
 };
 
 const FIRE_PROPERTIES: Properties = Properties{
@@ -107,6 +129,8 @@ const FIRE_PROPERTIES: Properties = Properties{
     .solid = false,
     .max_duration = 100,
     .density = 0.1,
+    .speed = 1,
+    .piercing = false,
 };
 
 const LAVA_PROPERTIES: Properties = Properties{
@@ -114,6 +138,8 @@ const LAVA_PROPERTIES: Properties = Properties{
     .solid = false,
     .max_duration = 300,
     .density = 2.0,
+    .speed = 1,
+    .piercing = false,
 };
 
 const WOOD_PROPERTIES: Properties = Properties{
@@ -121,6 +147,35 @@ const WOOD_PROPERTIES: Properties = Properties{
     .solid = true,
     .max_duration = 0,
     .density = 8.0,
+    .speed = 1,
+    .piercing = false,
+};
+
+const ICE_PROPERTIES: Properties = Properties{
+    .color = .{ .r = ICE_COLOR.r, .g = ICE_COLOR.g, .b = ICE_COLOR.b },
+    .solid = true,
+    .max_duration = 300,
+    .density = 0.4,
+    .speed = 1,
+    .piercing = false,
+};
+
+const PLANT_PROPERTIES: Properties = Properties{
+    .color = .{ .r = PLANT_COLOR.r, .g = PLANT_COLOR.g, .b = PLANT_COLOR.b },
+    .solid = true,
+    .max_duration = 0,
+    .density = 5.0,
+    .speed = 1,
+    .piercing = false,
+};
+
+const EXPLOSIVE_PROPERTIES: Properties = Properties{
+    .color = .{ .r = EXPLOSIVE_COLOR.r, .g = EXPLOSIVE_COLOR.g, .b = EXPLOSIVE_COLOR.b },
+    .solid = false,
+    .max_duration = 30,
+    .density = 0.1,
+    .speed = 10,
+    .piercing = true,
 };
 
 pub const PhysicsPixel = struct {
@@ -192,6 +247,24 @@ pub const PhysicsPixel = struct {
             .Wood => {
                 std.debug.print("wood color\n", .{});
                 properties = WOOD_PROPERTIES;
+                color = properties.vary_color(10);
+                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
+            },
+            .Ice => {
+                std.debug.print("ice color\n", .{});
+                properties = ICE_PROPERTIES;
+                color = properties.vary_color(10);
+                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
+            },
+            .Plant => {
+                std.debug.print("plant color\n", .{});
+                properties = PLANT_PROPERTIES;
+                color = properties.vary_color(10);
+                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
+            },
+            .Explosive => {
+                std.debug.print("explosive color\n", .{});
+                properties = EXPLOSIVE_PROPERTIES;
                 color = properties.vary_color(10);
                 std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
@@ -268,6 +341,41 @@ pub const PhysicsPixel = struct {
             pixel.duration = 0;
             pixel.pixel_type = .Steam;
             pixel.pixel = pixel.properties.vary_color(10);
+        } else if (self.pixel_type == .Fire and pixel.pixel_type == .Ice) {
+            pixel.properties = WATER_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Water;
+            pixel.pixel = pixel.properties.vary_color(10);
+        } else if (self.pixel_type == .Lava and pixel.pixel_type == .Ice) {
+            pixel.properties = WATER_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Water;
+            pixel.pixel = pixel.properties.vary_color(10);
+        } else if (self.pixel_type == .Fire and pixel.pixel_type == .Plant) {
+            pixel.properties = FIRE_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Fire;
+            pixel.pixel = pixel.properties.vary_color(10);
+        } else if (self.pixel_type == .Lava and pixel.pixel_type == .Plant) {
+            pixel.properties = FIRE_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Fire;
+            pixel.pixel = pixel.properties.vary_color(10);
+        } else if (self.pixel_type == .Water and pixel.pixel_type == .Plant) {
+            self.properties = PLANT_PROPERTIES;
+            self.duration = 0;
+            self.pixel_type = .Plant;
+            self.pixel = self.properties.vary_color(10);
+        } else if (self.pixel_type == .Plant and pixel.pixel_type == .Water) {
+            pixel.properties = PLANT_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Plant;
+            pixel.pixel = pixel.properties.vary_color(10);
+        } else if (self.pixel_type == .Explosive and pixel.pixel_type != .Empty and pixel.pixel_type != .Explosive) {
+            pixel.properties = FIRE_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Fire;
+            pixel.pixel = pixel.properties.vary_color(10);
         }
     }
 
@@ -278,23 +386,87 @@ pub const PhysicsPixel = struct {
     inline fn execute_move(self: *Self, pixels: []?*PhysicsPixel, x: i32, y: i32, xlimit: u32, ylimit: u32) bool {
         if (in_bounds(x, y, xlimit, ylimit)) {
             const indx: u32 = @as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x));
-            if (!pixel_at_x_y(x, y, pixels, xlimit, ylimit)) {
+            if (!pixel_at_x_y(x, y, pixels, xlimit, ylimit) or self.properties.piercing) {
                 self.swap_pixel(pixels, x, y, xlimit, ylimit);
                 return true;
             } else if (!pixels[indx].?.properties.solid and ((pixels[indx].?.properties.density > self.properties.density and y <= self.y) or
                 (pixels[indx].?.properties.density < self.properties.density and y > self.y)))
             {
-                self.reaction(pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))].?);
                 self.swap_pixel(pixels, x, y, xlimit, ylimit);
                 return true;
             } else if (pixels[indx].?.properties.density == self.properties.density) {
-                self.reaction(pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))].?);
                 self.last_dir = -self.last_dir;
-            } else {
-                self.reaction(pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))].?);
             }
         }
         return false;
+    }
+
+    fn react_with_neighbors(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        var x: i32 = self.x - 1;
+        var y: i32 = self.y - 1;
+        if (in_bounds(x, y, xlimit, ylimit)) {
+            if (pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))]) |p| {
+                if (p.pixel_type != .Empty) {
+                    self.reaction(p);
+                }
+            }
+        }
+        x += 1;
+        if (in_bounds(x, y, xlimit, ylimit)) {
+            if (pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))]) |p| {
+                if (p.pixel_type != .Empty) {
+                    self.reaction(p);
+                }
+            }
+        }
+        x += 1;
+        if (in_bounds(x, y, xlimit, ylimit)) {
+            if (pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))]) |p| {
+                if (p.pixel_type != .Empty) {
+                    self.reaction(p);
+                }
+            }
+        }
+        y += 1;
+        if (in_bounds(x, y, xlimit, ylimit)) {
+            if (pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))]) |p| {
+                if (p.pixel_type != .Empty) {
+                    self.reaction(p);
+                }
+            }
+        }
+        x -= 2;
+        if (in_bounds(x, y, xlimit, ylimit)) {
+            if (pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))]) |p| {
+                if (p.pixel_type != .Empty) {
+                    self.reaction(p);
+                }
+            }
+        }
+        y += 1;
+        if (in_bounds(x, y, xlimit, ylimit)) {
+            if (pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))]) |p| {
+                if (p.pixel_type != .Empty) {
+                    self.reaction(p);
+                }
+            }
+        }
+        x += 1;
+        if (in_bounds(x, y, xlimit, ylimit)) {
+            if (pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))]) |p| {
+                if (p.pixel_type != .Empty) {
+                    self.reaction(p);
+                }
+            }
+        }
+        x += 1;
+        if (in_bounds(x, y, xlimit, ylimit)) {
+            if (pixels[@as(u32, @bitCast(y)) * xlimit + @as(u32, @bitCast(x))]) |p| {
+                if (p.pixel_type != .Empty) {
+                    self.reaction(p);
+                }
+            }
+        }
     }
 
     fn fluid_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
@@ -315,6 +487,97 @@ pub const PhysicsPixel = struct {
         _ = self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit);
     }
 
+    fn fire_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        const first = self.last_dir;
+        const second = -first;
+        const direction = utils.rand.intRangeAtMost(u8, 0, 7);
+        switch (direction) {
+            0 => {
+                if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+                _ = self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit);
+            },
+            1 => {
+                if (self.execute_move(pixels, self.x + first, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+            },
+            2 => {
+                if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y + 1, xlimit, ylimit)) return;
+            },
+            3 => {
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
+            },
+            4 => {
+                if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+            },
+            5 => {
+                if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+            },
+            6 => {
+                if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+            },
+            7 => {
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + first, self.y - 1, xlimit, ylimit)) return;
+                if (self.execute_move(pixels, self.x + second, self.y - 1, xlimit, ylimit)) return;
+            },
+            else => unreachable,
+        }
+    }
+
+    //TODO pixels that operate at different speeds
+    //TODO RIGID BODIES maybe box2d?
     pub fn update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         if (self.properties.max_duration > 0) {
             self.duration += 1;
@@ -329,39 +592,48 @@ pub const PhysicsPixel = struct {
                     self.duration = 0;
                     self.pixel_type = .Rock;
                     self.pixel = self.properties.vary_color(10);
+                } else if (self.pixel_type == .Ice) {
+                    self.properties = WATER_PROPERTIES;
+                    self.duration = 0;
+                    self.pixel_type = .Water;
+                    self.pixel = self.properties.vary_color(10);
                 } else {
                     self.pixel_type = PixelType.Empty;
                 }
             }
         }
-        switch (self.pixel_type) {
-            .Sand => {
-                self.sand_update(pixels, xlimit, ylimit);
-            },
-            .Water => {
-                self.fluid_update(pixels, xlimit, ylimit);
-            },
-            .Oil => {
-                self.fluid_update(pixels, xlimit, ylimit);
-            },
-            .Rock => {
-                self.rock_update(pixels, xlimit, ylimit);
-            },
-            .Steam => {
-                self.gas_update(pixels, xlimit, ylimit);
-            },
-            .Lava => {
-                self.fluid_update(pixels, xlimit, ylimit);
-            },
-            .Fire => {
-                if (utils.rand.boolean()) {
-                    self.gas_update(pixels, xlimit, ylimit);
-                } else {
+        for (0..self.properties.speed) |_| {
+            switch (self.pixel_type) {
+                .Sand => {
+                    self.sand_update(pixels, xlimit, ylimit);
+                },
+                .Water => {
                     self.fluid_update(pixels, xlimit, ylimit);
-                }
-            },
-            else => {},
-            //else => self.sand_update(pixels, xlimit, ylimit),
+                },
+                .Oil => {
+                    self.fluid_update(pixels, xlimit, ylimit);
+                },
+                .Rock => {
+                    self.rock_update(pixels, xlimit, ylimit);
+                },
+                .Steam => {
+                    self.gas_update(pixels, xlimit, ylimit);
+                },
+                .Lava => {
+                    self.fluid_update(pixels, xlimit, ylimit);
+                },
+                .Fire => {
+                    self.fire_update(pixels, xlimit, ylimit);
+                },
+                .Ice => {
+                    self.sand_update(pixels, xlimit, ylimit);
+                },
+                .Explosive => {
+                    self.fire_update(pixels, xlimit, ylimit);
+                },
+                else => {},
+            }
+            self.react_with_neighbors(pixels, xlimit, ylimit);
         }
     }
 };
