@@ -24,6 +24,7 @@ pub const PixelType = enum {
     Ice,
     Plant,
     Explosive,
+    Object,
 };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
@@ -178,6 +179,15 @@ const EXPLOSIVE_PROPERTIES: Properties = Properties{
     .piercing = true,
 };
 
+const OBJECT_PROPERTIES: Properties = Properties{
+    .color = .{ .r = 255, .g = 255, .b = 255 },
+    .solid = true,
+    .max_duration = 0,
+    .density = 10,
+    .speed = 1,
+    .piercing = false,
+};
+
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
     x: i32,
@@ -268,8 +278,18 @@ pub const PhysicsPixel = struct {
                 color = properties.vary_color(10);
                 std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
+            .Object => {
+                std.debug.print("object color\n", .{});
+                properties = OBJECT_PROPERTIES;
+                color = properties.color;
+                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
+            },
         }
         return Self{ .x = x, .y = y, .pixel = Pixel{ .r = color.r, .g = color.g, .b = color.b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .properties = properties };
+    }
+
+    pub fn set_color(self: *Self, r: u8, g: u8, b: u8) void {
+        self.pixel = .{ .r = r, .g = g, .b = b };
     }
 
     inline fn swap_pixel(self: *Self, pixels: []?*PhysicsPixel, x: i32, y: i32, xlimit: u32, _: u32) void {
@@ -629,6 +649,9 @@ pub const PhysicsPixel = struct {
                 },
                 .Explosive => {
                     self.fire_update(pixels, xlimit, ylimit);
+                },
+                .Object => {
+                    self.rock_update(pixels, xlimit, ylimit);
                 },
                 else => {},
             }

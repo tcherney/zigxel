@@ -4,9 +4,11 @@ const utils = @import("utils.zig");
 const image = @import("image");
 const sprite = @import("sprite.zig");
 const physic_pixel = @import("physics_pixel.zig");
+const game_object = @import("game_object.zig");
 
 pub const World = @import("world.zig").World;
 pub const PhysicsPixel = physic_pixel.PhysicsPixel;
+pub const GameObject = game_object.GameObject;
 pub const Error = error{} || image.Error || engine.Error || utils.Error || std.mem.Allocator.Error;
 
 pub const Game = struct {
@@ -256,6 +258,14 @@ pub const Game = struct {
         self.current_world.viewport.x = self.starting_pos_x;
         self.current_world.viewport.y = self.starting_pos_y;
 
+        var box_img: image.Image(image.PNGImage) = image.Image(image.PNGImage){};
+        try box_img.load("basic0.png", self.allocator);
+        var tex: engine.Texture = engine.Texture.init(self.allocator);
+        try tex.load_image(box_img);
+        var go: GameObject = try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, &tex, self.allocator);
+        for (0..go.pixels.len) |i| {
+            self.pixels.items[@as(u32, @bitCast(go.pixels[i].y)) * self.current_world.tex.width + @as(u32, @bitCast(go.pixels[i].x))] = go.pixels[i];
+        }
         self.e.on_key_down(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
         self.e.on_mouse_change(Self, on_mouse_change, self);
@@ -302,5 +312,8 @@ pub const Game = struct {
             }
             active_pixels = 0;
         }
+        go.deinit();
+        tex.deinit();
+        box_img.deinit();
     }
 };
