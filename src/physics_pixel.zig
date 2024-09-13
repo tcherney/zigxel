@@ -197,92 +197,70 @@ pub const PhysicsPixel = struct {
     last_dir: i32 = undefined,
     properties: Properties,
     duration: u32 = 0,
+    active: bool = true,
+    idle_turns: u32 = 0,
+    updated: bool = false,
+    managed: bool = false,
     const Self = @This();
     pub fn init(pixel_type: PixelType, x: i32, y: i32) Self {
         var properties: Properties = undefined;
         var color: Pixel = undefined;
         switch (pixel_type) {
             .Sand => {
-                std.debug.print("sand color\n", .{});
                 properties = SAND_PROPERTIES;
                 color = properties.vary_color(15);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Water => {
-                std.debug.print("water color\n", .{});
                 properties = WATER_PROPERTIES;
                 color = properties.vary_color(15);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Empty => {
                 properties = EMPTY_PROPERTIES;
                 color = properties.color;
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Wall => {
                 properties = WALL_PROPERTIES;
                 color = properties.color;
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Oil => {
-                std.debug.print("oil color\n", .{});
                 properties = OIL_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Rock => {
-                std.debug.print("rock color\n", .{});
                 properties = ROCK_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Steam => {
-                std.debug.print("steam color\n", .{});
                 properties = STEAM_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Lava => {
-                std.debug.print("lava color\n", .{});
                 properties = LAVA_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Fire => {
-                std.debug.print("fire color\n", .{});
                 properties = FIRE_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Wood => {
-                std.debug.print("wood color\n", .{});
                 properties = WOOD_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Ice => {
-                std.debug.print("ice color\n", .{});
                 properties = ICE_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Plant => {
-                std.debug.print("plant color\n", .{});
                 properties = PLANT_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Explosive => {
-                std.debug.print("explosive color\n", .{});
                 properties = EXPLOSIVE_PROPERTIES;
                 color = properties.vary_color(10);
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
             .Object => {
-                std.debug.print("object color\n", .{});
                 properties = OBJECT_PROPERTIES;
                 color = properties.color;
-                std.debug.print("{d} {d} {d}\n", .{ color.r, color.g, color.b });
             },
         }
         return Self{ .x = x, .y = y, .pixel = Pixel{ .r = color.r, .g = color.g, .b = color.b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .properties = properties };
@@ -301,10 +279,13 @@ pub const PhysicsPixel = struct {
             pixels[self_indx].?.*.x = self.x;
             pixels[self_indx].?.*.y = self.y;
             pixels[self_indx].?.*.last_dir = -dir;
+            pixels[self_indx].?.*.active = true;
+            pixels[self_indx].?.*.idle_turns = 0;
         }
         pixels[indx] = self;
         self.x = x;
         self.y = y;
+        self.updated = true;
         self.dirty = true;
         self.last_dir = dir;
     }
@@ -331,71 +312,113 @@ pub const PhysicsPixel = struct {
             self.duration = 0;
             self.pixel_type = .Rock;
             self.pixel = self.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Wood) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Oil) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Water and pixel.pixel_type == .Steam) {
             pixel.properties = WATER_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Water;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Wood) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
             pixel.pixel = self.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Oil) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Water and pixel.pixel_type == .Fire) {
             pixel.properties = STEAM_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Steam;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Ice) {
             pixel.properties = WATER_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Water;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Ice) {
             pixel.properties = WATER_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Water;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Plant) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Plant) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Water and pixel.pixel_type == .Plant) {
             self.properties = PLANT_PROPERTIES;
             self.duration = 0;
             self.pixel_type = .Plant;
             self.pixel = self.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Plant and pixel.pixel_type == .Water) {
             pixel.properties = PLANT_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Plant;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         } else if (self.pixel_type == .Explosive and pixel.pixel_type != .Empty and pixel.pixel_type != .Explosive and pixel.pixel_type != .Steam) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
             pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            pixel.idle_turns = 0;
         }
     }
 
@@ -598,6 +621,7 @@ pub const PhysicsPixel = struct {
 
     //TODO RIGID BODIES maybe box2d?
     pub fn update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        self.updated = false;
         if (self.properties.max_duration > 0) {
             self.duration += 1;
             if (self.duration >= self.properties.max_duration) {
@@ -620,6 +644,7 @@ pub const PhysicsPixel = struct {
                     self.pixel_type = PixelType.Empty;
                 }
             }
+            self.updated = true;
         }
         for (0..self.properties.speed) |_| {
             switch (self.pixel_type) {
@@ -656,6 +681,16 @@ pub const PhysicsPixel = struct {
                 else => {},
             }
             self.react_with_neighbors(pixels, xlimit, ylimit);
+        }
+        if (self.updated) {
+            self.active = true;
+            self.idle_turns = 0;
+        } else {
+            if (self.idle_turns <= 10) {
+                self.idle_turns += 1;
+            } else {
+                self.active = false;
+            }
         }
     }
 };

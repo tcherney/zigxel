@@ -22,6 +22,7 @@ pub const GameObject = struct {
             pixels[i] = try allocator.create(PhysicsPixel);
             pixels[i].* = PhysicsPixel.init(physics_pixel.PixelType.Object, x_pix, y_pix);
             pixels[i].set_color(tex.pixel_buffer[i].r, tex.pixel_buffer[i].g, tex.pixel_buffer[i].b);
+            pixels[i].managed = true;
             x_pix += 1;
             if (@as(u32, @bitCast(x_pix)) >= (@as(u32, @bitCast(x)) + tex.width) or @as(u32, @bitCast(x_pix)) >= w_width) {
                 x_pix = x;
@@ -37,6 +38,9 @@ pub const GameObject = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        for (0..self.pixels.len) |i| {
+            self.allocator.destroy(self.pixels[i]);
+        }
         self.allocator.free(self.pixels);
     }
 };

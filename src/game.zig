@@ -5,10 +5,12 @@ const image = @import("image");
 const sprite = @import("sprite.zig");
 const physic_pixel = @import("physics_pixel.zig");
 const game_object = @import("game_object.zig");
+const asset_manager = @import("asset_manager.zig");
 
 pub const World = @import("world.zig").World;
 pub const PhysicsPixel = physic_pixel.PhysicsPixel;
 pub const GameObject = game_object.GameObject;
+pub const AssetManager = asset_manager.AssetManager;
 pub const Error = error{} || image.Error || engine.Error || utils.Error || std.mem.Allocator.Error;
 
 pub const Game = struct {
@@ -22,11 +24,13 @@ pub const Game = struct {
     placement_index: usize = 0,
     current_world: World = undefined,
     pixels: std.ArrayList(?*PhysicsPixel) = undefined,
+    assets: AssetManager = undefined,
     allocator: std.mem.Allocator = undefined,
     frame_limit: u64 = 16_666_667,
     lock: std.Thread.Mutex = undefined,
     old_mouse_x: i32 = -1,
     old_mouse_y: i32 = -1,
+    go: GameObject = undefined,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator };
@@ -49,14 +53,16 @@ pub const Game = struct {
     }
     pub fn deinit(self: *Self) Error!void {
         try self.e.deinit();
+        self.assets.deinit();
         for (0..self.pixels.items.len) |i| {
-            if (self.pixels.items[i] != null) {
+            if (self.pixels.items[i] != null and !self.pixels.items[i].?.managed) {
                 self.allocator.destroy(self.pixels.items[i].?);
             }
         }
         self.pixels.deinit();
         self.current_world.deinit();
         self.allocator.free(self.placement_pixel);
+        self.go.deinit();
     }
 
     pub fn place_pixel(self: *Self) !void {
@@ -65,28 +71,36 @@ pub const Game = struct {
             self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
             self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
         } else if (indx >= 0 and indx < self.pixels.items.len) {
+            const temp = self.pixels.items[indx].?.managed;
             self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
+            self.pixels.items[indx].?.*.managed = temp;
         }
         indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
         if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
             self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
             self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
         } else if (indx >= 0 and indx < self.pixels.items.len) {
+            const temp = self.pixels.items[indx].?.managed;
             self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
+            self.pixels.items[indx].?.*.managed = temp;
         }
         indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x + 1));
         if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
             self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
             self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
         } else if (indx >= 0 and indx < self.pixels.items.len) {
+            const temp = self.pixels.items[indx].?.managed;
             self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
+            self.pixels.items[indx].?.*.managed = temp;
         }
         indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x + 1));
         if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
             self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
             self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
         } else if (indx >= 0 and indx < self.pixels.items.len) {
+            const temp = self.pixels.items[indx].?.managed;
             self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
+            self.pixels.items[indx].?.*.managed = temp;
         }
     }
 
@@ -258,13 +272,15 @@ pub const Game = struct {
         self.current_world.viewport.x = self.starting_pos_x;
         self.current_world.viewport.y = self.starting_pos_y;
 
-        var box_img: image.Image(image.PNGImage) = image.Image(image.PNGImage){};
-        try box_img.load("basic0.png", self.allocator);
-        var tex: engine.Texture = engine.Texture.init(self.allocator);
-        try tex.load_image(box_img);
-        var go: GameObject = try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, &tex, self.allocator);
-        for (0..go.pixels.len) |i| {
-            self.pixels.items[@as(u32, @bitCast(go.pixels[i].y)) * self.current_world.tex.width + @as(u32, @bitCast(go.pixels[i].x))] = go.pixels[i];
+        self.assets = AssetManager.init(self.allocator);
+        try self.assets.load("basic", "basic0.png");
+
+        self.go = try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, try self.assets.get("basic"), self.allocator);
+        for (0..self.go.pixels.len) |i| {
+            const indx: u32 = @as(u32, @bitCast(self.go.pixels[i].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.go.pixels[i].x));
+            if (indx > 0 and indx < self.pixels.items.len) {
+                self.pixels.items[indx] = self.go.pixels[i];
+            }
         }
         self.e.on_key_down(Self, on_key_press, self);
         self.e.on_render(Self, on_render, self);
@@ -293,7 +309,7 @@ pub const Game = struct {
                 var x = x_start;
                 while (x >= 0) : (x -= 1) {
                     var p = self.pixels.items[y * self.current_world.tex.width + x];
-                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty) {
+                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.active) {
                         //std.debug.print("updating {any}\n", .{p.?});
                         p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
                         active_pixels += 1;
@@ -306,14 +322,11 @@ pub const Game = struct {
             delta = timer.read();
             timer.reset();
             const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));
-            std.debug.print("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
+            //std.debug.print("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
             if (time_to_sleep > 0) {
                 std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
             }
             active_pixels = 0;
         }
-        go.deinit();
-        tex.deinit();
-        box_img.deinit();
     }
 };
