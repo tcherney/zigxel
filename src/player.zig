@@ -51,9 +51,10 @@ pub const Player = struct {
     }
 
     fn check_left_bounds(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) bool {
-        const x = 0;
-        for (0..self.go.bounds.height) |y| {
-            if (physics_pixel.pixel_at_x_y(self.go.pixels[y * self.go.bounds.width + x].x - 1, self.go.pixels[y * self.go.bounds.width + x].y, pixels, xlimit, ylimit)) {
+        const x = @as(u32, @bitCast(self.go.bounds.x - 1));
+        for (@as(u32, @bitCast(self.go.bounds.y))..@as(u32, @bitCast(self.go.bounds.y)) + self.go.bounds.height) |y| {
+            const indx = y * xlimit + x;
+            if (physics_pixel.pixel_at_x_y(@as(i32, @bitCast(x)), @as(i32, @intCast(@as(i64, @bitCast(y)))), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid) {
                 return true;
             }
         }
@@ -61,9 +62,10 @@ pub const Player = struct {
     }
 
     fn check_bottom_bounds(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) bool {
-        const y = self.go.bounds.height - 1;
-        for (0..self.go.bounds.width) |x| {
-            if (physics_pixel.pixel_at_x_y(self.go.pixels[y * self.go.bounds.width + x].x, self.go.pixels[y * self.go.bounds.width + x].y + 1, pixels, xlimit, ylimit)) {
+        const y = self.go.bounds.height + @as(u32, @bitCast(self.go.bounds.y));
+        for (@as(u32, @bitCast(self.go.bounds.x))..@as(u32, @bitCast(self.go.bounds.x)) + self.go.bounds.width) |x| {
+            const indx = y * xlimit + x;
+            if (physics_pixel.pixel_at_x_y(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @bitCast(y)), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid) {
                 return true;
             }
         }
@@ -71,9 +73,10 @@ pub const Player = struct {
     }
 
     fn check_right_bounds(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) bool {
-        const x = self.go.bounds.width - 1;
-        for (0..self.go.bounds.height) |y| {
-            if (physics_pixel.pixel_at_x_y(self.go.pixels[y * self.go.bounds.width + x].x + 1, self.go.pixels[y * self.go.bounds.width + x].y, pixels, xlimit, ylimit)) {
+        const x = self.go.bounds.width + @as(u32, @bitCast(self.go.bounds.x));
+        for (@as(u32, @bitCast(self.go.bounds.y))..@as(u32, @bitCast(self.go.bounds.y)) + self.go.bounds.height) |y| {
+            const indx = y * xlimit + x;
+            if (physics_pixel.pixel_at_x_y(@as(i32, @bitCast(x)), @as(i32, @intCast(@as(i64, @bitCast(y)))), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid) {
                 return true;
             }
         }
@@ -81,9 +84,10 @@ pub const Player = struct {
     }
 
     fn check_top_bounds(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) bool {
-        const y = 0;
-        for (0..self.go.bounds.width) |x| {
-            if (physics_pixel.pixel_at_x_y(self.go.pixels[y * self.go.bounds.width + x].x, self.go.pixels[y * self.go.bounds.width + x].y - 1, pixels, xlimit, ylimit)) {
+        const y = @as(u32, @bitCast(self.go.bounds.y - 1));
+        for (@as(u32, @bitCast(self.go.bounds.x))..@as(u32, @bitCast(self.go.bounds.x)) + self.go.bounds.width) |x| {
+            const indx = y * xlimit + x;
+            if (physics_pixel.pixel_at_x_y(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @bitCast(y)), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid) {
                 return true;
             }
         }
@@ -100,53 +104,71 @@ pub const Player = struct {
         }
         if (self.jumping and self.left and !self.check_left_bounds(pixels, xlimit, ylimit) and !self.check_top_bounds(pixels, xlimit, ylimit)) {
             for (0..self.go.pixels.len) |i| {
+                if (self.go.pixels[i].pixel_type != .Object) {
+                    continue;
+                }
                 self.go.pixels[i].left_update(pixels, xlimit, ylimit);
                 self.go.pixels[i].up_update(pixels, xlimit, ylimit);
                 self.go.pixels[i].active = true;
                 self.go.pixels[i].idle_turns = 0;
             }
+            self.go.bounds.x -= 1;
+            self.go.bounds.y -= 1;
         } else if (self.jumping and self.right and !self.check_right_bounds(pixels, xlimit, ylimit) and !self.check_top_bounds(pixels, xlimit, ylimit)) {
             var y: u32 = 0;
             while (y < self.go.bounds.height) : (y += 1) {
                 var x: u32 = self.go.bounds.width - 1;
                 while (x >= 0) : (x -= 1) {
-                    self.go.pixels[y * self.go.bounds.width + x].right_update(pixels, xlimit, ylimit);
-                    self.go.pixels[y * self.go.bounds.width + x].up_update(pixels, xlimit, ylimit);
-                    self.go.pixels[y * self.go.bounds.width + x].active = true;
-                    self.go.pixels[y * self.go.bounds.width + x].idle_turns = 0;
+                    if (self.go.pixels[y * self.go.bounds.width + x].pixel_type == .Object) {
+                        self.go.pixels[y * self.go.bounds.width + x].right_update(pixels, xlimit, ylimit);
+                        self.go.pixels[y * self.go.bounds.width + x].up_update(pixels, xlimit, ylimit);
+                        self.go.pixels[y * self.go.bounds.width + x].active = true;
+                        self.go.pixels[y * self.go.bounds.width + x].idle_turns = 0;
+                    }
                     if (x == 0) {
                         break;
                     }
                 }
             }
+            self.go.bounds.x += 1;
+            self.go.bounds.y -= 1;
         } else if (self.jumping and !self.check_top_bounds(pixels, xlimit, ylimit)) {
             for (0..self.go.pixels.len) |i| {
+                if (self.go.pixels[i].pixel_type != .Object) {
+                    continue;
+                }
                 self.go.pixels[i].up_update(pixels, xlimit, ylimit);
                 self.go.pixels[i].active = true;
                 self.go.pixels[i].idle_turns = 0;
             }
+            self.go.bounds.y += 1;
         } else {
             if (self.left and !self.check_left_bounds(pixels, xlimit, ylimit)) {
                 var y: u32 = self.go.bounds.height - 1;
                 while (y >= 0) : (y -= 1) {
                     var x: u32 = 0;
                     while (x < self.go.bounds.width) : (x += 1) {
-                        self.go.pixels[y * self.go.bounds.width + x].left_update(pixels, xlimit, ylimit);
-                        self.go.pixels[y * self.go.bounds.width + x].active = true;
-                        self.go.pixels[y * self.go.bounds.width + x].idle_turns = 0;
+                        if (self.go.pixels[y * self.go.bounds.width + x].pixel_type == .Object) {
+                            self.go.pixels[y * self.go.bounds.width + x].left_update(pixels, xlimit, ylimit);
+                            self.go.pixels[y * self.go.bounds.width + x].active = true;
+                            self.go.pixels[y * self.go.bounds.width + x].idle_turns = 0;
+                        }
                     }
                     if (y == 0) {
                         break;
                     }
                 }
+                self.go.bounds.x -= 1;
             } else if (self.right and !self.check_right_bounds(pixels, xlimit, ylimit)) {
                 var y: u32 = self.go.bounds.height - 1;
                 while (y >= 0) : (y -= 1) {
                     var x: u32 = self.go.bounds.width - 1;
                     while (x >= 0) : (x -= 1) {
-                        self.go.pixels[y * self.go.bounds.width + x].right_update(pixels, xlimit, ylimit);
-                        self.go.pixels[y * self.go.bounds.width + x].active = true;
-                        self.go.pixels[y * self.go.bounds.width + x].idle_turns = 0;
+                        if (self.go.pixels[y * self.go.bounds.width + x].pixel_type == .Object) {
+                            self.go.pixels[y * self.go.bounds.width + x].right_update(pixels, xlimit, ylimit);
+                            self.go.pixels[y * self.go.bounds.width + x].active = true;
+                            self.go.pixels[y * self.go.bounds.width + x].idle_turns = 0;
+                        }
                         if (x == 0) {
                             break;
                         }
@@ -155,15 +177,18 @@ pub const Player = struct {
                         break;
                     }
                 }
+                self.go.bounds.x += 1;
             }
             if (!self.check_bottom_bounds(pixels, xlimit, ylimit)) {
                 var y: u32 = self.go.bounds.height - 1;
                 while (y >= 0) : (y -= 1) {
                     var x: u32 = self.go.bounds.width - 1;
                     while (x >= 0) : (x -= 1) {
-                        self.go.pixels[y * self.go.bounds.width + x].down_update(pixels, xlimit, ylimit);
-                        self.go.pixels[y * self.go.bounds.width + x].active = true;
-                        self.go.pixels[y * self.go.bounds.width + x].idle_turns = 0;
+                        if (self.go.pixels[y * self.go.bounds.width + x].pixel_type == .Object) {
+                            self.go.pixels[y * self.go.bounds.width + x].down_update(pixels, xlimit, ylimit);
+                            self.go.pixels[y * self.go.bounds.width + x].active = true;
+                            self.go.pixels[y * self.go.bounds.width + x].idle_turns = 0;
+                        }
                         if (x == 0) {
                             break;
                         }
@@ -172,6 +197,7 @@ pub const Player = struct {
                         break;
                     }
                 }
+                self.go.bounds.y += 1;
             }
         }
     }

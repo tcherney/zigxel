@@ -449,7 +449,7 @@ pub const PhysicsPixel = struct {
                 self.swap_pixel(pixels, x, y, xlimit, ylimit);
                 return true;
             } else if (!pixels[indx].?.properties.solid and ((pixels[indx].?.properties.density > self.properties.density and y <= self.y) or
-                (pixels[indx].?.properties.density < self.properties.density and y > self.y)))
+                (pixels[indx].?.properties.density < self.properties.density and y > self.y) or (self.pixel_type == .Object and pixels[indx].?.properties.density <= self.properties.density)))
             {
                 self.swap_pixel(pixels, x, y, xlimit, ylimit);
                 return true;
