@@ -6,9 +6,11 @@ const sprite = @import("sprite.zig");
 const physic_pixel = @import("physics_pixel.zig");
 const game_object = @import("game_object.zig");
 const asset_manager = @import("asset_manager.zig");
+const _player = @import("player.zig");
 
 pub const World = @import("world.zig").World;
 pub const PhysicsPixel = physic_pixel.PhysicsPixel;
+pub const Player = _player.Player;
 pub const GameObject = game_object.GameObject;
 pub const AssetManager = asset_manager.AssetManager;
 pub const Error = error{} || image.Error || engine.Error || utils.Error || std.mem.Allocator.Error;
@@ -27,10 +29,11 @@ pub const Game = struct {
     assets: AssetManager = undefined,
     allocator: std.mem.Allocator = undefined,
     frame_limit: u64 = 16_666_667,
+    player_mode: bool = false,
     lock: std.Thread.Mutex = undefined,
     old_mouse_x: i32 = -1,
     old_mouse_y: i32 = -1,
-    go: GameObject = undefined,
+    player: ?Player = null,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator };
@@ -62,7 +65,9 @@ pub const Game = struct {
         self.pixels.deinit();
         self.current_world.deinit();
         self.allocator.free(self.placement_pixel);
-        self.go.deinit();
+        if (self.player != null) {
+            self.player.?.deinit();
+        }
     }
 
     pub fn place_pixel(self: *Self) !void {
@@ -201,18 +206,30 @@ pub const Game = struct {
         self.lock.unlock();
     }
 
-    pub fn on_key_press(self: *Self, key: engine.KEYS) void {
+    pub fn on_key_down(self: *Self, key: engine.KEYS) void {
         std.debug.print("{}\n", .{key});
         if (key == engine.KEYS.KEY_q) {
             self.running = false;
         } else if (key == engine.KEYS.KEY_a) {
-            self.placement_pixel[self.placement_index].x -= 1;
+            if (!self.player_mode) {
+                self.placement_pixel[self.placement_index].x -= 1;
+            } else {
+                self.player.?.move_left();
+            }
         } else if (key == engine.KEYS.KEY_d) {
-            self.placement_pixel[self.placement_index].x += 1;
+            if (!self.player_mode) {
+                self.placement_pixel[self.placement_index].x += 1;
+            } else {
+                self.player.?.move_right();
+            }
         } else if (key == engine.KEYS.KEY_w) {
-            self.placement_pixel[self.placement_index].y -= 1;
+            if (!self.player_mode) {
+                self.placement_pixel[self.placement_index].y -= 1;
+            }
         } else if (key == engine.KEYS.KEY_s) {
-            self.placement_pixel[self.placement_index].y += 1;
+            if (!self.player_mode) {
+                self.placement_pixel[self.placement_index].y += 1;
+            }
         } else if (key == engine.KEYS.KEY_SPACE) {
             std.debug.print("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
             self.lock.lock();
@@ -250,6 +267,45 @@ pub const Game = struct {
         }
     }
 
+    pub fn on_key_up(self: *Self, key: engine.KEYS) void {
+        switch (key) {
+            .KEY_w => {
+                if (self.player_mode) {
+                    self.player.?.jump();
+                }
+            },
+            .KEY_a => {
+                if (self.player_mode) {
+                    self.player.?.stop_move_left();
+                }
+            },
+            .KEY_d => {
+                if (self.player_mode) {
+                    self.player.?.stop_move_right();
+                }
+            },
+            .KEY_c => {
+                self.player_mode = !self.player_mode;
+                if (self.player_mode) {
+                    if (self.player == null) {
+                        const tex = self.assets.get("basic") catch |err| {
+                            std.debug.print("{any}\n", .{err});
+                            self.running = false;
+                            return;
+                        };
+                        self.player = Player.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, tex, self.allocator) catch |err| {
+                            std.debug.print("{any}\n", .{err});
+                            self.running = false;
+                            return;
+                        };
+                        self.player.?.go.add_sim(self.pixels.items, self.current_world.tex.width);
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+
     pub fn on_render(self: *Self, _: u64) !void {
         self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
         for (self.pixels.items) |p| {
@@ -275,14 +331,8 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
 
-        self.go = try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, try self.assets.get("basic"), self.allocator);
-        for (0..self.go.pixels.len) |i| {
-            const indx: u32 = @as(u32, @bitCast(self.go.pixels[i].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.go.pixels[i].x));
-            if (indx > 0 and indx < self.pixels.items.len) {
-                self.pixels.items[indx] = self.go.pixels[i];
-            }
-        }
-        self.e.on_key_down(Self, on_key_press, self);
+        self.e.on_key_down(Self, on_key_down, self);
+        self.e.on_key_up(Self, on_key_up, self);
         self.e.on_render(Self, on_render, self);
         self.e.on_mouse_change(Self, on_mouse_change, self);
         self.e.on_window_change(Self, on_window_change, self);
@@ -304,15 +354,17 @@ pub const Game = struct {
             const y_start = self.current_world.tex.height - 1;
             const x_start = self.current_world.tex.width - 1;
             var y = y_start;
-
+            if (self.player_mode) {
+                self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+            }
             while (y >= 0) : (y -= 1) {
                 var x = x_start;
                 while (x >= 0) : (x -= 1) {
                     var p = self.pixels.items[y * self.current_world.tex.width + x];
-                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.active) {
+                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty) {
                         //std.debug.print("updating {any}\n", .{p.?});
                         p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
-                        active_pixels += 1;
+                        active_pixels = if (p.?.active) active_pixels + 1 else active_pixels;
                     }
                     if (x == 0) break;
                 }

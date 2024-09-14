@@ -37,6 +37,15 @@ pub const GameObject = struct {
         };
     }
 
+    pub fn add_sim(self: *Self, pixels: []?*PhysicsPixel, w_width: u32) void {
+        for (0..self.pixels.len) |i| {
+            const indx: u32 = @as(u32, @bitCast(self.pixels[i].y)) * w_width + @as(u32, @bitCast(self.pixels[i].x));
+            if (indx > 0 and indx < pixels.len) {
+                pixels[indx] = self.pixels[i];
+            }
+        }
+    }
+
     pub fn deinit(self: *Self) void {
         for (0..self.pixels.len) |i| {
             self.allocator.destroy(self.pixels[i]);

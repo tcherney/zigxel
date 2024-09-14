@@ -294,6 +294,22 @@ pub const PhysicsPixel = struct {
         return x >= 0 and @as(u32, @bitCast(x)) < xlimit and y >= 0 and @as(u32, @bitCast(y)) < ylimit;
     }
 
+    pub fn left_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        _ = self.execute_move(pixels, self.x - 1, self.y, xlimit, ylimit);
+    }
+
+    pub fn right_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        _ = self.execute_move(pixels, self.x + 1, self.y, xlimit, ylimit);
+    }
+
+    pub fn up_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        _ = self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit);
+    }
+
+    pub fn down_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+        _ = self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit);
+    }
+
     fn sand_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         const first = self.last_dir;
         const second = -first;
@@ -619,78 +635,75 @@ pub const PhysicsPixel = struct {
         }
     }
 
-    //TODO RIGID BODIES maybe box2d?
     pub fn update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
-        self.updated = false;
-        if (self.properties.max_duration > 0) {
-            self.duration += 1;
-            if (self.duration >= self.properties.max_duration) {
-                if (self.pixel_type == .Fire) {
-                    self.properties = STEAM_PROPERTIES;
-                    self.duration = 0;
-                    self.pixel_type = .Steam;
-                    self.pixel = self.properties.vary_color(10);
-                } else if (self.pixel_type == .Lava) {
-                    self.properties = ROCK_PROPERTIES;
-                    self.duration = 0;
-                    self.pixel_type = .Rock;
-                    self.pixel = self.properties.vary_color(10);
-                } else if (self.pixel_type == .Ice) {
-                    self.properties = WATER_PROPERTIES;
-                    self.duration = 0;
-                    self.pixel_type = .Water;
-                    self.pixel = self.properties.vary_color(10);
-                } else {
-                    self.pixel_type = PixelType.Empty;
+        if (self.active) {
+            self.updated = false;
+            if (self.properties.max_duration > 0) {
+                self.duration += 1;
+                if (self.duration >= self.properties.max_duration) {
+                    if (self.pixel_type == .Fire) {
+                        self.properties = STEAM_PROPERTIES;
+                        self.duration = 0;
+                        self.pixel_type = .Steam;
+                        self.pixel = self.properties.vary_color(10);
+                    } else if (self.pixel_type == .Lava) {
+                        self.properties = ROCK_PROPERTIES;
+                        self.duration = 0;
+                        self.pixel_type = .Rock;
+                        self.pixel = self.properties.vary_color(10);
+                    } else if (self.pixel_type == .Ice) {
+                        self.properties = WATER_PROPERTIES;
+                        self.duration = 0;
+                        self.pixel_type = .Water;
+                        self.pixel = self.properties.vary_color(10);
+                    } else {
+                        self.pixel_type = PixelType.Empty;
+                    }
                 }
+                self.updated = true;
             }
-            self.updated = true;
-        }
-        for (0..self.properties.speed) |_| {
-            switch (self.pixel_type) {
-                .Sand => {
-                    self.sand_update(pixels, xlimit, ylimit);
-                },
-                .Water => {
-                    self.fluid_update(pixels, xlimit, ylimit);
-                },
-                .Oil => {
-                    self.fluid_update(pixels, xlimit, ylimit);
-                },
-                .Rock => {
-                    self.rock_update(pixels, xlimit, ylimit);
-                },
-                .Steam => {
-                    self.gas_update(pixels, xlimit, ylimit);
-                },
-                .Lava => {
-                    self.fluid_update(pixels, xlimit, ylimit);
-                },
-                .Fire => {
-                    self.fire_update(pixels, xlimit, ylimit);
-                },
-                .Ice => {
-                    self.sand_update(pixels, xlimit, ylimit);
-                },
-                .Explosive => {
-                    self.fire_update(pixels, xlimit, ylimit);
-                },
-                .Object => {
-                    self.rock_update(pixels, xlimit, ylimit);
-                },
-                else => {},
+            for (0..self.properties.speed) |_| {
+                switch (self.pixel_type) {
+                    .Sand => {
+                        self.sand_update(pixels, xlimit, ylimit);
+                    },
+                    .Water => {
+                        self.fluid_update(pixels, xlimit, ylimit);
+                    },
+                    .Oil => {
+                        self.fluid_update(pixels, xlimit, ylimit);
+                    },
+                    .Rock => {
+                        self.rock_update(pixels, xlimit, ylimit);
+                    },
+                    .Steam => {
+                        self.gas_update(pixels, xlimit, ylimit);
+                    },
+                    .Lava => {
+                        self.fluid_update(pixels, xlimit, ylimit);
+                    },
+                    .Fire => {
+                        self.fire_update(pixels, xlimit, ylimit);
+                    },
+                    .Ice => {
+                        self.sand_update(pixels, xlimit, ylimit);
+                    },
+                    .Explosive => {
+                        self.fire_update(pixels, xlimit, ylimit);
+                    },
+                    else => {},
+                }
+                self.react_with_neighbors(pixels, xlimit, ylimit);
             }
-            self.react_with_neighbors(pixels, xlimit, ylimit);
+            if (self.updated) {
+                self.active = true;
+                self.idle_turns = 0;
+            }
         }
-        if (self.updated) {
-            self.active = true;
+        self.idle_turns += 1;
+        if (self.idle_turns >= 200) {
             self.idle_turns = 0;
-        } else {
-            if (self.idle_turns <= 10) {
-                self.idle_turns += 1;
-            } else {
-                self.active = false;
-            }
+            self.active = !self.active;
         }
     }
 };

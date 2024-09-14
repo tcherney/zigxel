@@ -168,7 +168,7 @@ pub const EventManager = struct {
                                     if (self.key_down_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.TRUE) {
                                         self.key_down_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
                                     } else if (self.key_up_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.FALSE) {
-                                        self.key_press_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                        self.key_up_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
                                     } else if (self.key_press_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.FALSE) {
                                         self.key_press_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
                                     }
