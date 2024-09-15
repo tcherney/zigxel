@@ -290,7 +290,7 @@ pub const PhysicsPixel = struct {
         self.last_dir = dir;
     }
 
-    inline fn in_bounds(x: i32, y: i32, xlimit: u32, ylimit: u32) bool {
+    pub inline fn in_bounds(x: i32, y: i32, xlimit: u32, ylimit: u32) bool {
         return x >= 0 and @as(u32, @bitCast(x)) < xlimit and y >= 0 and @as(u32, @bitCast(y)) < ylimit;
     }
 
@@ -448,8 +448,8 @@ pub const PhysicsPixel = struct {
             if (!pixel_at_x_y(x, y, pixels, xlimit, ylimit) or self.properties.piercing) {
                 self.swap_pixel(pixels, x, y, xlimit, ylimit);
                 return true;
-            } else if (!pixels[indx].?.properties.solid and ((pixels[indx].?.properties.density > self.properties.density and y <= self.y) or
-                (pixels[indx].?.properties.density < self.properties.density and y > self.y) or (self.pixel_type == .Object and pixels[indx].?.properties.density <= self.properties.density)))
+            } else if ((!pixels[indx].?.properties.solid and ((pixels[indx].?.properties.density > self.properties.density and y <= self.y) or
+                (pixels[indx].?.properties.density < self.properties.density and y > self.y))) or (self.pixel_type == .Object and !pixels[indx].?.properties.solid and pixels[indx].?.properties.density <= self.properties.density))
             {
                 self.swap_pixel(pixels, x, y, xlimit, ylimit);
                 return true;
@@ -701,7 +701,7 @@ pub const PhysicsPixel = struct {
             }
         }
         self.idle_turns += 1;
-        if (self.idle_turns >= 200) {
+        if (self.idle_turns >= 50) {
             self.idle_turns = 0;
             self.active = !self.active;
         }

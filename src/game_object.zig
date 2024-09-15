@@ -13,6 +13,11 @@ pub const GameObject = struct {
     pixels: []*PhysicsPixel,
     allocator: std.mem.Allocator,
     bounds: utils.Rectangle,
+    status: Status = .None,
+    pub const Status = enum {
+        Wet,
+        None,
+    };
     const Self = @This();
     pub fn init(x: i32, y: i32, w_width: u32, tex: *Texture, allocator: std.mem.Allocator) Error!Self {
         var pixels: []*PhysicsPixel = try allocator.alloc(*PhysicsPixel, tex.pixel_buffer.len);
@@ -36,6 +41,8 @@ pub const GameObject = struct {
             .bounds = .{ .x = x, .y = y, .width = tex.width, .height = tex.height },
         };
     }
+
+    //TODO add status effects, wet/hot/onfire
 
     pub fn add_sim(self: *Self, pixels: []?*PhysicsPixel, w_width: u32) void {
         for (0..self.pixels.len) |i| {

@@ -54,7 +54,7 @@ pub const Player = struct {
         const x = @as(u32, @bitCast(self.go.bounds.x - 1));
         for (@as(u32, @bitCast(self.go.bounds.y))..@as(u32, @bitCast(self.go.bounds.y)) + self.go.bounds.height) |y| {
             const indx = y * xlimit + x;
-            if (physics_pixel.pixel_at_x_y(@as(i32, @bitCast(x)), @as(i32, @intCast(@as(i64, @bitCast(y)))), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid) {
+            if (!physics_pixel.PhysicsPixel.in_bounds(@as(i32, @bitCast(x)), @as(i32, @intCast(@as(i64, @bitCast(y)))), xlimit, ylimit) or (physics_pixel.pixel_at_x_y(@as(i32, @bitCast(x)), @as(i32, @intCast(@as(i64, @bitCast(y)))), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid)) {
                 return true;
             }
         }
@@ -65,7 +65,7 @@ pub const Player = struct {
         const y = self.go.bounds.height + @as(u32, @bitCast(self.go.bounds.y));
         for (@as(u32, @bitCast(self.go.bounds.x))..@as(u32, @bitCast(self.go.bounds.x)) + self.go.bounds.width) |x| {
             const indx = y * xlimit + x;
-            if (physics_pixel.pixel_at_x_y(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @bitCast(y)), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid) {
+            if (!physics_pixel.PhysicsPixel.in_bounds(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @bitCast(y)), xlimit, ylimit) or (physics_pixel.pixel_at_x_y(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @bitCast(y)), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid)) {
                 return true;
             }
         }
@@ -76,7 +76,7 @@ pub const Player = struct {
         const x = self.go.bounds.width + @as(u32, @bitCast(self.go.bounds.x));
         for (@as(u32, @bitCast(self.go.bounds.y))..@as(u32, @bitCast(self.go.bounds.y)) + self.go.bounds.height) |y| {
             const indx = y * xlimit + x;
-            if (physics_pixel.pixel_at_x_y(@as(i32, @bitCast(x)), @as(i32, @intCast(@as(i64, @bitCast(y)))), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid) {
+            if (!physics_pixel.PhysicsPixel.in_bounds(@as(i32, @bitCast(x)), @as(i32, @intCast(@as(i64, @bitCast(y)))), xlimit, ylimit) or (physics_pixel.pixel_at_x_y(@as(i32, @bitCast(x)), @as(i32, @intCast(@as(i64, @bitCast(y)))), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid)) {
                 return true;
             }
         }
@@ -87,7 +87,7 @@ pub const Player = struct {
         const y = @as(u32, @bitCast(self.go.bounds.y - 1));
         for (@as(u32, @bitCast(self.go.bounds.x))..@as(u32, @bitCast(self.go.bounds.x)) + self.go.bounds.width) |x| {
             const indx = y * xlimit + x;
-            if (physics_pixel.pixel_at_x_y(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @bitCast(y)), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid) {
+            if (!physics_pixel.PhysicsPixel.in_bounds(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @bitCast(y)), xlimit, ylimit) or (physics_pixel.pixel_at_x_y(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @bitCast(y)), pixels, xlimit, ylimit) and pixels[indx].?.properties.solid)) {
                 return true;
             }
         }
@@ -141,7 +141,7 @@ pub const Player = struct {
                 self.go.pixels[i].active = true;
                 self.go.pixels[i].idle_turns = 0;
             }
-            self.go.bounds.y += 1;
+            self.go.bounds.y -= 1;
         } else {
             if (self.left and !self.check_left_bounds(pixels, xlimit, ylimit)) {
                 var y: u32 = self.go.bounds.height - 1;
@@ -160,6 +160,7 @@ pub const Player = struct {
                 }
                 self.go.bounds.x -= 1;
             } else if (self.right and !self.check_right_bounds(pixels, xlimit, ylimit)) {
+                std.debug.print("moving right\n", .{});
                 var y: u32 = self.go.bounds.height - 1;
                 while (y >= 0) : (y -= 1) {
                     var x: u32 = self.go.bounds.width - 1;

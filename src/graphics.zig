@@ -110,7 +110,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             }
         }
 
-        pub fn draw_pixel(self: *Self, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture) void {
+        pub fn draw_pixel_bg(self: *Self, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture, bgr: u8, bgg: u8, bgb: u8, custom_bg: bool) void {
             if (dest == null) {
                 if (x < 0 or x > self.terminal.size.width or y > self.terminal.size.height) {
                     return;
@@ -119,13 +119,21 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
                 if (p.a) |alpha| {
                     const max_pixel = 255.0;
-                    const bkgd = self.pixel_buffer[y_indx * self.terminal.size.width + x_indx];
+
                     var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.r));
                     var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.g));
                     var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.b));
-                    rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                    gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                    bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                    if (custom_bg) {
+                        rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bgr));
+                        gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bgg));
+                        bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bgb));
+                    } else {
+                        const bkgd = self.pixel_buffer[y_indx * self.terminal.size.width + x_indx];
+                        rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                        gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                        bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                    }
+
                     self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = @as(u8, @intFromFloat(rf));
                     self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = @as(u8, @intFromFloat(gf));
                     self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = @as(u8, @intFromFloat(bf));
@@ -142,13 +150,19 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
                 if (p.a) |alpha| {
                     const max_pixel = 255.0;
-                    const bkgd = dest.?.pixel_buffer[y_indx * dest.?.width + x_indx];
                     var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.r));
                     var gf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.g));
                     var bf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(p.b));
-                    rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                    gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                    bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                    if (custom_bg) {
+                        rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bgr));
+                        gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bgg));
+                        bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bgb));
+                    } else {
+                        const bkgd = dest.?.pixel_buffer[y_indx * dest.?.width + x_indx];
+                        rf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
+                        gf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
+                        bf += (1 - (@as(f32, @floatFromInt(alpha)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                    }
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].r = @as(u8, @intFromFloat(rf));
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].g = @as(u8, @intFromFloat(gf));
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].b = @as(u8, @intFromFloat(bf));
@@ -158,6 +172,10 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].b = p.b;
                 }
             }
+        }
+
+        pub fn draw_pixel(self: *Self, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture) void {
+            self.draw_pixel_bg(x, y, p, dest, 0, 0, 0, false);
         }
 
         pub fn draw_sprite(self: *Self, s: sprite.Sprite, dest: ?texture.Texture) Error!void {
