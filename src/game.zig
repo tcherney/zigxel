@@ -309,9 +309,12 @@ pub const Game = struct {
     pub fn on_render(self: *Self, _: u64) !void {
         self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
         for (self.pixels.items) |p| {
-            if (p != null and p.?.*.pixel_type != .Empty) {
+            if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
                 self.e.renderer.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
             }
+        }
+        if (self.player_mode) {
+            self.player.?.draw(&self.e.renderer, self.current_world.tex);
         }
         self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
@@ -355,13 +358,13 @@ pub const Game = struct {
             const x_start = self.current_world.tex.width - 1;
             var y = y_start;
             if (self.player_mode) {
-                self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                try self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
             }
             while (y >= 0) : (y -= 1) {
                 var x = x_start;
                 while (x >= 0) : (x -= 1) {
                     var p = self.pixels.items[y * self.current_world.tex.width + x];
-                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty) {
+                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.pixel_type != .Object) {
                         //std.debug.print("updating {any}\n", .{p.?});
                         p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
                         active_pixels = if (p.?.active) active_pixels + 1 else active_pixels;

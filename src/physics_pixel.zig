@@ -62,7 +62,7 @@ const Properties = struct {
     }
 };
 
-const SAND_PROPERTIES: Properties = Properties{
+pub const SAND_PROPERTIES: Properties = Properties{
     .color = .{ .r = SAND_COLOR.r, .g = SAND_COLOR.g, .b = SAND_COLOR.b },
     .solid = true,
     .max_duration = 0,
@@ -71,7 +71,7 @@ const SAND_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const WATER_PROPERTIES: Properties = Properties{
+pub const WATER_PROPERTIES: Properties = Properties{
     .color = .{ .r = WATER_COLOR.r, .g = WATER_COLOR.g, .b = WATER_COLOR.b },
     .solid = false,
     .max_duration = 0,
@@ -80,7 +80,7 @@ const WATER_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const EMPTY_PROPERTIES: Properties = Properties{
+pub const EMPTY_PROPERTIES: Properties = Properties{
     .color = .{ .r = EMPTY_COLOR.r, .g = EMPTY_COLOR.g, .b = EMPTY_COLOR.b },
     .solid = false,
     .max_duration = 0,
@@ -89,7 +89,7 @@ const EMPTY_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const WALL_PROPERTIES: Properties = Properties{
+pub const WALL_PROPERTIES: Properties = Properties{
     .color = .{ .r = WALL_COLOR.r, .g = WALL_COLOR.g, .b = WALL_COLOR.b },
     .solid = true,
     .max_duration = 0,
@@ -98,7 +98,7 @@ const WALL_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const OIL_PROPERTIES: Properties = Properties{
+pub const OIL_PROPERTIES: Properties = Properties{
     .color = .{ .r = OIL_COLOR.r, .g = OIL_COLOR.g, .b = OIL_COLOR.b },
     .solid = false,
     .max_duration = 0,
@@ -107,7 +107,7 @@ const OIL_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const ROCK_PROPERTIES: Properties = Properties{
+pub const ROCK_PROPERTIES: Properties = Properties{
     .color = .{ .r = ROCK_COLOR.r, .g = ROCK_COLOR.g, .b = ROCK_COLOR.b },
     .solid = true,
     .max_duration = 0,
@@ -116,7 +116,7 @@ const ROCK_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const STEAM_PROPERTIES: Properties = Properties{
+pub const STEAM_PROPERTIES: Properties = Properties{
     .color = .{ .r = STEAM_COLOR.r, .g = STEAM_COLOR.g, .b = STEAM_COLOR.b },
     .solid = false,
     .max_duration = 125,
@@ -125,7 +125,7 @@ const STEAM_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const FIRE_PROPERTIES: Properties = Properties{
+pub const FIRE_PROPERTIES: Properties = Properties{
     .color = .{ .r = FIRE_COLOR.r, .g = FIRE_COLOR.g, .b = FIRE_COLOR.b },
     .solid = false,
     .max_duration = 100,
@@ -134,7 +134,7 @@ const FIRE_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const LAVA_PROPERTIES: Properties = Properties{
+pub const LAVA_PROPERTIES: Properties = Properties{
     .color = .{ .r = LAVA_COLOR.r, .g = LAVA_COLOR.g, .b = LAVA_COLOR.b },
     .solid = false,
     .max_duration = 300,
@@ -143,7 +143,7 @@ const LAVA_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const WOOD_PROPERTIES: Properties = Properties{
+pub const WOOD_PROPERTIES: Properties = Properties{
     .color = .{ .r = WOOD_COLOR.r, .g = WOOD_COLOR.g, .b = WOOD_COLOR.b },
     .solid = true,
     .max_duration = 0,
@@ -152,7 +152,7 @@ const WOOD_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const ICE_PROPERTIES: Properties = Properties{
+pub const ICE_PROPERTIES: Properties = Properties{
     .color = .{ .r = ICE_COLOR.r, .g = ICE_COLOR.g, .b = ICE_COLOR.b },
     .solid = true,
     .max_duration = 300,
@@ -161,7 +161,7 @@ const ICE_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const PLANT_PROPERTIES: Properties = Properties{
+pub const PLANT_PROPERTIES: Properties = Properties{
     .color = .{ .r = PLANT_COLOR.r, .g = PLANT_COLOR.g, .b = PLANT_COLOR.b },
     .solid = true,
     .max_duration = 0,
@@ -170,7 +170,7 @@ const PLANT_PROPERTIES: Properties = Properties{
     .piercing = false,
 };
 
-const EXPLOSIVE_PROPERTIES: Properties = Properties{
+pub const EXPLOSIVE_PROPERTIES: Properties = Properties{
     .color = .{ .r = EXPLOSIVE_COLOR.r, .g = EXPLOSIVE_COLOR.g, .b = EXPLOSIVE_COLOR.b },
     .solid = false,
     .max_duration = 30,
@@ -179,7 +179,7 @@ const EXPLOSIVE_PROPERTIES: Properties = Properties{
     .piercing = true,
 };
 
-const OBJECT_PROPERTIES: Properties = Properties{
+pub const OBJECT_PROPERTIES: Properties = Properties{
     .color = .{ .r = 255, .g = 255, .b = 255 },
     .solid = true,
     .max_duration = 0,
@@ -266,8 +266,8 @@ pub const PhysicsPixel = struct {
         return Self{ .x = x, .y = y, .pixel = Pixel{ .r = color.r, .g = color.g, .b = color.b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .properties = properties };
     }
 
-    pub fn set_color(self: *Self, r: u8, g: u8, b: u8) void {
-        self.pixel = .{ .r = r, .g = g, .b = b };
+    pub fn set_color(self: *Self, r: u8, g: u8, b: u8, a: ?u8) void {
+        self.pixel = .{ .r = r, .g = g, .b = b, .a = a };
     }
 
     inline fn swap_pixel(self: *Self, pixels: []?*PhysicsPixel, x: i32, y: i32, xlimit: u32, _: u32) void {
@@ -460,7 +460,7 @@ pub const PhysicsPixel = struct {
         return false;
     }
 
-    fn react_with_neighbors(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
+    pub fn react_with_neighbors(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         var x: i32 = self.x - 1;
         var y: i32 = self.y - 1;
         if (in_bounds(x, y, xlimit, ylimit)) {
