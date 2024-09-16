@@ -10,6 +10,7 @@ pub inline fn to_seconds(nano: u64) f64 {
     return @as(f64, @floatFromInt(nano)) / 1_000_000_000.0;
 }
 
+pub const ObjectReactionCallback = utils.Callback(PixelType);
 pub const PixelType = enum {
     Sand,
     Water,
@@ -201,6 +202,7 @@ pub const PhysicsPixel = struct {
     idle_turns: u32 = 0,
     updated: bool = false,
     managed: bool = false,
+    object_reaction_callback: ?ObjectReactionCallback = null,
     const Self = @This();
     pub fn init(pixel_type: PixelType, x: i32, y: i32) Self {
         var properties: Properties = undefined;
@@ -435,7 +437,15 @@ pub const PhysicsPixel = struct {
             self.updated = true;
             pixel.active = true;
             pixel.idle_turns = 0;
+        } else if (self.pixel_type == .Object and pixel.pixel_type != .Object) {
+            if (self.object_reaction_callback) |func| {
+                func.call(pixel.pixel_type);
+            }
         }
+    }
+
+    pub fn on_object_reaction(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+        self.object_reaction_callback = ObjectReactionCallback.init(CONTEXT_TYPE, func, context);
     }
 
     fn rock_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {

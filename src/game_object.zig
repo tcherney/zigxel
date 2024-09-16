@@ -20,6 +20,7 @@ pub const GameObject = struct {
     status: Status = .Wet,
     background_buffer: BackgroundBuffer,
     pixel_map: std.AutoHashMap(u32, bool),
+    wet_pixels: u32 = 0,
     pub const Status = enum {
         Wet,
         None,
@@ -57,10 +58,17 @@ pub const GameObject = struct {
         return Self{ .tex = tex, .pixels = pixels, .pixel_map = pixel_map, .allocator = allocator, .background_buffer = .{ .status = .None, .a = try allocator.alloc(texture.Pixel, pixels.len) } };
     }
 
+    pub fn on_object_reaction(self: *Self, pixel_type: physics_pixel.PixelType) void {
+        if (pixel_type == .Water) {
+            self.wet_pixels += 1;
+        }
+    }
+
     pub fn add_sim(self: *Self, pixels: []?*PhysicsPixel, w_width: u32) void {
         for (0..self.pixels.len) |i| {
             const indx: u32 = @as(u32, @bitCast(self.pixels[i].y)) * w_width + @as(u32, @bitCast(self.pixels[i].x));
             if (indx > 0 and indx < pixels.len) {
+                self.pixels[i].on_object_reaction(Self, on_object_reaction, self);
                 pixels[indx] = self.pixels[i];
             }
         }
@@ -154,7 +162,10 @@ pub const GameObject = struct {
                 }
 
                 for (self.pixels, 0..self.pixels.len) |p, i| {
+                    const temp = p.pixel.a;
+                    p.pixel.a = 128;
                     graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].r, self.background_buffer.a[i].g, self.background_buffer.a[i].b, true);
+                    p.pixel.a = temp;
                 }
             },
             .None => {
@@ -166,6 +177,7 @@ pub const GameObject = struct {
     }
 
     pub fn update(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) Error!void {
+        self.wet_pixels = 0;
         if (self.jumping) {
             self.jumping_duration += 1;
             if (self.jumping_duration >= JUMPING_MAX) {
@@ -261,7 +273,6 @@ pub const GameObject = struct {
             }
             if (!self.check_bottom_bounds(pixels, xlimit, ylimit)) {
                 var i: usize = self.pixels.len - 1;
-                std.debug.print("i {d}\n", .{i});
                 while (i >= 0) : (i -= 1) {
                     if (self.pixels[i].pixel_type != .Object) {
                         if (i == 0) break;
@@ -271,14 +282,27 @@ pub const GameObject = struct {
                     self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
                     self.pixels[i].active = true;
                     self.pixels[i].idle_turns = 0;
-                    std.debug.print("i {d}\n", .{i});
                     if (i == 0) break;
                 }
                 self.pixel_map.clearRetainingCapacity();
                 for (self.pixels) |p| {
                     try self.pixel_map.put(@as(u32, @bitCast(p.y)) * xlimit + @as(u32, @bitCast(p.x)), true);
                 }
+            } else {
+                for (0..self.pixels.len) |i| {
+                    if (self.pixels[i].pixel_type != .Object) {
+                        continue;
+                    }
+                    self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
+                    self.pixels[i].active = true;
+                    self.pixels[i].idle_turns = 0;
+                }
             }
+        }
+        if (self.wet_pixels >= self.pixels.len / 2) {
+            self.status = .Wet;
+        } else {
+            self.status = .None;
         }
     }
 
