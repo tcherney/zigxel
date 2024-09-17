@@ -17,12 +17,14 @@ pub const GameObject = struct {
     tex: *Texture,
     pixels: []*PhysicsPixel,
     allocator: std.mem.Allocator,
-    status: Status = .Wet,
+    status: Status = .None,
     background_buffer: BackgroundBuffer,
     pixel_map: std.AutoHashMap(u32, bool),
     wet_pixels: u32 = 0,
+    hot_pixels: u32 = 0,
     pub const Status = enum {
         Wet,
+        Hot,
         None,
     };
     pub const BackgroundBuffer = struct {
@@ -61,6 +63,8 @@ pub const GameObject = struct {
     pub fn on_object_reaction(self: *Self, pixel_type: physics_pixel.PixelType) void {
         if (pixel_type == .Water) {
             self.wet_pixels += 1;
+        } else if (pixel_type == .Fire or pixel_type == .Lava) {
+            self.hot_pixels += 1;
         }
     }
 
@@ -149,6 +153,7 @@ pub const GameObject = struct {
         return false;
     }
 
+    //TODO MORE STATUS EFFECTS
     pub fn draw(self: *Self, graphics: anytype, dest: ?Texture) void {
         switch (self.status) {
             .Wet => {
@@ -158,6 +163,23 @@ pub const GameObject = struct {
                     for (0..self.background_buffer.a.len) |i| {
                         const w_color = water_properties.vary_color(10);
                         self.background_buffer.a[i] = .{ .r = w_color.r, .g = w_color.g, .b = w_color.b };
+                    }
+                }
+
+                for (self.pixels, 0..self.pixels.len) |p, i| {
+                    const temp = p.pixel.a;
+                    p.pixel.a = 128;
+                    graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].r, self.background_buffer.a[i].g, self.background_buffer.a[i].b, true);
+                    p.pixel.a = temp;
+                }
+            },
+            .Hot => {
+                if (self.background_buffer.status != .Hot) {
+                    self.background_buffer.status = .Hot;
+                    var fire_properties = physics_pixel.FIRE_PROPERTIES;
+                    for (0..self.background_buffer.a.len) |i| {
+                        const f_color = fire_properties.vary_color(10);
+                        self.background_buffer.a[i] = .{ .r = f_color.r, .g = f_color.g, .b = f_color.b };
                     }
                 }
 
@@ -178,6 +200,7 @@ pub const GameObject = struct {
 
     pub fn update(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) Error!void {
         self.wet_pixels = 0;
+        self.hot_pixels = 0;
         if (self.jumping) {
             self.jumping_duration += 1;
             if (self.jumping_duration >= JUMPING_MAX) {
@@ -301,6 +324,8 @@ pub const GameObject = struct {
         }
         if (self.wet_pixels >= self.pixels.len / 2) {
             self.status = .Wet;
+        } else if (self.hot_pixels >= self.pixels.len / 4) {
+            self.status = .Hot;
         } else {
             self.status = .None;
         }
