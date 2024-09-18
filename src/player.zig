@@ -40,6 +40,8 @@ pub const Player = struct {
         self.go.jumping_duration = 0;
     }
 
+    //TODO add explosive player attack
+
     pub fn update(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) Error!void {
         try self.go.update(pixels, xlimit, ylimit);
     }

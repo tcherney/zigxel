@@ -32,6 +32,7 @@ pub const World = struct {
             .allocator = allocator,
         };
     }
+    //TODO world generation
 
     pub fn print(self: *Self) !void {
         try self.tex.image_core().write_BMP("world.bmp");

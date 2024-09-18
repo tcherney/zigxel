@@ -33,6 +33,32 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     exe.root_module.addImport("term", termlib.module("term"));
+
+    const engine_module = b.addModule("engine", .{
+        .root_source_file = b.path("src/engine.zig"),
+    });
+    exe.root_module.addImport("engine", engine_module);
+
+    const event_module = b.addModule("event_manager", .{
+        .root_source_file = b.path("src/event_manager.zig"),
+    });
+    exe.root_module.addImport("event_manager", event_module);
+
+    const graphics_module = b.addModule("graphics", .{
+        .root_source_file = b.path("src/graphics.zig"),
+    });
+    exe.root_module.addImport("graphics", graphics_module);
+
+    const texture_module = b.addModule("texture", .{
+        .root_source_file = b.path("src/texture.zig"),
+    });
+    exe.root_module.addImport("texture", texture_module);
+
+    const sprite_module = b.addModule("sprite", .{
+        .root_source_file = b.path("src/sprite.zig"),
+    });
+    exe.root_module.addImport("sprite", sprite_module);
+
     exe.linkLibC();
 
     // This declares intent for the executable to be installed into the
