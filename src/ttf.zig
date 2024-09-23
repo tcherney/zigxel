@@ -28,6 +28,17 @@ pub const TTF = struct {
         offset: u32 = undefined,
         length: u32 = undefined,
     };
+    const CMAP = struct {
+        version: u16 = undefined,
+        num_subtables: u16 = undefined,
+        cmap_encoding_subtables: []CMAPEncodingSubtable = undefined,
+        const CMAPEncodingSubtable = struct {
+            platform_id: u16 = undefined,
+            platrform_specific_id: u16 = undefined,
+            offset: u32 = undefined,
+        };
+    };
+    pub const Error = error{TableNotFound};
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{
@@ -37,6 +48,43 @@ pub const TTF = struct {
 
     pub fn deinit(self: *Self) void {
         self.allocator.free(self.font_directory.table_directory);
+    }
+
+    fn find_table(self: *Self, table_name: []const u8) Error!*TableDirectory {
+        for (0..self.font_directory.table_directory.len) |i| {
+            if (std.mem.eql(u8, &self.font_directory.table_directory[i].tag, table_name)) {
+                return &self.font_directory.table_directory[i];
+            }
+        }
+        return Error.TableNotFound;
+    }
+
+    fn read_cmap(self: *Self, cmap: *CMAP) !void {
+        cmap.version = try self.bit_reader.read_word();
+        cmap.num_subtables = try self.bit_reader.read_word();
+
+        cmap.cmap_encoding_subtables = try self.allocator.alloc(CMAP.CMAPEncodingSubtable, cmap.num_subtables);
+        for (0..cmap.num_subtables) |i| {
+            cmap.cmap_encoding_subtables[i].platform_id = try self.bit_reader.read_word();
+            cmap.cmap_encoding_subtables[i].platrform_specific_id = try self.bit_reader.read_word();
+            cmap.cmap_encoding_subtables[i].offset = try self.bit_reader.read_int();
+        }
+    }
+
+    fn print_cmap(cmap: *CMAP) void {
+        std.debug.print("#)\tpId\tpsID\toffset\ttype\n", .{});
+        for (0..cmap.num_subtables) |i| {
+            const subtable: CMAP.CMAPEncodingSubtable = cmap.cmap_encoding_subtables[i];
+            std.debug.print("{d})\t{d}\t{d}\t{d}\t", .{ i + 1, subtable.platform_id, subtable.platrform_specific_id, subtable.offset });
+            switch (subtable.platform_id) {
+                0 => std.debug.print("Unicode", .{}),
+                1 => std.debug.print("Mac", .{}),
+                2 => std.debug.print("Not Supported", .{}),
+                3 => std.debug.print("Microsoft", .{}),
+                else => unreachable,
+            }
+            std.debug.print("\n", .{});
+        }
     }
 
     fn parse_file(self: *Self) !void {
@@ -58,6 +106,13 @@ pub const TTF = struct {
             self.font_directory.table_directory[i].offset = try self.bit_reader.read_int();
             self.font_directory.table_directory[i].length = try self.bit_reader.read_int();
         }
+        self.print_table();
+        const cmap_table = try self.find_table("cmap");
+        var cmap: CMAP = undefined;
+        defer self.allocator.free(cmap.cmap_encoding_subtables);
+        self.bit_reader.setPos(cmap_table.offset);
+        try self.read_cmap(&cmap);
+        print_cmap(&cmap);
     }
 
     fn print_table(self: *Self) void {
@@ -74,7 +129,6 @@ pub const TTF = struct {
             .allocator = self.allocator,
         });
         try self.parse_file();
-        self.print_table();
         self.bit_reader.deinit();
     }
 };
