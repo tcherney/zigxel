@@ -37,6 +37,21 @@ pub const TTF = struct {
             platrform_specific_id: u16 = undefined,
             offset: u32 = undefined,
         };
+        const Format4 = struct {
+            format: u16,
+            length: u16,
+            language: u16,
+            seg_count_x2: u16,
+            search_range: u16,
+            entry_selector: u16,
+            range_shift: u16,
+            reserved_pad: u16,
+            end_code: []u16,
+            start_code: []u16,
+            id_delta: []u16,
+            id_range_offset: []u16,
+            glyph_id_array: []u16,
+        };
     };
     pub const Error = error{TableNotFound};
     const Self = @This();
@@ -68,6 +83,40 @@ pub const TTF = struct {
             cmap.cmap_encoding_subtables[i].platform_id = try self.bit_reader.read_word();
             cmap.cmap_encoding_subtables[i].platrform_specific_id = try self.bit_reader.read_word();
             cmap.cmap_encoding_subtables[i].offset = try self.bit_reader.read_int();
+        }
+    }
+
+    fn read_format4(self: *Self, offset: usize, format4: CMAP.Format4) !void {
+        self.bit_reader.setPos(offset);
+        format4.format = try self.bit_reader.read_word();
+        format4.length = try self.bit_reader.read_word();
+        format4.language = try self.bit_reader.read_word();
+        format4.seg_count_x2 = try self.bit_reader.read_word();
+        format4.search_range = try self.bit_reader.read_word();
+        format4.entry_selector = try self.bit_reader.read_word();
+        format4.range_shift = try self.bit_reader.read_word();
+
+        format4.end_code = try self.allocator.alloc(u16, format4.seg_count_x2 / 2);
+        format4.start_code = try self.allocator.alloc(u16, format4.seg_count_x2 / 2);
+        format4.id_delta = try self.allocator.alloc(u16, format4.seg_count_x2 / 2);
+        format4.id_range_offset = try self.allocator.alloc(u16, format4.seg_count_x2 / 2);
+
+        for (0..format4.seg_count_x2 / 2) |i| {
+            format4.end_code[i] = try self.bit_reader.read_word();
+        }
+        for (0..format4.seg_count_x2 / 2) |i| {
+            format4.start_code[i] = try self.bit_reader.read_word();
+        }
+        for (0..format4.seg_count_x2 / 2) |i| {
+            format4.id_delta[i] = try self.bit_reader.read_word();
+        }
+        for (0..format4.seg_count_x2 / 2) |i| {
+            format4.id_range_offset[i] = try self.bit_reader.read_word();
+        }
+        const remaining_bytes = format4.length - (self.bit_reader.getPos() - offset);
+        format4.glyph_id_array = try self.allocator.alloc(u16, remaining_bytes / 2);
+        for (0..format4.glyph_id_array.len) |i| {
+            format4.glyph_id_array[i] = try self.bit_reader.read_word();
         }
     }
 
