@@ -335,7 +335,7 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
         var font: ttf.TTF = ttf.TTF.init(self.allocator);
-        try font.load("arial.ttf");
+        try font.load("envy.ttf");
         font.deinit();
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);

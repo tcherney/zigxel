@@ -86,7 +86,7 @@ pub const TTF = struct {
         }
     }
 
-    fn read_format4(self: *Self, offset: usize, format4: CMAP.Format4) !void {
+    fn read_format4(self: *Self, offset: usize, format4: *CMAP.Format4) !void {
         self.bit_reader.setPos(offset);
         format4.format = try self.bit_reader.read_word();
         format4.length = try self.bit_reader.read_word();
@@ -104,6 +104,7 @@ pub const TTF = struct {
         for (0..format4.seg_count_x2 / 2) |i| {
             format4.end_code[i] = try self.bit_reader.read_word();
         }
+        self.bit_reader.setPos(self.bit_reader.getPos() + 2);
         for (0..format4.seg_count_x2 / 2) |i| {
             format4.start_code[i] = try self.bit_reader.read_word();
         }
@@ -136,6 +137,42 @@ pub const TTF = struct {
         }
     }
 
+    fn print_format4(format4: *CMAP.Format4) void {
+        std.debug.print("Format: {d}, Length: {d}, Language: {d}, Segment Count: {d}\n", .{ format4.format, format4.length, format4.language, format4.seg_count_x2 / 2 });
+        std.debug.print("Search Params: (searchRange: {d}, entrySelector: {d}, rangeShift: {d})\n", .{ format4.search_range, format4.entry_selector, format4.range_shift });
+        std.debug.print("Segment Ranges:\tstartCode\tendCode\tidDelta\tidRangeOffset\n", .{});
+        for (0..format4.seg_count_x2 / 2) |i| {
+            std.debug.print("--------------:\t {d:9}\t {d:7}\t {d:7}\t {d:12}\n", .{ format4.start_code[i], format4.end_code[i], format4.id_delta[i], format4.id_range_offset[i] });
+        }
+    }
+
+    fn get_glyph_index(code_point: u16, format4: *CMAP.Format4) usize {
+        var index: ?usize = null;
+        for (0..format4.seg_count_x2 / 2) |i| {
+            if (format4.end_code[i] > code_point) {
+                index = i;
+                break;
+            }
+        }
+        if (index == null) return 0;
+        if (format4.start_code[index.?] < code_point) {
+            if (format4.id_range_offset[index.?] != 0) {
+                const offset_index = index.? + (format4.id_range_offset[index.?] / 2) + code_point - format4.start_code[index.?];
+                var offset_value: u16 = undefined;
+                if (offset_index >= format4.id_range_offset.len) {
+                    offset_value = format4.glyph_id_array[offset_index - format4.id_range_offset.len];
+                } else {
+                    offset_value = format4.id_range_offset[offset_index];
+                }
+                if (offset_value == 0) return 0;
+                return @as(usize, @intCast(offset_value + format4.id_delta[index.?]));
+            } else {
+                return @as(usize, @intCast(code_point + format4.id_delta[index.?]));
+            }
+        }
+        return 0;
+    }
+
     fn parse_file(self: *Self) !void {
         // offset subtable
         self.font_directory.offset_subtable.scalar_type = try self.bit_reader.read_int();
@@ -162,6 +199,17 @@ pub const TTF = struct {
         self.bit_reader.setPos(cmap_table.offset);
         try self.read_cmap(&cmap);
         print_cmap(&cmap);
+        var format4: CMAP.Format4 = undefined;
+        defer self.allocator.free(format4.end_code);
+        defer self.allocator.free(format4.start_code);
+        defer self.allocator.free(format4.id_delta);
+        defer self.allocator.free(format4.id_range_offset);
+        defer self.allocator.free(format4.glyph_id_array);
+        try self.read_format4(cmap_table.offset + cmap.cmap_encoding_subtables[0].offset, &format4);
+        print_format4(&format4);
+        for (65..91) |i| {
+            std.debug.print("{c} = {d}\n", .{ @as(u8, @intCast(i)), get_glyph_index(@as(u16, @intCast(i)), &format4) });
+        }
     }
 
     fn print_table(self: *Self) void {
