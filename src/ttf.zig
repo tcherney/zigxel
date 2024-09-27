@@ -14,6 +14,11 @@ pub const TTF = struct {
     const FontDirectory = struct {
         offset_subtable: OffsetSubtable = undefined,
         table_directory: []TableDirectory = undefined,
+        format4: CMAP.Format4 = undefined,
+        cmap: CMAP = undefined,
+        glyf_offset: u32 = undefined,
+        loca_offset: u32 = undefined,
+        head_offset: u32 = undefined,
     };
     const OffsetSubtable = struct {
         scalar_type: u32 = undefined,
@@ -63,6 +68,12 @@ pub const TTF = struct {
 
     pub fn deinit(self: *Self) void {
         self.allocator.free(self.font_directory.table_directory);
+        self.allocator.free(self.font_directory.cmap.cmap_encoding_subtables);
+        self.allocator.free(self.font_directory.format4.end_code);
+        self.allocator.free(self.font_directory.format4.start_code);
+        self.allocator.free(self.font_directory.format4.id_delta);
+        self.allocator.free(self.font_directory.format4.id_range_offset);
+        self.allocator.free(self.font_directory.format4.glyph_id_array);
     }
 
     fn find_table(self: *Self, table_name: []const u8) Error!*TableDirectory {
@@ -74,57 +85,58 @@ pub const TTF = struct {
         return Error.TableNotFound;
     }
 
-    fn read_cmap(self: *Self, cmap: *CMAP) !void {
-        cmap.version = try self.bit_reader.read_word();
-        cmap.num_subtables = try self.bit_reader.read_word();
+    fn read_cmap(self: *Self, cmap_table: *TableDirectory) !void {
+        self.bit_reader.setPos(cmap_table.offset);
+        self.font_directory.cmap.version = try self.bit_reader.read_word();
+        self.font_directory.cmap.num_subtables = try self.bit_reader.read_word();
 
-        cmap.cmap_encoding_subtables = try self.allocator.alloc(CMAP.CMAPEncodingSubtable, cmap.num_subtables);
-        for (0..cmap.num_subtables) |i| {
-            cmap.cmap_encoding_subtables[i].platform_id = try self.bit_reader.read_word();
-            cmap.cmap_encoding_subtables[i].platrform_specific_id = try self.bit_reader.read_word();
-            cmap.cmap_encoding_subtables[i].offset = try self.bit_reader.read_int();
+        self.font_directory.cmap.cmap_encoding_subtables = try self.allocator.alloc(CMAP.CMAPEncodingSubtable, self.font_directory.cmap.num_subtables);
+        for (0..self.font_directory.cmap.num_subtables) |i| {
+            self.font_directory.cmap.cmap_encoding_subtables[i].platform_id = try self.bit_reader.read_word();
+            self.font_directory.cmap.cmap_encoding_subtables[i].platrform_specific_id = try self.bit_reader.read_word();
+            self.font_directory.cmap.cmap_encoding_subtables[i].offset = try self.bit_reader.read_int();
         }
     }
 
-    fn read_format4(self: *Self, offset: usize, format4: *CMAP.Format4) !void {
+    fn read_format4(self: *Self, offset: usize) !void {
         self.bit_reader.setPos(offset);
-        format4.format = try self.bit_reader.read_word();
-        format4.length = try self.bit_reader.read_word();
-        format4.language = try self.bit_reader.read_word();
-        format4.seg_count_x2 = try self.bit_reader.read_word();
-        format4.search_range = try self.bit_reader.read_word();
-        format4.entry_selector = try self.bit_reader.read_word();
-        format4.range_shift = try self.bit_reader.read_word();
+        self.font_directory.format4.format = try self.bit_reader.read_word();
+        self.font_directory.format4.length = try self.bit_reader.read_word();
+        self.font_directory.format4.language = try self.bit_reader.read_word();
+        self.font_directory.format4.seg_count_x2 = try self.bit_reader.read_word();
+        self.font_directory.format4.search_range = try self.bit_reader.read_word();
+        self.font_directory.format4.entry_selector = try self.bit_reader.read_word();
+        self.font_directory.format4.range_shift = try self.bit_reader.read_word();
 
-        format4.end_code = try self.allocator.alloc(u16, format4.seg_count_x2 / 2);
-        format4.start_code = try self.allocator.alloc(u16, format4.seg_count_x2 / 2);
-        format4.id_delta = try self.allocator.alloc(u16, format4.seg_count_x2 / 2);
-        format4.id_range_offset = try self.allocator.alloc(u16, format4.seg_count_x2 / 2);
+        self.font_directory.format4.end_code = try self.allocator.alloc(u16, self.font_directory.format4.seg_count_x2 / 2);
+        self.font_directory.format4.start_code = try self.allocator.alloc(u16, self.font_directory.format4.seg_count_x2 / 2);
+        self.font_directory.format4.id_delta = try self.allocator.alloc(u16, self.font_directory.format4.seg_count_x2 / 2);
+        self.font_directory.format4.id_range_offset = try self.allocator.alloc(u16, self.font_directory.format4.seg_count_x2 / 2);
 
-        for (0..format4.seg_count_x2 / 2) |i| {
-            format4.end_code[i] = try self.bit_reader.read_word();
+        for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
+            self.font_directory.format4.end_code[i] = try self.bit_reader.read_word();
         }
         self.bit_reader.setPos(self.bit_reader.getPos() + 2);
-        for (0..format4.seg_count_x2 / 2) |i| {
-            format4.start_code[i] = try self.bit_reader.read_word();
+        for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
+            self.font_directory.format4.start_code[i] = try self.bit_reader.read_word();
         }
-        for (0..format4.seg_count_x2 / 2) |i| {
-            format4.id_delta[i] = try self.bit_reader.read_word();
+        for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
+            self.font_directory.format4.id_delta[i] = try self.bit_reader.read_word();
         }
-        for (0..format4.seg_count_x2 / 2) |i| {
-            format4.id_range_offset[i] = try self.bit_reader.read_word();
+        for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
+            self.font_directory.format4.id_range_offset[i] = try self.bit_reader.read_word();
         }
-        const remaining_bytes = format4.length - (self.bit_reader.getPos() - offset);
-        format4.glyph_id_array = try self.allocator.alloc(u16, remaining_bytes / 2);
-        for (0..format4.glyph_id_array.len) |i| {
-            format4.glyph_id_array[i] = try self.bit_reader.read_word();
+        const remaining_bytes = self.font_directory.format4.length - (self.bit_reader.getPos() - offset);
+        self.font_directory.format4.glyph_id_array = try self.allocator.alloc(u16, remaining_bytes / 2);
+        for (0..self.font_directory.format4.glyph_id_array.len) |i| {
+            self.font_directory.format4.glyph_id_array[i] = try self.bit_reader.read_word();
         }
     }
 
-    fn print_cmap(cmap: *CMAP) void {
+    fn print_cmap(self: *Self) void {
         std.debug.print("#)\tpId\tpsID\toffset\ttype\n", .{});
-        for (0..cmap.num_subtables) |i| {
-            const subtable: CMAP.CMAPEncodingSubtable = cmap.cmap_encoding_subtables[i];
+        for (0..self.font_directory.cmap.num_subtables) |i| {
+            const subtable: CMAP.CMAPEncodingSubtable = self.font_directory.cmap.cmap_encoding_subtables[i];
             std.debug.print("{d})\t{d}\t{d}\t{d}\t", .{ i + 1, subtable.platform_id, subtable.platrform_specific_id, subtable.offset });
             switch (subtable.platform_id) {
                 0 => std.debug.print("Unicode", .{}),
@@ -137,37 +149,37 @@ pub const TTF = struct {
         }
     }
 
-    fn print_format4(format4: *CMAP.Format4) void {
-        std.debug.print("Format: {d}, Length: {d}, Language: {d}, Segment Count: {d}\n", .{ format4.format, format4.length, format4.language, format4.seg_count_x2 / 2 });
-        std.debug.print("Search Params: (searchRange: {d}, entrySelector: {d}, rangeShift: {d})\n", .{ format4.search_range, format4.entry_selector, format4.range_shift });
+    fn print_format4(self: *Self) void {
+        std.debug.print("Format: {d}, Length: {d}, Language: {d}, Segment Count: {d}\n", .{ self.font_directory.format4.format, self.font_directory.format4.length, self.font_directory.format4.language, self.font_directory.format4.seg_count_x2 / 2 });
+        std.debug.print("Search Params: (searchRange: {d}, entrySelector: {d}, rangeShift: {d})\n", .{ self.font_directory.format4.search_range, self.font_directory.format4.entry_selector, self.font_directory.format4.range_shift });
         std.debug.print("Segment Ranges:\tstartCode\tendCode\tidDelta\tidRangeOffset\n", .{});
-        for (0..format4.seg_count_x2 / 2) |i| {
-            std.debug.print("--------------:\t {d:9}\t {d:7}\t {d:7}\t {d:12}\n", .{ format4.start_code[i], format4.end_code[i], format4.id_delta[i], format4.id_range_offset[i] });
+        for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
+            std.debug.print("--------------:\t {d:9}\t {d:7}\t {d:7}\t {d:12}\n", .{ self.font_directory.format4.start_code[i], self.font_directory.format4.end_code[i], self.font_directory.format4.id_delta[i], self.font_directory.format4.id_range_offset[i] });
         }
     }
 
-    fn get_glyph_index(code_point: u16, format4: *CMAP.Format4) usize {
+    fn get_glyph_index(self: *Self, code_point: u16) usize {
         var index: ?usize = null;
-        for (0..format4.seg_count_x2 / 2) |i| {
-            if (format4.end_code[i] > code_point) {
+        for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
+            if (self.font_directory.format4.end_code[i] > code_point) {
                 index = i;
                 break;
             }
         }
         if (index == null) return 0;
-        if (format4.start_code[index.?] < code_point) {
-            if (format4.id_range_offset[index.?] != 0) {
-                const offset_index = index.? + (format4.id_range_offset[index.?] / 2) + code_point - format4.start_code[index.?];
+        if (self.font_directory.format4.start_code[index.?] < code_point) {
+            if (self.font_directory.format4.id_range_offset[index.?] != 0) {
+                const offset_index = index.? + (self.font_directory.format4.id_range_offset[index.?] / 2) + code_point - self.font_directory.format4.start_code[index.?];
                 var offset_value: u16 = undefined;
-                if (offset_index >= format4.id_range_offset.len) {
-                    offset_value = format4.glyph_id_array[offset_index - format4.id_range_offset.len];
+                if (offset_index >= self.font_directory.format4.id_range_offset.len) {
+                    offset_value = self.font_directory.format4.glyph_id_array[offset_index - self.font_directory.format4.id_range_offset.len];
                 } else {
-                    offset_value = format4.id_range_offset[offset_index];
+                    offset_value = self.font_directory.format4.id_range_offset[offset_index];
                 }
                 if (offset_value == 0) return 0;
-                return @as(usize, @intCast(offset_value + format4.id_delta[index.?]));
+                return @as(usize, @intCast(offset_value + self.font_directory.format4.id_delta[index.?]));
             } else {
-                return @as(usize, @intCast(code_point + format4.id_delta[index.?]));
+                return @as(usize, @intCast(code_point + self.font_directory.format4.id_delta[index.?]));
             }
         }
         return 0;
@@ -192,23 +204,22 @@ pub const TTF = struct {
             self.font_directory.table_directory[i].offset = try self.bit_reader.read_int();
             self.font_directory.table_directory[i].length = try self.bit_reader.read_int();
         }
-        self.print_table();
         const cmap_table = try self.find_table("cmap");
-        var cmap: CMAP = undefined;
-        defer self.allocator.free(cmap.cmap_encoding_subtables);
-        self.bit_reader.setPos(cmap_table.offset);
-        try self.read_cmap(&cmap);
-        print_cmap(&cmap);
-        var format4: CMAP.Format4 = undefined;
-        defer self.allocator.free(format4.end_code);
-        defer self.allocator.free(format4.start_code);
-        defer self.allocator.free(format4.id_delta);
-        defer self.allocator.free(format4.id_range_offset);
-        defer self.allocator.free(format4.glyph_id_array);
-        try self.read_format4(cmap_table.offset + cmap.cmap_encoding_subtables[0].offset, &format4);
-        print_format4(&format4);
+        try self.read_cmap(cmap_table);
+        try self.read_format4(cmap_table.offset + self.font_directory.cmap.cmap_encoding_subtables[0].offset);
+
+        const glyf_table = try self.find_table("glyf");
+        self.font_directory.glyf_offset = glyf_table.offset;
+        const loca_table = try self.find_table("loca");
+        self.font_directory.loca_offset = loca_table.offset;
+        const head_table = try self.find_table("head");
+        self.font_directory.head_offset = head_table.offset;
+
+        self.print_table();
+        self.print_cmap();
+        self.print_format4();
         for (65..91) |i| {
-            std.debug.print("{c} = {d}\n", .{ @as(u8, @intCast(i)), get_glyph_index(@as(u16, @intCast(i)), &format4) });
+            std.debug.print("{c} = {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))) });
         }
     }
 
