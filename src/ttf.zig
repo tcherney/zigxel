@@ -5,6 +5,7 @@ const BitReader = @import("image").BitReader;
 //TODO ttf struct that loads a ttf utilizing existing texture struct and exposes an api that allows user to generate a texture from a string input utilizing the ttf font
 
 //https://handmade.network/forums/articles/t/7330-implementing_a_font_reader_and_rasterizer_from_scratch%252C_part_1__ttf_font_reader.
+//https://stevehanov.ca/blog/index.php?id=143
 
 pub const TTF = struct {
     bit_reader: BitReader = undefined,
@@ -43,20 +44,34 @@ pub const TTF = struct {
             offset: u32 = undefined,
         };
         const Format4 = struct {
-            format: u16,
-            length: u16,
-            language: u16,
-            seg_count_x2: u16,
-            search_range: u16,
-            entry_selector: u16,
-            range_shift: u16,
-            reserved_pad: u16,
-            end_code: []u16,
-            start_code: []u16,
-            id_delta: []u16,
-            id_range_offset: []u16,
-            glyph_id_array: []u16,
+            format: u16 = undefined,
+            length: u16 = undefined,
+            language: u16 = undefined,
+            seg_count_x2: u16 = undefined,
+            search_range: u16 = undefined,
+            entry_selector: u16 = undefined,
+            range_shift: u16 = undefined,
+            reserved_pad: u16 = undefined,
+            end_code: []u16 = undefined,
+            start_code: []u16 = undefined,
+            id_delta: []u16 = undefined,
+            id_range_offset: []u16 = undefined,
+            glyph_id_array: []u16 = undefined,
         };
+    };
+    const GlyphOutline = struct {
+        num_contours: i16 = undefined,
+        x_min: i16 = undefined,
+        y_min: i16 = undefined,
+        y_max: i16 = undefined,
+        x_max: i16 = undefined,
+        instruction_length: u16 = undefined,
+        instructions: []u8 = undefined,
+        flags: []u8 = undefined,
+        x_coord: []i16 = undefined,
+        y_coord: []i16 = undefined,
+        end_contours: []u16 = undefined,
+        const Flag = enum(u8) { on_curve = 1, x_short = 2, y_short = 4, repeat = 8, x_short_pos = 16, y_short_pos = 32, reservered };
     };
     pub const Error = error{TableNotFound};
     const Self = @This();
@@ -158,6 +173,106 @@ pub const TTF = struct {
         }
     }
 
+    fn print_glyph_outline(glyph_outline: *GlyphOutline) void {
+        std.debug.print("#contours\t(xMin,yMin)\t(xMax,yMax)\tinst_length\n", .{});
+        std.debug.print("%{d:9}\t({d},{d})\t\t({d},{d})\t{d}\n", .{ glyph_outline.num_contours, glyph_outline.x_min, glyph_outline.y_min, glyph_outline.x_max, glyph_outline.y_max, glyph_outline.instruction_length });
+
+        std.debug.print("#)\t(  x  ,  y  )\n", .{});
+        const last_index = glyph_outline.end_contours[glyph_outline.end_contours.len - 1];
+        for (0..last_index + 1) |i| {
+            std.debug.print("{d})\t({d:5},{d:5})\n", .{ i, glyph_outline.x_coord[i], glyph_outline.y_coord[i] });
+        }
+    }
+
+    fn get_glyph_outline(self: *Self, glyph_index: usize) !GlyphOutline {
+        const offset: usize = try self.get_glyph_offset(glyph_index);
+        var glyph_outline: GlyphOutline = undefined;
+        self.bit_reader.setPos(self.font_directory.glyf_offset + offset);
+        glyph_outline.num_contours = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        glyph_outline.x_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        glyph_outline.y_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        glyph_outline.x_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        glyph_outline.y_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
+
+        std.debug.print("num contours {d}\n", .{glyph_outline.num_contours});
+
+        glyph_outline.end_contours = try self.allocator.alloc(u16, @as(u16, @bitCast(glyph_outline.num_contours)));
+        for (0..glyph_outline.end_contours.len) |i| {
+            glyph_outline.end_contours[i] = try self.bit_reader.read_word();
+        }
+        glyph_outline.instruction_length = try self.bit_reader.read_word();
+        glyph_outline.instructions = try self.allocator.alloc(u8, glyph_outline.instruction_length);
+        //self.bit_reader.setPos(self.font_directory.glyf_offset + offset);
+        for (0..glyph_outline.instructions.len) |i| {
+            glyph_outline.instructions[i] = try self.bit_reader.read_byte();
+        }
+        const last_index = glyph_outline.end_contours[glyph_outline.end_contours.len - 1];
+        glyph_outline.flags = try self.allocator.alloc(u8, last_index + 1);
+        //self.bit_reader.setPos(self.font_directory.glyf_offset + offset);
+        var i: usize = 0;
+        while (i < glyph_outline.flags.len) : (i += 1) {
+            glyph_outline.flags[i] = try self.bit_reader.read_byte();
+            if ((glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.repeat)) != 0) {
+                var repeat_count = @as(i8, @bitCast(try self.bit_reader.read_byte()));
+                while (repeat_count > 0) {
+                    repeat_count -= 1;
+                    i += 1;
+                    glyph_outline.flags[i] = glyph_outline.flags[i - 1];
+                }
+            }
+        }
+        std.debug.print("file pos {d}\n", .{self.bit_reader.getPos()});
+        glyph_outline.x_coord = try self.allocator.alloc(i16, (last_index + 1) * 2);
+        var cur_coord: i16 = 0;
+        for (0..(last_index + 1)) |j| {
+            const flag_combined: u8 = (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.x_short)) | (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.x_short_pos)) >> 4;
+            std.debug.print("flag_combined {d}\n", .{flag_combined});
+            switch (flag_combined) {
+                0 => {
+                    cur_coord += @as(i16, @bitCast(try self.bit_reader.read_word()));
+                },
+                1 => {},
+                2 => {
+                    cur_coord -= @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read_byte()))));
+                },
+                3 => {
+                    cur_coord += @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read_byte()))));
+                },
+                else => unreachable,
+            }
+            glyph_outline.x_coord[j] = cur_coord;
+            std.debug.print("xcoord {d}\n", .{glyph_outline.x_coord[j]});
+        }
+
+        glyph_outline.y_coord = try self.allocator.alloc(i16, (last_index + 1) * 2);
+        cur_coord = 0;
+        for (0..(last_index + 1)) |j| {
+            const flag_combined: u8 = (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.y_short)) >> 1 | (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.y_short_pos)) >> 5;
+            switch (flag_combined) {
+                0 => {
+                    cur_coord += @as(i16, @bitCast(try self.bit_reader.read_word()));
+                },
+                1 => {},
+                2 => {
+                    cur_coord -= @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read_byte()))));
+                },
+                3 => {
+                    cur_coord += @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read_byte()))));
+                },
+                else => unreachable,
+            }
+            glyph_outline.y_coord[j] = cur_coord;
+        }
+
+        print_glyph_outline(&glyph_outline);
+        self.allocator.free(glyph_outline.end_contours);
+        self.allocator.free(glyph_outline.instructions);
+        self.allocator.free(glyph_outline.flags);
+        self.allocator.free(glyph_outline.x_coord);
+        self.allocator.free(glyph_outline.y_coord);
+        return glyph_outline;
+    }
+
     fn get_glyph_index(self: *Self, code_point: u16) usize {
         var index: ?usize = null;
         for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
@@ -177,12 +292,30 @@ pub const TTF = struct {
                     offset_value = self.font_directory.format4.id_range_offset[offset_index];
                 }
                 if (offset_value == 0) return 0;
-                return @as(usize, @intCast(offset_value + self.font_directory.format4.id_delta[index.?]));
+                return @as(usize, @intCast(offset_value + self.font_directory.format4.id_delta[index.?])) & 0xFFFF;
             } else {
-                return @as(usize, @intCast(code_point + self.font_directory.format4.id_delta[index.?]));
+                return @as(usize, @intCast(code_point + self.font_directory.format4.id_delta[index.?])) & 0xFFFF;
             }
         }
         return 0;
+    }
+
+    fn get_glyph_offset(self: *Self, glyph_index: usize) !usize {
+        self.bit_reader.setPos(self.font_directory.head_offset + 50);
+        const loca_type = try self.bit_reader.read_word();
+        std.debug.print("loca type {d}\n", .{loca_type});
+
+        std.debug.print("loca offset {d}, glyph_index {d}\n", .{ self.font_directory.loca_offset, glyph_index });
+        if (loca_type == 0) {
+            std.debug.print("loca addr {d}\n", .{(self.font_directory.loca_offset & 0xFFFF) + glyph_index});
+            std.debug.print("loca addr {d}\n", .{(self.font_directory.loca_offset + glyph_index)});
+            std.debug.print("loca addr {d}\n", .{(self.font_directory.loca_offset + (glyph_index * 2))});
+            self.bit_reader.setPos((self.font_directory.loca_offset + (glyph_index * 2)));
+            return @as(usize, @intCast(try self.bit_reader.read_word())) * 2;
+        } else {
+            self.bit_reader.setPos(self.font_directory.loca_offset + (glyph_index * 4));
+            return @as(usize, @intCast(try self.bit_reader.read_int()));
+        }
     }
 
     fn parse_file(self: *Self) !void {
@@ -219,8 +352,9 @@ pub const TTF = struct {
         self.print_cmap();
         self.print_format4();
         for (65..91) |i| {
-            std.debug.print("{c} = {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))) });
+            std.debug.print("{c} = {d}, {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))), try self.get_glyph_offset(self.get_glyph_index(@as(u16, @intCast(i)))) });
         }
+        _ = try self.get_glyph_outline(self.get_glyph_index(65));
     }
 
     fn print_table(self: *Self) void {
