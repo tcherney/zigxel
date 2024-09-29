@@ -115,19 +115,23 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             if (@abs(p1.y - p0.y) > @abs(p1.x - p0.x)) {
                 const p_start = if (p1.y > p0.y) p0 else p1;
                 const p_end = if (p1.y > p0.y) p1 else p0;
-                var y = p_start.y;
+                var y = p_start.y + 1;
+                self.draw_pixel(p_start.x, p_start.y, color, dest);
                 while (y < p_end.y) : (y += 1) {
-                    const x = @divFloor((p_start.x * (p_end.y - p_start.y) + p_end.x * (y - p_start.y)), (p_end.y - p_start.y));
+                    const x = @divFloor((p_start.x * (p_end.y - y) + p_end.x * (y - p_start.y)), (p_end.y - p_start.y));
                     self.draw_pixel(x, y, color, dest);
                 }
+                self.draw_pixel(p_end.x, p_end.y, color, dest);
             } else {
                 const p_start = if (p1.x > p0.x) p0 else p1;
                 const p_end = if (p1.x > p0.x) p1 else p0;
-                var x = p_start.x;
+                var x = p_start.x + 1;
+                self.draw_pixel(p_start.x, p_start.y, color, dest);
                 while (x < p_end.x) : (x += 1) {
-                    const y = @divFloor((p_start.y * (p_end.x - p_start.x) + p_end.y * (x - p_start.x)), (p_end.x - p_start.x));
+                    const y = @divFloor((p_start.y * (p_end.x - x) + p_end.y * (x - p_start.x)), (p_end.x - p_start.x));
                     self.draw_pixel(x, y, color, dest);
                 }
+                self.draw_pixel(p_end.x, p_end.y, color, dest);
             }
         }
 
