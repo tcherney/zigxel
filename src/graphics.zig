@@ -111,16 +111,42 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             }
         }
 
+        pub fn draw_line(self: *Self, color: texture.Pixel, p0: Point, p1: Point, dest: ?texture.Texture) void {
+            if (@abs(p1.y - p0.y) > @abs(p1.x - p0.x)) {
+                const p_start = if (p1.y > p0.y) p0 else p1;
+                const p_end = if (p1.y > p0.y) p1 else p0;
+                var y = p_start.y;
+                while (y < p_end.y) : (y += 1) {
+                    const x = @divFloor((p_start.x * (p_end.y - p_start.y) + p_end.x * (y - p_start.y)), (p_end.y - p_start.y));
+                    self.draw_pixel(x, y, color, dest);
+                }
+            } else {
+                const p_start = if (p1.x > p0.x) p0 else p1;
+                const p_end = if (p1.x > p0.x) p1 else p0;
+                var x = p_start.x;
+                while (x < p_end.x) : (x += 1) {
+                    const y = @divFloor((p_start.y * (p_end.x - p_start.x) + p_end.y * (x - p_start.x)), (p_end.x - p_start.x));
+                    self.draw_pixel(x, y, color, dest);
+                }
+            }
+        }
+
         pub fn draw_bezier(self: *Self, color: texture.Pixel, p0: Point, p1: Point, p2: Point, dest: ?texture.Texture) void {
             const subdiv_into: i32 = 5;
             const step_per_iter: f32 = 1.0 / @as(f32, @floatFromInt(subdiv_into));
+            var prev: Point = Point{ .x = p0.x, .y = p0.y };
+            var curr: Point = undefined;
             for (0..subdiv_into + 1) |i| {
                 const t: f32 = @as(f32, @floatFromInt(i)) * step_per_iter;
                 const t1: f32 = 1.0 - t;
                 const t2: f32 = t * t;
                 const x = t1 * t1 * @as(f32, @floatFromInt(p0.x)) + 2 * t1 * t * @as(f32, @floatFromInt(p1.x)) + t2 * @as(f32, @floatFromInt(p2.x));
                 const y = t1 * t1 * @as(f32, @floatFromInt(p0.y)) + 2 * t1 * t * @as(f32, @floatFromInt(p1.y)) + t2 * @as(f32, @floatFromInt(p2.y));
-                self.draw_pixel(@as(i32, @intFromFloat(x)), @as(i32, @intFromFloat(y)), color, dest);
+                curr.x = @as(i32, @intFromFloat(x));
+                curr.y = @as(i32, @intFromFloat(y));
+                self.draw_line(color, prev, curr, dest);
+                prev.x = curr.x;
+                prev.y = curr.y;
             }
         }
 
