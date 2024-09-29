@@ -11,6 +11,7 @@ const LOWER_PX = "▄";
 //▀█▄
 
 pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError;
+pub const Point = utils.Point(i32);
 
 pub fn Graphics(comptime color_type: utils.ColorMode) type {
     return struct {
@@ -107,6 +108,19 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                         dest.?.pixel_buffer[i] = .{ .r = r, .g = g, .b = b };
                     }
                 }
+            }
+        }
+
+        pub fn draw_bezier(self: *Self, color: texture.Pixel, p0: Point, p1: Point, p2: Point, dest: ?texture.Texture) void {
+            const subdiv_into: i32 = 5;
+            const step_per_iter: f32 = 1.0 / @as(f32, @floatFromInt(subdiv_into));
+            for (0..subdiv_into + 1) |i| {
+                const t: f32 = @as(f32, @floatFromInt(i)) * step_per_iter;
+                const t1: f32 = 1.0 - t;
+                const t2: f32 = t * t;
+                const x = t1 * t1 * @as(f32, @floatFromInt(p0.x)) + 2 * t1 * t * @as(f32, @floatFromInt(p1.x)) + t2 * @as(f32, @floatFromInt(p2.x));
+                const y = t1 * t1 * @as(f32, @floatFromInt(p0.y)) + 2 * t1 * t * @as(f32, @floatFromInt(p1.y)) + t2 * @as(f32, @floatFromInt(p2.y));
+                self.draw_pixel(@as(i32, @intFromFloat(x)), @as(i32, @intFromFloat(y)), color, dest);
             }
         }
 

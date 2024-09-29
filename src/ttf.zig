@@ -5,7 +5,11 @@ const BitReader = @import("image").BitReader;
 //TODO ttf struct that loads a ttf utilizing existing texture struct and exposes an api that allows user to generate a texture from a string input utilizing the ttf font
 
 //https://handmade.network/forums/articles/t/7330-implementing_a_font_reader_and_rasterizer_from_scratch%252C_part_1__ttf_font_reader.
+//https://handmade.network/forums/wip/t/7610-reading_ttf_files_and_rasterizing_them_using_a_handmade_approach%252C_part_2__rasterization#23867
 //https://stevehanov.ca/blog/index.php?id=143
+//https://tchayen.github.io/posts/ttf-file-parsing
+//https://learn.microsoft.com/en-us/typography/opentype/spec/
+//https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6cmap.html
 
 pub const TTF = struct {
     bit_reader: BitReader = undefined,

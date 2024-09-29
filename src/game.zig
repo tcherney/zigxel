@@ -318,6 +318,7 @@ pub const Game = struct {
             self.player.?.draw(&self.e.renderer, self.current_world.tex);
         }
         self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
+        self.e.renderer.draw_bezier(.{ .r = 255, .g = 255, .b = 255 }, .{ .x = 0, .y = 0 }, .{ .x = 50, .y = 300 }, .{ .x = 200, .y = 200 }, self.current_world.tex);
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {

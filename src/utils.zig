@@ -31,6 +31,12 @@ pub fn CallbackError(comptime DATA_TYPE: type) type {
         }
     };
 }
+pub fn Point(comptime T: type) type {
+    return struct {
+        x: T = 0,
+        y: T = 0,
+    };
+}
 
 pub const Rectangle = struct {
     x: i32 = 0,
