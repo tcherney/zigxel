@@ -7,8 +7,9 @@ const physic_pixel = @import("physics_pixel.zig");
 const game_object = @import("game_object.zig");
 const asset_manager = @import("asset_manager.zig");
 const _player = @import("player.zig");
-const ttf = @import("ttf.zig");
+const _font = @import("font.zig");
 
+pub const Font = _font.Font;
 pub const World = @import("world.zig").World;
 pub const PhysicsPixel = physic_pixel.PhysicsPixel;
 pub const Player = _player.Player;
@@ -337,8 +338,9 @@ pub const Game = struct {
 
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
-        var font: ttf.TTF = ttf.TTF.init(self.allocator);
+        var font: Font = Font.init(self.allocator);
         try font.load("envy.ttf");
+        try font.draw_char(&self.e.renderer, '0');
         font.deinit();
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);

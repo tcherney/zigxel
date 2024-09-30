@@ -15,8 +15,9 @@ pub const TTF = struct {
     bit_reader: BitReader = undefined,
     allocator: std.mem.Allocator,
     font_directory: FontDirectory = undefined,
+    char_map: std.AutoHashMap(u8, GlyphOutline) = undefined,
 
-    const FontDirectory = struct {
+    pub const FontDirectory = struct {
         offset_subtable: OffsetSubtable = undefined,
         table_directory: []TableDirectory = undefined,
         format4: CMAP.Format4 = undefined,
@@ -63,7 +64,7 @@ pub const TTF = struct {
             glyph_id_array: []u16 = undefined,
         };
     };
-    const GlyphOutline = struct {
+    pub const GlyphOutline = struct {
         num_contours: i16 = undefined,
         x_min: i16 = undefined,
         y_min: i16 = undefined,
@@ -77,7 +78,7 @@ pub const TTF = struct {
         end_contours: []u16 = undefined,
         const Flag = enum(u8) { on_curve = 1, x_short = 2, y_short = 4, repeat = 8, x_short_pos = 16, y_short_pos = 32, reservered };
     };
-    pub const Error = error{TableNotFound};
+    pub const Error = error{ TableNotFound, CompoundNotImplemented };
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{
@@ -93,6 +94,7 @@ pub const TTF = struct {
         self.allocator.free(self.font_directory.format4.id_delta);
         self.allocator.free(self.font_directory.format4.id_range_offset);
         self.allocator.free(self.font_directory.format4.glyph_id_array);
+        self.char_map.deinit();
     }
 
     fn find_table(self: *Self, table_name: []const u8) Error!*TableDirectory {
@@ -177,7 +179,7 @@ pub const TTF = struct {
         }
     }
 
-    fn print_glyph_outline(glyph_outline: *GlyphOutline) void {
+    fn print_glyph_outline(glyph_outline: *const GlyphOutline) void {
         std.debug.print("#contours\t(xMin,yMin)\t(xMax,yMax)\tinst_length\n", .{});
         std.debug.print("%{d:9}\t({d},{d})\t\t({d},{d})\t{d}\n", .{ glyph_outline.num_contours, glyph_outline.x_min, glyph_outline.y_min, glyph_outline.x_max, glyph_outline.y_max, glyph_outline.instruction_length });
 
@@ -199,6 +201,9 @@ pub const TTF = struct {
         glyph_outline.y_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
 
         std.debug.print("num contours {d}\n", .{glyph_outline.num_contours});
+        if (glyph_outline.num_contours == -1) {
+            return Error.CompoundNotImplemented;
+        }
 
         glyph_outline.end_contours = try self.allocator.alloc(u16, @as(u16, @bitCast(glyph_outline.num_contours)));
         for (0..glyph_outline.end_contours.len) |i| {
@@ -206,13 +211,11 @@ pub const TTF = struct {
         }
         glyph_outline.instruction_length = try self.bit_reader.read_word();
         glyph_outline.instructions = try self.allocator.alloc(u8, glyph_outline.instruction_length);
-        //self.bit_reader.setPos(self.font_directory.glyf_offset + offset);
         for (0..glyph_outline.instructions.len) |i| {
             glyph_outline.instructions[i] = try self.bit_reader.read_byte();
         }
         const last_index = glyph_outline.end_contours[glyph_outline.end_contours.len - 1];
         glyph_outline.flags = try self.allocator.alloc(u8, last_index + 1);
-        //self.bit_reader.setPos(self.font_directory.glyf_offset + offset);
         var i: usize = 0;
         while (i < glyph_outline.flags.len) : (i += 1) {
             glyph_outline.flags[i] = try self.bit_reader.read_byte();
@@ -225,12 +228,10 @@ pub const TTF = struct {
                 }
             }
         }
-        std.debug.print("file pos {d}\n", .{self.bit_reader.getPos()});
         glyph_outline.x_coord = try self.allocator.alloc(i16, (last_index + 1) * 2);
         var cur_coord: i16 = 0;
         for (0..(last_index + 1)) |j| {
             const flag_combined: u8 = (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.x_short)) | (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.x_short_pos)) >> 4;
-            std.debug.print("flag_combined {d}\n", .{flag_combined});
             switch (flag_combined) {
                 0 => {
                     cur_coord += @as(i16, @bitCast(try self.bit_reader.read_word()));
@@ -245,7 +246,6 @@ pub const TTF = struct {
                 else => unreachable,
             }
             glyph_outline.x_coord[j] = cur_coord;
-            std.debug.print("xcoord {d}\n", .{glyph_outline.x_coord[j]});
         }
 
         glyph_outline.y_coord = try self.allocator.alloc(i16, (last_index + 1) * 2);
@@ -268,12 +268,6 @@ pub const TTF = struct {
             glyph_outline.y_coord[j] = cur_coord;
         }
 
-        print_glyph_outline(&glyph_outline);
-        self.allocator.free(glyph_outline.end_contours);
-        self.allocator.free(glyph_outline.instructions);
-        self.allocator.free(glyph_outline.flags);
-        self.allocator.free(glyph_outline.x_coord);
-        self.allocator.free(glyph_outline.y_coord);
         return glyph_outline;
     }
 
@@ -307,13 +301,7 @@ pub const TTF = struct {
     fn get_glyph_offset(self: *Self, glyph_index: usize) !usize {
         self.bit_reader.setPos(self.font_directory.head_offset + 50);
         const loca_type = try self.bit_reader.read_word();
-        std.debug.print("loca type {d}\n", .{loca_type});
-
-        std.debug.print("loca offset {d}, glyph_index {d}\n", .{ self.font_directory.loca_offset, glyph_index });
         if (loca_type == 0) {
-            std.debug.print("loca addr {d}\n", .{(self.font_directory.loca_offset & 0xFFFF) + glyph_index});
-            std.debug.print("loca addr {d}\n", .{(self.font_directory.loca_offset + glyph_index)});
-            std.debug.print("loca addr {d}\n", .{(self.font_directory.loca_offset + (glyph_index * 2))});
             self.bit_reader.setPos((self.font_directory.loca_offset + (glyph_index * 2)));
             return @as(usize, @intCast(try self.bit_reader.read_word())) * 2;
         } else {
@@ -358,7 +346,6 @@ pub const TTF = struct {
         for (65..91) |i| {
             std.debug.print("{c} = {d}, {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))), try self.get_glyph_offset(self.get_glyph_index(@as(u16, @intCast(i)))) });
         }
-        _ = try self.get_glyph_outline(self.get_glyph_index(65));
     }
 
     fn print_table(self: *Self) void {
@@ -375,6 +362,18 @@ pub const TTF = struct {
             .allocator = self.allocator,
         });
         try self.parse_file();
+        self.char_map = std.AutoHashMap(u8, GlyphOutline).init(self.allocator);
+        const alphabet = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+        for (alphabet) |a| {
+            const glyph_outline = self.get_glyph_outline(self.get_glyph_index(@as(u16, @intCast(a))));
+            if (glyph_outline) |outline| {
+                try self.char_map.put(a, outline);
+                std.debug.print("simple {c}\n", .{a});
+                print_glyph_outline(&outline);
+            } else |_| {
+                std.debug.print("compound {c}\n", .{a});
+            }
+        }
         self.bit_reader.deinit();
     }
 };

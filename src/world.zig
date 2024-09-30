@@ -14,7 +14,7 @@ pub const World = struct {
     const Self = @This();
     pub fn init(w_width: u32, w_height: u32, v_width: u32, v_height: u32, allocator: std.mem.Allocator) Error!Self {
         var world_tex = Texture.init(allocator);
-        try world_tex.rect(w_width, w_height, 0, 0, 0);
+        try world_tex.rect(w_width, w_height, 0, 0, 0, null);
         return Self{
             .tex = world_tex,
             .bounds = utils.Rectangle{
