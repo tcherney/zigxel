@@ -363,7 +363,7 @@ pub const TTF = struct {
             std.debug.print("{d})\t{c}{c}{c}{c}\t{d}\t{d}\n", .{ i + 1, dir.tag[0], dir.tag[1], dir.tag[2], dir.tag[3], dir.length, dir.offset });
         }
     }
-
+    //TODO fix points to represent lines as well as curves
     fn gen_curves(self: *Self, glyph_outline: *GlyphOutline) std.mem.Allocator.Error!void {
         var points: std.ArrayList(Point) = std.ArrayList(Point).init(self.allocator);
         var previous_point: ?Point = null;
@@ -372,8 +372,8 @@ pub const TTF = struct {
         var cur_flag: bool = false;
         std.debug.print("num contours {d} {any}\n", .{ glyph_outline.num_contours, glyph_outline.end_contours });
         var contour_index: usize = 0;
+        var curve_points: usize = 0;
         for (0..glyph_outline.x_coord.len) |i| {
-            var curve_completed = false;
             cur_point.x = glyph_outline.x_coord[i];
             cur_point.y = glyph_outline.y_coord[i];
             cur_flag = (glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.on_curve)) == @intFromEnum(GlyphOutline.Flag.on_curve);
@@ -383,24 +383,31 @@ pub const TTF = struct {
                 midpoint.x = @divFloor(cur_point.x + previous_point.?.x, 2);
                 midpoint.y = @divFloor(cur_point.y + previous_point.?.y, 2);
                 try points.append(midpoint);
-                curve_completed = true;
-            } else if (cur_flag and previous_flag) {
+                curve_points += 1;
+                if (curve_points == 3) {
+                    try points.append(midpoint);
+                    curve_points = 1;
+                }
+            } else if (previous_point != null and cur_flag and previous_flag and curve_points == 1) {
                 var midpoint: Point = undefined;
                 midpoint.x = @divFloor(cur_point.x + previous_point.?.x, 2);
                 midpoint.y = @divFloor(cur_point.y + previous_point.?.y, 2);
                 try points.append(midpoint);
-                curve_completed = true;
+                curve_points += 1;
             }
-            if (curve_completed) {
-                try points.append(cur_point);
-            }
+
             try points.append(cur_point);
+            curve_points += 1;
+            if (curve_points >= 3) {
+                try points.append(cur_point);
+                curve_points = 1;
+            }
             if (previous_point == null) {
                 previous_point = Point{};
             }
             if (i == glyph_outline.end_contours[contour_index]) {
                 if (contour_index == 0) {
-                    if (curve_completed) {
+                    if (curve_points == 1) {
                         var midpoint: Point = undefined;
                         midpoint.x = @divFloor(cur_point.x + glyph_outline.x_coord[0], 2);
                         midpoint.y = @divFloor(cur_point.y + glyph_outline.y_coord[0], 2);
@@ -411,7 +418,8 @@ pub const TTF = struct {
                         .y = glyph_outline.y_coord[0],
                     });
                 } else {
-                    if (curve_completed) {
+                    std.debug.print("adding point at index {d}\n", .{glyph_outline.end_contours[contour_index - 1] + 1});
+                    if (curve_points == 1) {
                         var midpoint: Point = undefined;
                         midpoint.x = @divFloor(cur_point.x + glyph_outline.x_coord[glyph_outline.end_contours[contour_index - 1] + 1], 2);
                         midpoint.y = @divFloor(cur_point.y + glyph_outline.y_coord[glyph_outline.end_contours[contour_index - 1] + 1], 2);
@@ -425,6 +433,7 @@ pub const TTF = struct {
                 contour_index += 1;
                 previous_point = null;
                 previous_flag = false;
+                curve_points = 0;
             } else {
                 previous_point.?.x = cur_point.x;
                 previous_point.?.y = cur_point.y;
@@ -502,12 +511,19 @@ pub const TTF = struct {
         for (glyph_outline.flags) |flag| {
             std.debug.print("{d}\n", .{flag & @intFromEnum(GlyphOutline.Flag.on_curve)});
         }
-        std.debug.print("{any} len {d}\n", .{ points.items, points.items.len });
+        var counter: usize = 0;
+        while (i < points.items.len) : (i += 3) {
+            if (i + 2 >= points.items.len or i + 1 >= points.items.len) break;
+            std.debug.print("{d} {any} {any} {any}\n", .{ counter, points.items[i], points.items[i + 1], points.items[i + 2] });
+            counter += 1;
+        }
+        i = 0;
+        std.debug.print("len {d}\n", .{points.items.len});
 
         const height = glyph_outline.y_max - glyph_outline.y_min;
-        while (i < points.items.len - 1) : (i += 2) {
+        while (i < points.items.len) : (i += 3) {
             std.debug.print("i {d}\n", .{i});
-            if (i + 2 >= points.items.len) break;
+            if (i + 2 >= points.items.len or i + 1 >= points.items.len) break;
             try curves.append(BezierCurve{
                 .p0 = .{ .x = points.items[i].x, .y = height - points.items[i].y },
                 .p1 = .{ .x = points.items[i + 1].x, .y = height - points.items[i + 1].y },
