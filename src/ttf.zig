@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("utils.zig");
 const ByteStream = @import("image").ByteStream;
 const BitReader = @import("image").BitReader;
 
@@ -76,7 +77,14 @@ pub const TTF = struct {
         x_coord: []i16 = undefined,
         y_coord: []i16 = undefined,
         end_contours: []u16 = undefined,
+        curves: []BezierCurve = undefined,
         const Flag = enum(u8) { on_curve = 1, x_short = 2, y_short = 4, repeat = 8, x_short_pos = 16, y_short_pos = 32, reservered };
+    };
+    pub const Point = utils.Point(i16);
+    pub const BezierCurve = struct {
+        p0: Point,
+        p1: Point,
+        p2: Point,
     };
     pub const Error = error{ TableNotFound, CompoundNotImplemented };
     const Self = @This();
@@ -228,7 +236,7 @@ pub const TTF = struct {
                 }
             }
         }
-        glyph_outline.x_coord = try self.allocator.alloc(i16, (last_index + 1) * 2);
+        glyph_outline.x_coord = try self.allocator.alloc(i16, (last_index + 1));
         var cur_coord: i16 = 0;
         for (0..(last_index + 1)) |j| {
             const flag_combined: u8 = (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.x_short)) | (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.x_short_pos)) >> 4;
@@ -248,7 +256,7 @@ pub const TTF = struct {
             glyph_outline.x_coord[j] = cur_coord;
         }
 
-        glyph_outline.y_coord = try self.allocator.alloc(i16, (last_index + 1) * 2);
+        glyph_outline.y_coord = try self.allocator.alloc(i16, (last_index + 1));
         cur_coord = 0;
         for (0..(last_index + 1)) |j| {
             const flag_combined: u8 = (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.y_short)) >> 1 | (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.y_short_pos)) >> 5;
@@ -356,6 +364,159 @@ pub const TTF = struct {
         }
     }
 
+    fn gen_curves(self: *Self, glyph_outline: *GlyphOutline) std.mem.Allocator.Error!void {
+        var points: std.ArrayList(Point) = std.ArrayList(Point).init(self.allocator);
+        var previous_point: ?Point = null;
+        var cur_point: Point = undefined;
+        var previous_flag: bool = false;
+        var cur_flag: bool = false;
+        std.debug.print("num contours {d} {any}\n", .{ glyph_outline.num_contours, glyph_outline.end_contours });
+        var contour_index: usize = 0;
+        for (0..glyph_outline.x_coord.len) |i| {
+            var curve_completed = false;
+            cur_point.x = glyph_outline.x_coord[i];
+            cur_point.y = glyph_outline.y_coord[i];
+            cur_flag = (glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.on_curve)) == @intFromEnum(GlyphOutline.Flag.on_curve);
+            std.debug.print("{any} {any} {any} {any} {any}\n", .{ previous_point, glyph_outline.flags[i], glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.on_curve), cur_flag, previous_flag });
+            if (previous_point != null and !cur_flag and !previous_flag) {
+                var midpoint: Point = undefined;
+                midpoint.x = @divFloor(cur_point.x + previous_point.?.x, 2);
+                midpoint.y = @divFloor(cur_point.y + previous_point.?.y, 2);
+                try points.append(midpoint);
+                curve_completed = true;
+            } else if (cur_flag and previous_flag) {
+                var midpoint: Point = undefined;
+                midpoint.x = @divFloor(cur_point.x + previous_point.?.x, 2);
+                midpoint.y = @divFloor(cur_point.y + previous_point.?.y, 2);
+                try points.append(midpoint);
+                curve_completed = true;
+            }
+            if (curve_completed) {
+                try points.append(cur_point);
+            }
+            try points.append(cur_point);
+            if (previous_point == null) {
+                previous_point = Point{};
+            }
+            if (i == glyph_outline.end_contours[contour_index]) {
+                if (contour_index == 0) {
+                    if (curve_completed) {
+                        var midpoint: Point = undefined;
+                        midpoint.x = @divFloor(cur_point.x + glyph_outline.x_coord[0], 2);
+                        midpoint.y = @divFloor(cur_point.y + glyph_outline.y_coord[0], 2);
+                        try points.append(midpoint);
+                    }
+                    try points.append(.{
+                        .x = glyph_outline.x_coord[0],
+                        .y = glyph_outline.y_coord[0],
+                    });
+                } else {
+                    if (curve_completed) {
+                        var midpoint: Point = undefined;
+                        midpoint.x = @divFloor(cur_point.x + glyph_outline.x_coord[glyph_outline.end_contours[contour_index - 1] + 1], 2);
+                        midpoint.y = @divFloor(cur_point.y + glyph_outline.y_coord[glyph_outline.end_contours[contour_index - 1] + 1], 2);
+                        try points.append(midpoint);
+                    }
+                    try points.append(.{
+                        .x = glyph_outline.x_coord[glyph_outline.end_contours[contour_index - 1] + 1],
+                        .y = glyph_outline.y_coord[glyph_outline.end_contours[contour_index - 1] + 1],
+                    });
+                }
+                contour_index += 1;
+                previous_point = null;
+                previous_flag = false;
+            } else {
+                previous_point.?.x = cur_point.x;
+                previous_point.?.y = cur_point.y;
+                previous_flag = cur_flag;
+            }
+        }
+        // var j: usize = 0;
+        // var index: usize = 0;
+        // var curves: std.ArrayList(BezierCurve) = std.ArrayList(BezierCurve).init(self.allocator);
+        // for (0..glyph_outline.end_contours.len) |i| {
+        //     const contour_start_index: usize = j;
+        //     const points_start_index: usize = index;
+        //     var contour_start: bool = true;
+        //     var contour_started_off: bool = false;
+        //     while (j < glyph_outline.end_contours[i]) : (j += 1) {
+        //         const curr_flag = (glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.on_curve)) != 0;
+        //         var x: i16 = glyph_outline.x_coord[j];
+        //         var y: i16 = glyph_outline.y_coord[j];
+
+        //         const contour_len: usize = glyph_outline.end_contours[i] - contour_start_index + 1;
+        //         const next_index: usize = (j + 1 - contour_start_index) % contour_len + contour_start_index;
+
+        //         if (curr_flag) {
+        //             try points.append(.{ .x = x, .y = y });
+        //             index += 1;
+        //         } else {
+        //             if (contour_start) {
+        //                 contour_started_off = true;
+        //                 if (glyph_outline.flags[next_index] & @intFromEnum(GlyphOutline.Flag.on_curve) != 0) {
+        //                     try points.append(.{ .x = glyph_outline.x_coord[next_index], .y = glyph_outline.y_coord[next_index] });
+        //                     index += 1;
+        //                     j += 1;
+        //                     continue;
+        //                 }
+        //                 x = x + @divFloor(glyph_outline.x_coord[next_index], 2);
+        //                 y = y + @divFloor(glyph_outline.y_coord[next_index], 2);
+        //                 try points.append(.{ .x = x, .y = y });
+        //                 index += 1;
+        //             }
+        //             const p0: Point = points.items[index - 1];
+        //             const p1: Point = .{ .x = x, .y = y };
+        //             var p2: Point = .{ .x = glyph_outline.x_coord[next_index], .y = glyph_outline.y_coord[next_index] };
+        //             if (glyph_outline.flags[next_index] & @intFromEnum(GlyphOutline.Flag.on_curve) == 0) {
+        //                 p2.x = p1.x + @divFloor(p2.x - p1.x, 2);
+        //                 p2.y = p1.y + @divFloor(p2.y - p1.y, 2);
+        //             } else {
+        //                 j += 1;
+        //             }
+        //             try curves.append(BezierCurve{
+        //                 .p0 = .{ .x = p0.x, .y = p0.y },
+        //                 .p1 = .{ .x = p1.x, .y = p1.y },
+        //                 .p2 = .{ .x = p2.x, .y = p2.y },
+        //             });
+        //         }
+        //         contour_start = false;
+        //     }
+        //     if (glyph_outline.flags[j - 1] & @intFromEnum(GlyphOutline.Flag.on_curve) != 0) {
+        //         try points.append(.{ .x = points.items[points_start_index].x, .y = points.items[points_start_index].y });
+        //         index += 1;
+        //     }
+        //     if (contour_started_off) {
+        //         const p0: Point = points.items[index - 1];
+        //         const p1: Point = .{ .x = glyph_outline.x_coord[contour_start_index], .y = glyph_outline.y_coord[contour_start_index] };
+        //         const p2: Point = points.items[points_start_index];
+        //         try curves.append(BezierCurve{
+        //             .p0 = .{ .x = p0.x, .y = p0.y },
+        //             .p1 = .{ .x = p1.x, .y = p1.y },
+        //             .p2 = .{ .x = p2.x, .y = p2.y },
+        //         });
+        //     }
+        // }
+        var curves: std.ArrayList(BezierCurve) = std.ArrayList(BezierCurve).init(self.allocator);
+        var i: usize = 0;
+        std.debug.print("flags\n", .{});
+        for (glyph_outline.flags) |flag| {
+            std.debug.print("{d}\n", .{flag & @intFromEnum(GlyphOutline.Flag.on_curve)});
+        }
+        std.debug.print("{any} len {d}\n", .{ points.items, points.items.len });
+
+        const height = glyph_outline.y_max - glyph_outline.y_min;
+        while (i < points.items.len - 1) : (i += 2) {
+            std.debug.print("i {d}\n", .{i});
+            if (i + 2 >= points.items.len) break;
+            try curves.append(BezierCurve{
+                .p0 = .{ .x = points.items[i].x, .y = height - points.items[i].y },
+                .p1 = .{ .x = points.items[i + 1].x, .y = height - points.items[i + 1].y },
+                .p2 = .{ .x = points.items[i + 2].x, .y = height - points.items[i + 2].y },
+            });
+        }
+        glyph_outline.curves = try curves.toOwnedSlice();
+    }
+
     pub fn load(self: *Self, file_name: []const u8) !void {
         self.bit_reader = try BitReader.init(.{
             .file_name = file_name,
@@ -365,12 +526,14 @@ pub const TTF = struct {
         self.char_map = std.AutoHashMap(u8, GlyphOutline).init(self.allocator);
         const alphabet = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
         for (alphabet) |a| {
-            const glyph_outline = self.get_glyph_outline(self.get_glyph_index(@as(u16, @intCast(a))));
-            if (glyph_outline) |outline| {
-                try self.char_map.put(a, outline);
+            var glyph_outline: ?GlyphOutline = self.get_glyph_outline(self.get_glyph_index(@as(u16, @intCast(a)))) catch null;
+            if (glyph_outline != null) {
                 std.debug.print("simple {c}\n", .{a});
-                print_glyph_outline(&outline);
-            } else |_| {
+                print_glyph_outline(&glyph_outline.?);
+                std.debug.print("{any}\n", .{glyph_outline.?.x_coord});
+                try self.gen_curves(&glyph_outline.?);
+                try self.char_map.put(a, glyph_outline.?);
+            } else {
                 std.debug.print("compound {c}\n", .{a});
             }
         }
