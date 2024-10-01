@@ -340,7 +340,7 @@ pub const Game = struct {
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
         try font.load("envy.ttf");
-        try font.draw_char(&self.e.renderer, '6');
+        try font.draw_char(&self.e.renderer, 'A');
         font.deinit();
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);

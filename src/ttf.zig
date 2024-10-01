@@ -77,8 +77,19 @@ pub const TTF = struct {
         x_coord: []i16 = undefined,
         y_coord: []i16 = undefined,
         end_contours: []u16 = undefined,
+        end_curves: []u16 = undefined,
         curves: []BezierCurve = undefined,
+        allocator: std.mem.Allocator = undefined,
         const Flag = enum(u8) { on_curve = 1, x_short = 2, y_short = 4, repeat = 8, x_short_pos = 16, y_short_pos = 32, reservered };
+        pub fn deinit(self: *GlyphOutline) void {
+            self.allocator.free(self.instructions);
+            self.allocator.free(self.flags);
+            self.allocator.free(self.x_coord);
+            self.allocator.free(self.y_coord);
+            self.allocator.free(self.end_contours);
+            self.allocator.free(self.curves);
+            self.allocator.free(self.end_curves);
+        }
     };
     pub const Point = utils.Point(i16);
     pub const BezierCurve = struct {
@@ -102,6 +113,12 @@ pub const TTF = struct {
         self.allocator.free(self.font_directory.format4.id_delta);
         self.allocator.free(self.font_directory.format4.id_range_offset);
         self.allocator.free(self.font_directory.format4.glyph_id_array);
+        var iter = self.char_map.valueIterator();
+        var outline: ?*GlyphOutline = iter.next();
+        while (outline != null) {
+            outline.?.deinit();
+            outline = iter.next();
+        }
         self.char_map.deinit();
     }
 
@@ -201,6 +218,7 @@ pub const TTF = struct {
     fn get_glyph_outline(self: *Self, glyph_index: usize) !GlyphOutline {
         const offset: usize = try self.get_glyph_offset(glyph_index);
         var glyph_outline: GlyphOutline = undefined;
+        glyph_outline.allocator = self.allocator;
         self.bit_reader.setPos(self.font_directory.glyf_offset + offset);
         glyph_outline.num_contours = @as(i16, @bitCast(try self.bit_reader.read_word()));
         glyph_outline.x_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
@@ -363,7 +381,7 @@ pub const TTF = struct {
             std.debug.print("{d})\t{c}{c}{c}{c}\t{d}\t{d}\n", .{ i + 1, dir.tag[0], dir.tag[1], dir.tag[2], dir.tag[3], dir.length, dir.offset });
         }
     }
-    //TODO fix points to represent lines as well as curves
+
     fn gen_curves(self: *Self, glyph_outline: *GlyphOutline) std.mem.Allocator.Error!void {
         var points: std.ArrayList(Point) = std.ArrayList(Point).init(self.allocator);
         var previous_point: ?Point = null;
@@ -371,6 +389,8 @@ pub const TTF = struct {
         var previous_flag: bool = false;
         var cur_flag: bool = false;
         std.debug.print("num contours {d} {any}\n", .{ glyph_outline.num_contours, glyph_outline.end_contours });
+        glyph_outline.end_curves = try self.allocator.alloc(u16, glyph_outline.end_contours.len);
+        var num_curves: u16 = 0;
         var contour_index: usize = 0;
         var curve_points: usize = 0;
         for (0..glyph_outline.x_coord.len) |i| {
@@ -387,6 +407,7 @@ pub const TTF = struct {
                 if (curve_points == 3) {
                     try points.append(midpoint);
                     curve_points = 1;
+                    num_curves += 1;
                 }
             } else if (previous_point != null and cur_flag and previous_flag and curve_points == 1) {
                 var midpoint: Point = undefined;
@@ -401,6 +422,7 @@ pub const TTF = struct {
             if (curve_points >= 3) {
                 try points.append(cur_point);
                 curve_points = 1;
+                num_curves += 1;
             }
             if (previous_point == null) {
                 previous_point = Point{};
@@ -430,6 +452,8 @@ pub const TTF = struct {
                         .y = glyph_outline.y_coord[glyph_outline.end_contours[contour_index - 1] + 1],
                     });
                 }
+                num_curves += 1;
+                glyph_outline.end_curves[contour_index] = num_curves;
                 contour_index += 1;
                 previous_point = null;
                 previous_flag = false;
@@ -440,71 +464,6 @@ pub const TTF = struct {
                 previous_flag = cur_flag;
             }
         }
-        // var j: usize = 0;
-        // var index: usize = 0;
-        // var curves: std.ArrayList(BezierCurve) = std.ArrayList(BezierCurve).init(self.allocator);
-        // for (0..glyph_outline.end_contours.len) |i| {
-        //     const contour_start_index: usize = j;
-        //     const points_start_index: usize = index;
-        //     var contour_start: bool = true;
-        //     var contour_started_off: bool = false;
-        //     while (j < glyph_outline.end_contours[i]) : (j += 1) {
-        //         const curr_flag = (glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.on_curve)) != 0;
-        //         var x: i16 = glyph_outline.x_coord[j];
-        //         var y: i16 = glyph_outline.y_coord[j];
-
-        //         const contour_len: usize = glyph_outline.end_contours[i] - contour_start_index + 1;
-        //         const next_index: usize = (j + 1 - contour_start_index) % contour_len + contour_start_index;
-
-        //         if (curr_flag) {
-        //             try points.append(.{ .x = x, .y = y });
-        //             index += 1;
-        //         } else {
-        //             if (contour_start) {
-        //                 contour_started_off = true;
-        //                 if (glyph_outline.flags[next_index] & @intFromEnum(GlyphOutline.Flag.on_curve) != 0) {
-        //                     try points.append(.{ .x = glyph_outline.x_coord[next_index], .y = glyph_outline.y_coord[next_index] });
-        //                     index += 1;
-        //                     j += 1;
-        //                     continue;
-        //                 }
-        //                 x = x + @divFloor(glyph_outline.x_coord[next_index], 2);
-        //                 y = y + @divFloor(glyph_outline.y_coord[next_index], 2);
-        //                 try points.append(.{ .x = x, .y = y });
-        //                 index += 1;
-        //             }
-        //             const p0: Point = points.items[index - 1];
-        //             const p1: Point = .{ .x = x, .y = y };
-        //             var p2: Point = .{ .x = glyph_outline.x_coord[next_index], .y = glyph_outline.y_coord[next_index] };
-        //             if (glyph_outline.flags[next_index] & @intFromEnum(GlyphOutline.Flag.on_curve) == 0) {
-        //                 p2.x = p1.x + @divFloor(p2.x - p1.x, 2);
-        //                 p2.y = p1.y + @divFloor(p2.y - p1.y, 2);
-        //             } else {
-        //                 j += 1;
-        //             }
-        //             try curves.append(BezierCurve{
-        //                 .p0 = .{ .x = p0.x, .y = p0.y },
-        //                 .p1 = .{ .x = p1.x, .y = p1.y },
-        //                 .p2 = .{ .x = p2.x, .y = p2.y },
-        //             });
-        //         }
-        //         contour_start = false;
-        //     }
-        //     if (glyph_outline.flags[j - 1] & @intFromEnum(GlyphOutline.Flag.on_curve) != 0) {
-        //         try points.append(.{ .x = points.items[points_start_index].x, .y = points.items[points_start_index].y });
-        //         index += 1;
-        //     }
-        //     if (contour_started_off) {
-        //         const p0: Point = points.items[index - 1];
-        //         const p1: Point = .{ .x = glyph_outline.x_coord[contour_start_index], .y = glyph_outline.y_coord[contour_start_index] };
-        //         const p2: Point = points.items[points_start_index];
-        //         try curves.append(BezierCurve{
-        //             .p0 = .{ .x = p0.x, .y = p0.y },
-        //             .p1 = .{ .x = p1.x, .y = p1.y },
-        //             .p2 = .{ .x = p2.x, .y = p2.y },
-        //         });
-        //     }
-        // }
         var curves: std.ArrayList(BezierCurve) = std.ArrayList(BezierCurve).init(self.allocator);
         var i: usize = 0;
         std.debug.print("flags\n", .{});
