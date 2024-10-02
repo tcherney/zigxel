@@ -35,6 +35,10 @@ pub fn Point(comptime T: type) type {
     return struct {
         x: T = 0,
         y: T = 0,
+        const Self = @This();
+        pub fn eql(lhs: Self, rhs: Self) bool {
+            return lhs.x == rhs.x and lhs.y == rhs.y;
+        }
     };
 }
 

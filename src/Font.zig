@@ -35,67 +35,72 @@ pub const Font = struct {
         };
     }
 
-    //TODO generate all edges from the curves to be used for scaline intersections
+    //TODO subdivide the curves by 2-4x to lower the error of the edges
     fn gen_edges(self: *Self, outline: *TTF.GlyphOutline) std.mem.Allocator.Error!std.ArrayList(Edge) {
         var edges: std.ArrayList(Edge) = std.ArrayList(Edge).init(self.allocator);
         var bezier_indx: usize = 0;
         for (0..outline.end_contours.len) |i| {
-            var extra_pt: ?Point = null;
+            var extra_pt: ?TTF.Point = null;
             var j: usize = bezier_indx;
             while (j < outline.end_curves[i]) : (j += 1) {
                 if (extra_pt == null) {
-                    try edges.append(Edge{
-                        .p0 = .{
-                            .x = outline.curves[j].p0.x,
-                            .y = outline.curves[j].p0.y,
-                        },
-                        .p1 = .{
-                            .x = outline.curves[j].p1.x,
-                            .y = outline.curves[j].p1.y,
-                        },
-                    });
-                    try edges.append(Edge{
-                        .p0 = .{
-                            .x = outline.curves[j].p1.x,
-                            .y = outline.curves[j].p1.y,
-                        },
-                        .p1 = .{
-                            .x = outline.curves[j].p2.x,
-                            .y = outline.curves[j].p2.y,
-                        },
-                    });
-                    extra_pt = Point{ .x = outline.curves[j].p2.x, .y = outline.curves[j].p2.y };
+                    if (!TTF.Point.eql(outline.curves[j].p0, outline.curves[j].p1))
+                        try edges.append(Edge{
+                            .p0 = .{
+                                .x = outline.curves[j].p0.x,
+                                .y = outline.curves[j].p0.y,
+                            },
+                            .p1 = .{
+                                .x = outline.curves[j].p1.x,
+                                .y = outline.curves[j].p1.y,
+                            },
+                        });
+                    if (!TTF.Point.eql(outline.curves[j].p1, outline.curves[j].p2))
+                        try edges.append(Edge{
+                            .p0 = .{
+                                .x = outline.curves[j].p1.x,
+                                .y = outline.curves[j].p1.y,
+                            },
+                            .p1 = .{
+                                .x = outline.curves[j].p2.x,
+                                .y = outline.curves[j].p2.y,
+                            },
+                        });
+                    extra_pt = TTF.Point{ .x = outline.curves[j].p2.x, .y = outline.curves[j].p2.y };
                 } else {
-                    try edges.append(Edge{
-                        .p0 = .{
-                            .x = extra_pt.?.x,
-                            .y = extra_pt.?.y,
-                        },
-                        .p1 = .{
-                            .x = outline.curves[j].p0.x,
-                            .y = outline.curves[j].p0.y,
-                        },
-                    });
-                    try edges.append(Edge{
-                        .p0 = .{
-                            .x = outline.curves[j].p0.x,
-                            .y = outline.curves[j].p0.y,
-                        },
-                        .p1 = .{
-                            .x = outline.curves[j].p1.x,
-                            .y = outline.curves[j].p1.y,
-                        },
-                    });
-                    try edges.append(Edge{
-                        .p0 = .{
-                            .x = outline.curves[j].p1.x,
-                            .y = outline.curves[j].p1.y,
-                        },
-                        .p1 = .{
-                            .x = outline.curves[j].p2.x,
-                            .y = outline.curves[j].p2.y,
-                        },
-                    });
+                    if (!TTF.Point.eql(extra_pt.?, outline.curves[j].p0))
+                        try edges.append(Edge{
+                            .p0 = .{
+                                .x = extra_pt.?.x,
+                                .y = extra_pt.?.y,
+                            },
+                            .p1 = .{
+                                .x = outline.curves[j].p0.x,
+                                .y = outline.curves[j].p0.y,
+                            },
+                        });
+                    if (!TTF.Point.eql(outline.curves[j].p0, outline.curves[j].p1))
+                        try edges.append(Edge{
+                            .p0 = .{
+                                .x = outline.curves[j].p0.x,
+                                .y = outline.curves[j].p0.y,
+                            },
+                            .p1 = .{
+                                .x = outline.curves[j].p1.x,
+                                .y = outline.curves[j].p1.y,
+                            },
+                        });
+                    if (!TTF.Point.eql(outline.curves[j].p1, outline.curves[j].p2))
+                        try edges.append(Edge{
+                            .p0 = .{
+                                .x = outline.curves[j].p1.x,
+                                .y = outline.curves[j].p1.y,
+                            },
+                            .p1 = .{
+                                .x = outline.curves[j].p2.x,
+                                .y = outline.curves[j].p2.y,
+                            },
+                        });
                     extra_pt.?.x = outline.curves[j].p2.x;
                     extra_pt.?.y = outline.curves[j].p2.y;
                 }
@@ -121,84 +126,60 @@ pub const Font = struct {
             }
             std.debug.print("width {d}, height {d}\n", .{ width, height });
             std.debug.print("contour starts {any} {any} {any}\n", .{ outline.end_curves, outline.curves[outline.end_curves[0]], outline.curves[outline.end_curves[0] - 1] });
-            var intersections: std.ArrayList(Point) = std.ArrayList(Point).init(self.allocator);
+            std.debug.print("curves {any}\n", .{outline.curves});
             var edges: std.ArrayList(Edge) = try self.gen_edges(&outline);
             std.debug.print("before sort {any}\n", .{edges.items});
             std.mem.sort(Edge, edges.items, {}, Edge.lessThan);
             std.debug.print("after sort {any}\n", .{edges.items});
-            var active_edges: std.ArrayList(Edge) = std.ArrayList(Edge).init(self.allocator);
-            defer active_edges.deinit();
-            defer edges.deinit();
-            //TODO have edges now find which ones intersect then sort them and fill in between
+            var intersections: std.ArrayList(i32) = std.ArrayList(i32).init(self.allocator);
             for (0..height) |i| {
-                _ = i;
-                //                 if(dy == 0) continue;
-
-                // f32 intersection = -1;
-                // if(dx == 0) {
-                //     intersection = edge->p1.x;
-                // } else {
-                //     intersection = (scanline - edge->p1.y)*(dx/dy) + edge->p1.x;
-                // }
-                // for (0..height) |i| {
-                //     intersections.clearRetainingCapacity();
-                //     for (0..width) |j| {
-                //         if (tex.pixel_buffer[i * width + j].eql(self.color)) {
-                //             try intersections.append(.{
-                //                 .x = @as(i32, @bitCast(@as(u32, @intCast(j)))),
-                //                 .y = @as(i32, @bitCast(@as(u32, @intCast(i)))),
-                //             });
-                //         }
-                //     }
-                //     var k: usize = 0;
-                //     if (intersections.items.len < 2) continue;
-                //     if (i == 632) {
-                //         std.debug.print("intersections {any}\n", .{intersections.items});
-                //     }
-                //     while (k < intersections.items.len) {
-                //         var p0: Point = intersections.items[k];
-                //         while ((k + 1 != intersections.items.len) and intersections.items[k + 1].x == p0.x) {
-                //             p0 = intersections.items[k + 1];
-                //             k += 1;
-                //         }
-                //         if (k == intersections.items.len - 1) {
-                //             graphics.draw_line(self.color, intersections.items[k - 1], p0, tex.*);
-                //             k += 1;
-                //         } else {
-                //             graphics.draw_line(self.color, p0, intersections.items[k + 1], tex.*);
-                //             k += 2;
-                //         }
-                //     }
-                // }
-                // var in_bounds = false;
-                // var start_point: Point = undefined;
-                // var end_point: Point = undefined;
-                // for (0..width) |j| {
-                //     if (tex.pixel_buffer[i * width + j].eql(self.color)) {
-                //         if (in_bounds) {
-                //             if (@as(i32, @bitCast(@as(u32, @intCast(j)))) - 1 == start_point.x) {
-                //                 start_point.x = @as(i32, @bitCast(@as(u32, @intCast(j))));
-                //             } else {
-                //                 end_point.x = @as(i32, @bitCast(@as(u32, @intCast(j))));
-                //                 end_point.y = @as(i32, @bitCast(@as(u32, @intCast(i))));
-                //                 graphics.draw_line(self.color, start_point, end_point, tex.*);
-                //                 in_bounds = false;
-                //             }
-                //         } else {
-                //             if (j >= 1 and !tex.pixel_buffer[i * width + j - 1].eql(self.color)) {
-                //                 start_point.x = @as(i32, @bitCast(@as(u32, @intCast(j))));
-                //                 start_point.y = @as(i32, @bitCast(@as(u32, @intCast(i))));
-                //                 in_bounds = true;
-                //             } else if (j == 0) {
-                //                 start_point.x = @as(i32, @bitCast(@as(u32, @intCast(j))));
-                //                 start_point.y = @as(i32, @bitCast(@as(u32, @intCast(i))));
-                //                 in_bounds = true;
-                //             }
-                //         }
-                //     }
-                // }
+                intersections.clearRetainingCapacity();
+                for (edges.items) |edge| {
+                    const larger_y = @max(edge.p0.y, edge.p1.y);
+                    const smaller_y = @min(edge.p0.y, edge.p1.y);
+                    if (@as(i32, @intCast(@as(i64, @bitCast(i)))) < smaller_y or @as(i32, @intCast(@as(i64, @bitCast(i)))) > larger_y) continue;
+                    const dy: i32 = edge.p1.y - edge.p0.y;
+                    const dx: i32 = edge.p1.x - edge.p0.x;
+                    var intersection: i32 = undefined;
+                    if (dy == 0) continue;
+                    if (dx == 0) {
+                        intersection = edge.p0.x;
+                    } else {
+                        intersection = @as(i32, @intFromFloat((@as(f32, @floatFromInt(i)) - @as(f32, @floatFromInt(edge.p0.y))) * (@as(f32, @floatFromInt(dx)) / @as(f32, @floatFromInt(dy))) + @as(f32, @floatFromInt(edge.p0.x))));
+                    }
+                    var dupe: bool = false;
+                    for (intersections.items) |j| {
+                        if (j == intersection) {
+                            dupe = true;
+                        }
+                    }
+                    if (!dupe) try intersections.append(intersection);
+                }
+                std.mem.sort(i32, intersections.items, {}, std.sort.asc(i32));
+                std.debug.print("intersections at {d} {any}\n", .{ i, intersections.items });
+                var j: usize = 0;
+                while (j < intersections.items.len) {
+                    if (j == intersections.items.len - 1) break;
+                    if (intersections.items[j] == intersections.items[j + 1]) {
+                        j += 1;
+                        continue;
+                    }
+                    graphics.draw_line(self.color, .{ .x = intersections.items[j], .y = @as(i32, @intCast(@as(i64, @bitCast(i)))) }, .{ .x = intersections.items[j + 1], .y = @as(i32, @intCast(@as(i64, @bitCast(i)))) }, tex.*);
+                    j += 2;
+                }
             }
             intersections.deinit();
+
+            for (edges.items, 0..edges.items.len) |edge, j| {
+                if (j % 2 == 0) {
+                    graphics.draw_line(.{ .r = 255, .g = 0, .b = 0 }, edge.p0, edge.p1, tex.*);
+                } else if (j % 3 == 0) {
+                    graphics.draw_line(.{ .r = 0, .g = 255, .b = 0 }, edge.p0, edge.p1, tex.*);
+                } else if (j % 2 == 1) {
+                    graphics.draw_line(.{ .r = 0, .g = 0, .b = 255 }, edge.p0, edge.p1, tex.*);
+                }
+            }
+            edges.deinit();
             try tex.image_core().write_BMP("char.bmp");
             tex.deinit();
             self.allocator.destroy(tex);
