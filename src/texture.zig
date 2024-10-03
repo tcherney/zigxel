@@ -34,6 +34,36 @@ pub const Texture = struct {
         self.loaded = true;
     }
 
+    pub fn copy(self: *Self) Error!*Self {
+        var tex: *Self = try self.allocator.create(Self);
+        tex.* = Self.init(self.allocator);
+        tex.height = self.height;
+        tex.width = self.width;
+        tex.loaded = true;
+        tex.pixel_buffer = try self.allocator.dupe(Pixel, self.pixel_buffer);
+        return tex;
+    }
+
+    // resize without adjusting where pixels lie
+    pub fn resize(self: *Self, width: u32, height: u32) Error!void {
+        var pixel_buffer = try self.allocator.alloc(Pixel, width * height);
+        for (0..height) |i| {
+            for (0..width) |j| {
+                pixel_buffer[i * width + j] = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
+            }
+        }
+        for (0..self.height) |i| {
+            for (0..self.width) |j| {
+                if (i * width + j > pixel_buffer.len) continue;
+                pixel_buffer[i * width + j] = self.pixel_buffer[i * self.width + j];
+            }
+        }
+        self.allocator.free(self.pixel_buffer);
+        self.pixel_buffer = pixel_buffer;
+        self.width = width;
+        self.height = height;
+    }
+
     pub fn image_core(self: *Self) image.ImageCore {
         return image.ImageCore.init(self.allocator, self.width, self.height, self.pixel_buffer);
     }

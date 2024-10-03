@@ -14,6 +14,7 @@ pub const World = @import("world.zig").World;
 pub const PhysicsPixel = physic_pixel.PhysicsPixel;
 pub const Player = _player.Player;
 pub const GameObject = game_object.GameObject;
+pub const Texture = game_object.Texture;
 pub const AssetManager = asset_manager.AssetManager;
 pub const Error = error{} || image.Error || engine.Error || utils.Error || std.mem.Allocator.Error;
 
@@ -36,6 +37,7 @@ pub const Game = struct {
     old_mouse_x: i32 = -1,
     old_mouse_y: i32 = -1,
     player: ?Player = null,
+    font_tex: *Texture = undefined,
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator };
@@ -70,6 +72,8 @@ pub const Game = struct {
         if (self.player != null) {
             self.player.?.deinit();
         }
+        self.font_tex.deinit();
+        self.allocator.destroy(self.font_tex);
     }
 
     pub fn place_pixel(self: *Self) !void {
@@ -319,9 +323,6 @@ pub const Game = struct {
             self.player.?.draw(&self.e.renderer, self.current_world.tex);
         }
         self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
-        self.e.renderer.draw_bezier(.{ .r = 255, .g = 255, .b = 255 }, .{ .x = 0, .y = 0 }, .{ .x = 50, .y = 55 }, .{ .x = 100, .y = 30 }, self.current_world.tex);
-        self.e.renderer.draw_line(.{ .r = 255, .g = 255, .b = 255 }, .{ .x = 150, .y = 0 }, .{ .x = 250, .y = 55 }, self.current_world.tex);
-        self.e.renderer.draw_line(.{ .r = 255, .g = 255, .b = 255 }, .{ .x = 250, .y = 55 }, .{ .x = 375, .y = 30 }, self.current_world.tex);
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
@@ -339,8 +340,8 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
-        try font.load("envy.ttf");
-        try font.draw_char(&self.e.renderer, 'A');
+        try font.load("arial.ttf", &self.e.renderer);
+        //self.font_tex = try font.texture_from_string("HELLO WORLD");
         font.deinit();
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);

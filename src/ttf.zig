@@ -3,8 +3,6 @@ const utils = @import("utils.zig");
 const ByteStream = @import("image").ByteStream;
 const BitReader = @import("image").BitReader;
 
-//TODO ttf struct that loads a ttf utilizing existing texture struct and exposes an api that allows user to generate a texture from a string input utilizing the ttf font
-
 //https://handmade.network/forums/articles/t/7330-implementing_a_font_reader_and_rasterizer_from_scratch%252C_part_1__ttf_font_reader.
 //https://handmade.network/forums/wip/t/7610-reading_ttf_files_and_rasterizing_them_using_a_handmade_approach%252C_part_2__rasterization#23867
 //https://stevehanov.ca/blog/index.php?id=143
@@ -316,9 +314,9 @@ pub const TTF = struct {
                     offset_value = self.font_directory.format4.id_range_offset[offset_index];
                 }
                 if (offset_value == 0) return 0;
-                return @as(usize, @intCast(offset_value + self.font_directory.format4.id_delta[index.?])) & 0xFFFF;
+                return (@as(usize, @intCast(offset_value)) + @as(usize, @intCast(self.font_directory.format4.id_delta[index.?]))) & 0xFFFF;
             } else {
-                return @as(usize, @intCast(code_point + self.font_directory.format4.id_delta[index.?])) & 0xFFFF;
+                return (@as(usize, @intCast(code_point)) + @as(usize, @intCast(self.font_directory.format4.id_delta[index.?]))) & 0xFFFF;
             }
         }
         return 0;
@@ -381,7 +379,7 @@ pub const TTF = struct {
             std.debug.print("{d})\t{c}{c}{c}{c}\t{d}\t{d}\n", .{ i + 1, dir.tag[0], dir.tag[1], dir.tag[2], dir.tag[3], dir.length, dir.offset });
         }
     }
-
+    //TODO shift every point by the min x and y
     fn gen_curves(self: *Self, glyph_outline: *GlyphOutline) std.mem.Allocator.Error!void {
         var points: std.ArrayList(Point) = std.ArrayList(Point).init(self.allocator);
         var previous_point: ?Point = null;
@@ -484,11 +482,12 @@ pub const TTF = struct {
             std.debug.print("i {d}\n", .{i});
             if (i + 2 >= points.items.len or i + 1 >= points.items.len) break;
             try curves.append(BezierCurve{
-                .p0 = .{ .x = points.items[i].x, .y = height - points.items[i].y },
-                .p1 = .{ .x = points.items[i + 1].x, .y = height - points.items[i + 1].y },
-                .p2 = .{ .x = points.items[i + 2].x, .y = height - points.items[i + 2].y },
+                .p0 = .{ .x = points.items[i].x - glyph_outline.x_min, .y = height - (points.items[i].y - glyph_outline.y_min) },
+                .p1 = .{ .x = points.items[i + 1].x - glyph_outline.x_min, .y = height - (points.items[i + 1].y - glyph_outline.y_min) },
+                .p2 = .{ .x = points.items[i + 2].x - glyph_outline.x_min, .y = height - (points.items[i + 2].y - glyph_outline.y_min) },
             });
         }
+        points.deinit();
         glyph_outline.curves = try curves.toOwnedSlice();
     }
 
