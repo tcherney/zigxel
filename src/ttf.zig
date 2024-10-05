@@ -24,6 +24,7 @@ pub const TTF = struct {
         glyf_offset: u32 = undefined,
         loca_offset: u32 = undefined,
         head_offset: u32 = undefined,
+        head: Head = undefined,
     };
     const OffsetSubtable = struct {
         scalar_type: u32 = undefined,
@@ -37,6 +38,26 @@ pub const TTF = struct {
         checksum: u32 = undefined,
         offset: u32 = undefined,
         length: u32 = undefined,
+    };
+    const Head = struct {
+        major_version: u16,
+        minor_version: u16,
+        font_revision: u32,
+        check_sum: u32,
+        magic_number: u32,
+        flags: u16,
+        units_per_em: u16,
+        created: u64,
+        modified: u64,
+        x_min: i16,
+        y_min: i16,
+        x_max: i16,
+        y_max: i16,
+        mac_style: u16,
+        lowest_rec_PPEM: u16,
+        font_direction_hint: i16,
+        index_to_loc_format: i16,
+        glyph_data_format: i16,
     };
     const CMAP = struct {
         version: u16 = undefined,
@@ -334,6 +355,30 @@ pub const TTF = struct {
         }
     }
 
+    fn read_head(self: *Self, offset: u32) !void {
+        self.bit_reader.setPos(offset);
+        self.font_directory.head.major_version = try self.bit_reader.read_word();
+        self.font_directory.head.minor_version = try self.bit_reader.read_word();
+        self.font_directory.head.font_revision = try self.bit_reader.read_int();
+        self.font_directory.head.check_sum = try self.bit_reader.read_int();
+        self.font_directory.head.magic_number = try self.bit_reader.read_int();
+        self.font_directory.head.flags = try self.bit_reader.read_word();
+        self.font_directory.head.units_per_em = try self.bit_reader.read_word();
+        self.font_directory.head.created = try self.bit_reader.read_int();
+        self.font_directory.head.created += try self.bit_reader.read_int();
+        self.font_directory.head.modified = try self.bit_reader.read_int();
+        self.font_directory.head.modified += try self.bit_reader.read_int();
+        self.font_directory.head.x_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        self.font_directory.head.y_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        self.font_directory.head.x_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        self.font_directory.head.y_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        self.font_directory.head.mac_style = try self.bit_reader.read_word();
+        self.font_directory.head.lowest_rec_PPEM = try self.bit_reader.read_word();
+        self.font_directory.head.font_direction_hint = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        self.font_directory.head.index_to_loc_format = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        self.font_directory.head.glyph_data_format = @as(i16, @bitCast(try self.bit_reader.read_word()));
+    }
+
     fn parse_file(self: *Self) !void {
         // offset subtable
         self.font_directory.offset_subtable.scalar_type = try self.bit_reader.read_int();
@@ -363,7 +408,7 @@ pub const TTF = struct {
         self.font_directory.loca_offset = loca_table.offset;
         const head_table = try self.find_table("head");
         self.font_directory.head_offset = head_table.offset;
-
+        try self.read_head(self.font_directory.head_offset);
         self.print_table();
         self.print_cmap();
         self.print_format4();

@@ -340,8 +340,8 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
-        try font.load("arial.ttf", &self.e.renderer);
-        //self.font_tex = try font.texture_from_string("HELLO WORLD");
+        try font.load("arial.ttf", 24, &self.e.renderer);
+        self.font_tex = try font.texture_from_string("HELLO WORLD");
         font.deinit();
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);
