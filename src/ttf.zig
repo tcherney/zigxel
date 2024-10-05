@@ -26,6 +26,84 @@ pub const TTF = struct {
         head_offset: u32 = undefined,
         head: Head = undefined,
     };
+    pub const GPOS = struct {
+        header: Header,
+        pub const Header = struct { major_version: u16, minor_version: u16, script_list_offset: u16, feature_list_offset: u16, lookup_list_offset: u16, feature_variations_offset: ?u32 = null };
+        pub const SinglePosFormat = struct {
+            format: u16,
+            coverage_offset: u16,
+            value_format: u16,
+            value_record: ?ValueRecord = null,
+            value_count: ?u16 = null,
+            value_records: ?[]ValueRecord = null,
+        };
+        pub const PairPosFormat = struct {
+            format: u16,
+            coverage_offset: u16,
+            value_format1: u16,
+            value_format2: u16,
+            pair_set_count: ?u16 = null,
+            pair_set_offsets: ?[]u16 = null,
+            class_def1_offset: ?u16 = null,
+            class_def2_offset: ?u16 = null,
+            class1_count: ?u16 = null,
+            class2_count: ?u16 = null,
+            class1_records: ?[]Class1 = null,
+            pub const Class1 = struct {
+                class2_records: []Class2,
+            };
+            pub const Class2 = struct {
+                value_record1: ValueRecord,
+                value_record2: ValueRecord,
+            };
+            pub const PairSet = struct {
+                pair_value_count: u16,
+                pair_value_records: []PairValue,
+                pub const PairValue = struct {
+                    second_glyph: u16,
+                    value_record1: ValueRecord,
+                    value_record2: ValueRecord,
+                };
+            };
+        };
+        pub const ValueRecord = struct {
+            x_placement: u16,
+            y_placement: u16,
+            x_advance: u16,
+            y_advance: u16,
+            x_place_device_offset: ?u16 = null,
+            y_place_device_offset: ?u16 = null,
+            x_adv_device_offset: ?u16 = null,
+            y_adv_device_offset: ?u16 = null,
+        };
+        pub const ValueFormat = enum(u16) {
+            X_PLACEMENT = 1,
+            Y_PLACEMENT = 2,
+            X_ADVANCE = 4,
+            Y_ADVANCE = 8,
+            X_PLACEMENT_DEVICE = 0x10,
+            Y_PLACEMENT_DEVICE = 0x20,
+            X_ADVANCE_DEVICE = 0x40,
+            Y_ADVANCE_DEVICE = 0x80,
+            Reserved = 0xFF00,
+        };
+        pub const Anchor = struct {
+            format: u16,
+            x_coord: u16,
+            y_coord: u16,
+            anchor_point: ?u16 = null,
+            x_device_offset: ?u16 = null,
+            y_device_offset: ?u16 = null,
+        };
+        pub const MarkArray = struct {
+            mark_count: u16,
+            mark_records: []MarkRecord,
+            pub const MarkRecord = struct {
+                mark_class: u16,
+                mark_anchor_offset: u16,
+            };
+        };
+    };
     const OffsetSubtable = struct {
         scalar_type: u32 = undefined,
         num_tables: u16 = undefined,
