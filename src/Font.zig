@@ -52,6 +52,51 @@ pub const Font = struct {
         self.scale = (1.0 / @as(f32, @floatFromInt(self.ttf.font_directory.head.units_per_em))) * @as(f32, @floatFromInt(font_size));
     }
 
+    fn split_bezier(curve: TTF.BezierCurve) struct { ade: TTF.BezierCurve, efc: TTF.BezierCurve } {
+        var D: TTF.Point = undefined;
+        D.x = @divFloor(curve.p0.x + curve.p1.x, 2);
+        D.y = @divFloor(curve.p0.y + curve.p1.y, 2);
+
+        var E: TTF.Point = undefined;
+        E.x = @divFloor(curve.p0.x + curve.p1.x * 2 + curve.p2.x, 4);
+        E.y = @divFloor(curve.p0.y + curve.p1.y * 2 + curve.p2.y, 4);
+
+        var F: TTF.Point = undefined;
+        F.x = @divFloor(curve.p1.x + curve.p2.x, 2);
+        F.y = @divFloor(curve.p1.y + curve.p2.y, 2);
+
+        return .{
+            .ade = TTF.BezierCurve{
+                .p0 = .{
+                    .x = curve.p0.x,
+                    .y = curve.p0.y,
+                },
+                .p1 = .{
+                    .x = D.x,
+                    .y = D.y,
+                },
+                .p2 = .{
+                    .x = E.x,
+                    .y = E.y,
+                },
+            },
+            .efc = TTF.BezierCurve{
+                .p0 = .{
+                    .x = E.x,
+                    .y = E.y,
+                },
+                .p1 = .{
+                    .x = F.x,
+                    .y = F.y,
+                },
+                .p2 = .{
+                    .x = curve.p2.x,
+                    .y = curve.p2.y,
+                },
+            },
+        };
+    }
+
     //TODO subdivide the curves by 2-4x to lower the error of the edges
     fn gen_edges(self: *Self, outline: *TTF.GlyphOutline) Error!std.ArrayList(Edge) {
         var edges: std.ArrayList(Edge) = std.ArrayList(Edge).init(self.allocator);
@@ -61,14 +106,47 @@ pub const Font = struct {
             //var extra_pt: ?TTF.Point = null;
             var j: usize = bezier_indx;
             while (j < outline.end_curves[i]) : (j += 1) {
+                const split_curve = split_bezier(outline.curves[j]);
+                const double_split1 = split_bezier(split_curve.ade);
+                const double_split2 = split_bezier(split_curve.efc);
                 try edges.append(Edge{
                     .p0 = .{
-                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(outline.curves[j].p0.x)) * self.scale)),
-                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(outline.curves[j].p0.y)) * self.scale)),
+                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split1.ade.p0.x)) * self.scale)),
+                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split1.ade.p0.y)) * self.scale)),
                     },
                     .p1 = .{
-                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(outline.curves[j].p2.x)) * self.scale)),
-                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(outline.curves[j].p2.y)) * self.scale)),
+                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split1.ade.p2.x)) * self.scale)),
+                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split1.ade.p2.y)) * self.scale)),
+                    },
+                });
+                try edges.append(Edge{
+                    .p0 = .{
+                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split1.efc.p0.x)) * self.scale)),
+                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split1.efc.p0.y)) * self.scale)),
+                    },
+                    .p1 = .{
+                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split1.efc.p2.x)) * self.scale)),
+                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split1.efc.p2.y)) * self.scale)),
+                    },
+                });
+                try edges.append(Edge{
+                    .p0 = .{
+                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split2.ade.p0.x)) * self.scale)),
+                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split2.ade.p0.y)) * self.scale)),
+                    },
+                    .p1 = .{
+                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split2.ade.p2.x)) * self.scale)),
+                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split2.ade.p2.y)) * self.scale)),
+                    },
+                });
+                try edges.append(Edge{
+                    .p0 = .{
+                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split2.efc.p0.x)) * self.scale)),
+                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split2.efc.p0.y)) * self.scale)),
+                    },
+                    .p1 = .{
+                        .x = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split2.efc.p2.x)) * self.scale)),
+                        .y = @as(i32, @intFromFloat(@as(f32, @floatFromInt(double_split2.efc.p2.y)) * self.scale)),
                     },
                 });
             }
