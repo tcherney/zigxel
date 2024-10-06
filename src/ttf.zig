@@ -21,13 +21,14 @@ pub const TTF = struct {
         table_directory: []TableDirectory = undefined,
         format4: CMAP.Format4 = undefined,
         cmap: CMAP = undefined,
+        gpos: GPOS = undefined,
         glyf_offset: u32 = undefined,
         loca_offset: u32 = undefined,
         head_offset: u32 = undefined,
         head: Head = undefined,
     };
     pub const GPOS = struct {
-        header: Header,
+        header: Header = undefined,
         pub const Header = struct { major_version: u16, minor_version: u16, script_list_offset: u16, feature_list_offset: u16, lookup_list_offset: u16, feature_variations_offset: ?u32 = null };
         pub const SinglePosFormat = struct {
             format: u16,
@@ -65,6 +66,70 @@ pub const TTF = struct {
                     value_record2: ValueRecord,
                 };
             };
+        };
+        pub const CursivePosFormat = struct {
+            format: u16,
+            coverage_offset: u16,
+            entry_exit_count: u16,
+            entry_exit_records: []EntryExit,
+            pub const EntryExit = struct {
+                entry_anchor_offset: ?u16 = null,
+                exit_anchor_offset: ?u16 = null,
+            };
+        };
+        pub const MarkBasePosFormat = struct {
+            format: u16,
+            mark_coverage_offset: u16,
+            base_coverage_offset: u16,
+            mark_class_count: u16,
+            mark_array_offset: u16,
+            base_array_offset: u16,
+            pub const BaseArray = struct {
+                base_count: u16,
+                base_records: []BaseRecord,
+                pub const BaseRecord = struct {
+                    base_anchor_offsets: []?u16,
+                };
+            };
+        };
+        pub const MarkLigPosFormat = struct {
+            format: u16,
+            mark_coverage_offset: u16,
+            ligature_coverage_offset: u16,
+            mark_class_count: u16,
+            mark_array_offset: u16,
+            ligature_array_offset: u16,
+            pub const LigatureArray = struct {
+                ligature_count: u16,
+                ligature_attach_offsets: []u16,
+            };
+            pub const LigatureAttach = struct {
+                component_count: u16,
+                component_records: []ComponentRecord,
+                pub const ComponentRecord = struct {
+                    ligature_anchor_offsets: []?u16,
+                };
+            };
+        };
+        pub const MarkMarkPosFormat = struct {
+            format: u16,
+            mark1_coverage_offset: u16,
+            mark2_coverage_offset: u16,
+            mark_class_count: u16,
+            mark1_array_offset: u16,
+            mark2_array_offset: u16,
+            pub const Mark2Array = struct {
+                mark2_count: u16,
+                mark2_records: []Mark2,
+                pub const Mark2 = struct {
+                    mark2_anchor_offsets: []?u16,
+                };
+            };
+        };
+        pub const PosExtensionFormat = struct {
+            format: u16,
+            extension_lookup_type: u16,
+            extension_offset: u32,
         };
         pub const ValueRecord = struct {
             x_placement: u16,
@@ -433,6 +498,17 @@ pub const TTF = struct {
         }
     }
 
+    fn read_gpos(self: *Self, offset: u32) !void {
+        self.bit_reader.setPos(offset);
+        self.font_directory.gpos.header.major_version = try self.bit_reader.read_word();
+        self.font_directory.gpos.header.minor_version = try self.bit_reader.read_word();
+        self.font_directory.gpos.header.script_list_offset = try self.bit_reader.read_word();
+        self.font_directory.gpos.header.feature_list_offset = try self.bit_reader.read_word();
+        self.font_directory.gpos.header.lookup_list_offset = try self.bit_reader.read_word();
+        self.font_directory.gpos.header.feature_variations_offset = if (self.font_directory.gpos.header.minor_version == 1) try self.bit_reader.read_word() else null;
+        std.debug.print("GPOS header {any}\n", .{self.font_directory.gpos.header});
+    }
+
     fn read_head(self: *Self, offset: u32) !void {
         self.bit_reader.setPos(offset);
         self.font_directory.head.major_version = try self.bit_reader.read_word();
@@ -487,6 +563,8 @@ pub const TTF = struct {
         const head_table = try self.find_table("head");
         self.font_directory.head_offset = head_table.offset;
         try self.read_head(self.font_directory.head_offset);
+        const gpos_table = try self.find_table("GPOS");
+        try self.read_gpos(gpos_table.offset);
         self.print_table();
         self.print_cmap();
         self.print_format4();
