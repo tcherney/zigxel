@@ -2,7 +2,6 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const image = @import("image");
 
-pub const Error = error{} || std.mem.Allocator.Error || image.Error || utils.Error;
 pub const Pixel = image.Pixel;
 
 pub const Texture = struct {
@@ -13,6 +12,7 @@ pub const Texture = struct {
     alpha_index: ?u8 = null,
     loaded: bool = false,
     const Self = @This();
+    pub const Error = error{} || std.mem.Allocator.Error || image.Error || std.posix.GetRandomError;
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{ .allocator = allocator };
     }

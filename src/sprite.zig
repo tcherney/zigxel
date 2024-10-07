@@ -3,7 +3,6 @@ const utils = @import("utils.zig");
 const texture = @import("texture.zig");
 const image = @import("image");
 
-pub const Error = error{OutOfBounds} || texture.Error || std.mem.Allocator.Error;
 pub const Texture = texture.Texture;
 
 pub const Sprite = struct {
@@ -13,6 +12,7 @@ pub const Sprite = struct {
     tex: Texture,
     scaled_buffer: ?[]texture.Pixel = null,
     pub const Self = @This();
+    pub const Error = error{OutOfBounds} || Texture.Error || std.mem.Allocator.Error;
     pub fn init(allocator: std.mem.Allocator, src: utils.Rectangle, dest: utils.Rectangle, tex: Texture) Error!Sprite {
         if (src.x > tex.width or src.y > tex.height or src.width > tex.width or src.height > tex.height) {
             return Error.OutOfBounds;

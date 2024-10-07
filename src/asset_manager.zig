@@ -4,12 +4,11 @@ const image = @import("image");
 
 pub const Texture = texture.Texture;
 
-pub const Error = error{TextureNotLoaded} || texture.Error || std.mem.Allocator.Error || image.Error;
-
 pub const AssetManager = struct {
     textures: std.StringHashMap(Texture),
     allocator: std.mem.Allocator,
     const Self = @This();
+    pub const Error = error{TextureNotLoaded} || Texture.Error || std.mem.Allocator.Error || image.Error;
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{
             .textures = std.StringHashMap(Texture).init(allocator),
@@ -26,7 +25,7 @@ pub const AssetManager = struct {
         }
     }
 
-    pub fn load(self: *Self, asset_name: []const u8, image_path: []const u8) !void {
+    pub fn load(self: *Self, asset_name: []const u8, image_path: []const u8) Error!void {
         const last_indx = std.mem.lastIndexOf(u8, image_path, ".");
         if (last_indx) |indx| {
             const img_ext = image_path[indx + 1 ..];

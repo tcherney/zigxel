@@ -16,11 +16,11 @@ pub const Player = _player.Player;
 pub const GameObject = game_object.GameObject;
 pub const Texture = game_object.Texture;
 pub const AssetManager = asset_manager.AssetManager;
-pub const Error = error{} || image.Error || engine.Error || utils.Error || std.mem.Allocator.Error;
+pub const Engine = engine.Engine;
 
 pub const Game = struct {
     running: bool = true,
-    e: engine.Engine(utils.ColorMode.color_true) = undefined,
+    e: Engine(utils.ColorMode.color_true) = undefined,
     fps_buffer: [64]u8 = undefined,
     world_width: u32 = 1920,
     starting_pos_x: i32 = 1920 / 2,
@@ -39,6 +39,7 @@ pub const Game = struct {
     player: ?Player = null,
     font_tex: *Texture = undefined,
     const Self = @This();
+    pub const Error = error{} || image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator };
         try utils.gen_rand();
@@ -327,7 +328,7 @@ pub const Game = struct {
     }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
-        self.e = try engine.Engine(utils.ColorMode.color_true).init(self.allocator);
+        self.e = try Engine(utils.ColorMode.color_true).init(self.allocator);
         std.debug.print("starting height {d}\n", .{self.e.renderer.terminal.size.height});
         self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);

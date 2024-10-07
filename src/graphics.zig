@@ -10,9 +10,8 @@ const UPPER_PX = "▀";
 const LOWER_PX = "▄";
 //▀█▄
 
-pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError;
 pub const Point = utils.Point(i32);
-
+pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError;
 pub fn Graphics(comptime color_type: utils.ColorMode) type {
     return struct {
         ascii_based: bool = false,
@@ -646,21 +645,3 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         }
     };
 }
-
-// test "square" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     const allocator = gpa.allocator();
-//     var graphics = try Graphics.init(allocator);
-//     try graphics.set_bg(0, 0, 0);
-//     try graphics.draw_rect(50, 10, 5, 5, 255, 255, 0);
-//     try graphics.draw_rect(60, 8, 2, 3, 0, 255, 255);
-//     try graphics.draw_rect(60, 8, 3, 1, 128, 75, 0);
-//     try graphics.draw_rect(95, 15, 2, 1, 255, 128, 0);
-//     try graphics.draw_rect(75, 10, 1, 1, 255, 128, 255);
-//     try graphics.flip();
-//     _ = try std.io.getStdIn().reader().readByte();
-//     try graphics.deinit();
-//     if (gpa.deinit() == .leak) {
-//         std.debug.print("Leaked!\n", .{});
-//     }
-// }

@@ -12,10 +12,9 @@ pub const Graphics = graphics.Graphics;
 pub const Texture = texture.Texture;
 pub const KEYS = event_manager.KEYS;
 pub const MouseEvent = event_manager.MouseEvent;
-pub const Error = error{} || event_manager.Error || graphics.Error || std.time.Timer.Error || utils.Error;
-
 pub const WindowSize = event_manager.WindowSize;
-pub const RenderCallback = utils.CallbackError(u64);
+pub const RenderCallback = utils.CallbackError(u64, Error);
+pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Timer.Error || std.posix.GetRandomError;
 
 pub fn Engine(comptime color_type: utils.ColorMode) type {
     return struct {
@@ -51,7 +50,7 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
             }
         }
 
-        fn render_loop(self: *Self) !void {
+        fn render_loop(self: *Self) Error!void {
             var timer: std.time.Timer = try std.time.Timer.start();
             var elapsed: f64 = 0.0;
             var frames: u32 = 0;

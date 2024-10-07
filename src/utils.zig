@@ -1,7 +1,5 @@
 const std = @import("std");
 
-pub const Error = std.posix.GetRandomError;
-
 pub fn Callback(comptime DATA_TYPE: type) type {
     return struct {
         function: *const fn (context: *anyopaque, DATA_TYPE) void,
@@ -17,16 +15,16 @@ pub fn Callback(comptime DATA_TYPE: type) type {
     };
 }
 
-pub fn CallbackError(comptime DATA_TYPE: type) type {
+pub fn CallbackError(comptime DATA_TYPE: type, comptime Error: type) type {
     return struct {
-        function: *const fn (context: *anyopaque, DATA_TYPE) anyerror!void,
+        function: *const fn (context: *anyopaque, DATA_TYPE) Error!void,
         context: *anyopaque,
         const Self = @This();
-        pub fn init(comptime T: type, function: *const fn (context: *T, DATA_TYPE) anyerror!void, context: *T) Self {
+        pub fn init(comptime T: type, function: *const fn (context: *T, DATA_TYPE) Error!void, context: *T) Self {
             return Self{ .function = @ptrCast(function), .context = context };
         }
 
-        pub fn call(callback: Self, data: DATA_TYPE) anyerror!void {
+        pub fn call(callback: Self, data: DATA_TYPE) Error!void {
             return try callback.function(callback.context, data);
         }
     };
@@ -56,7 +54,7 @@ pub const ColorMode = enum {
 
 var prng: std.Random.Xoshiro256 = undefined;
 pub var rand: std.Random = undefined;
-pub fn gen_rand() Error!void {
+pub fn gen_rand() std.posix.GetRandomError!void {
     prng = std.Random.DefaultPrng.init(blk: {
         var seed: u64 = undefined;
         try std.posix.getrandom(std.mem.asBytes(&seed));

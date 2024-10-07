@@ -36,7 +36,7 @@ pub const Font = struct {
         }
     };
     const Self = @This();
-    pub const Error = error{CharNotSupported} || std.mem.Allocator.Error || std.fmt.BufPrintError;
+    pub const Error = error{CharNotSupported} || std.mem.Allocator.Error || std.fmt.BufPrintError || TTF.Error || Texture.Error;
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{
             .ttf = TTF.init(allocator),
@@ -156,7 +156,7 @@ pub const Font = struct {
     }
 
     //TODO figure out kerning
-    pub fn texture_from_string(self: *Self, str: []const u8) !*Texture {
+    pub fn texture_from_string(self: *Self, str: []const u8) Error!*Texture {
         var tex: ?*Texture = null;
         for (str) |character| {
             const char_tex = self.chars.get(character);
@@ -193,7 +193,7 @@ pub const Font = struct {
 
     //https://medium.com/@dillihangrae/scanline-filling-algorithm-852ad47fb0dd
     //https://gabormakesgames.com/blog_polygons_scanline.html
-    fn gen_char(self: *Self, graphics: anytype, character: u8) !*Texture {
+    fn gen_char(self: *Self, graphics: anytype, character: u8) Error!*Texture {
         const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(character);
         if (glyph_outline != null) {
             var outline: TTF.GlyphOutline = glyph_outline.?;
@@ -279,7 +279,7 @@ pub const Font = struct {
         } else return Error.CharNotSupported;
     }
 
-    pub fn load(self: *Self, file_name: []const u8, font_size: u16, graphics: anytype) !void {
+    pub fn load(self: *Self, file_name: []const u8, font_size: u16, graphics: anytype) Error!void {
         try self.ttf.load(file_name);
         self.set_size(font_size);
         var key_iter = self.ttf.char_map.keyIterator();

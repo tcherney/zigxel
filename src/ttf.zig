@@ -259,7 +259,7 @@ pub const TTF = struct {
         p1: Point,
         p2: Point,
     };
-    pub const Error = error{ TableNotFound, CompoundNotImplemented };
+    pub const Error = error{ TableNotFound, CompoundNotImplemented } || std.mem.Allocator.Error || BitReader.Error || ByteStream.Error;
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{
@@ -293,28 +293,28 @@ pub const TTF = struct {
         return Error.TableNotFound;
     }
 
-    fn read_cmap(self: *Self, cmap_table: *TableDirectory) !void {
+    fn read_cmap(self: *Self, cmap_table: *TableDirectory) Error!void {
         self.bit_reader.setPos(cmap_table.offset);
-        self.font_directory.cmap.version = try self.bit_reader.read_word();
-        self.font_directory.cmap.num_subtables = try self.bit_reader.read_word();
+        self.font_directory.cmap.version = try self.bit_reader.read(u16);
+        self.font_directory.cmap.num_subtables = try self.bit_reader.read(u16);
 
         self.font_directory.cmap.cmap_encoding_subtables = try self.allocator.alloc(CMAP.CMAPEncodingSubtable, self.font_directory.cmap.num_subtables);
         for (0..self.font_directory.cmap.num_subtables) |i| {
-            self.font_directory.cmap.cmap_encoding_subtables[i].platform_id = try self.bit_reader.read_word();
-            self.font_directory.cmap.cmap_encoding_subtables[i].platrform_specific_id = try self.bit_reader.read_word();
-            self.font_directory.cmap.cmap_encoding_subtables[i].offset = try self.bit_reader.read_int();
+            self.font_directory.cmap.cmap_encoding_subtables[i].platform_id = try self.bit_reader.read(u16);
+            self.font_directory.cmap.cmap_encoding_subtables[i].platrform_specific_id = try self.bit_reader.read(u16);
+            self.font_directory.cmap.cmap_encoding_subtables[i].offset = try self.bit_reader.read(u32);
         }
     }
 
-    fn read_format4(self: *Self, offset: usize) !void {
+    fn read_format4(self: *Self, offset: usize) Error!void {
         self.bit_reader.setPos(offset);
-        self.font_directory.format4.format = try self.bit_reader.read_word();
-        self.font_directory.format4.length = try self.bit_reader.read_word();
-        self.font_directory.format4.language = try self.bit_reader.read_word();
-        self.font_directory.format4.seg_count_x2 = try self.bit_reader.read_word();
-        self.font_directory.format4.search_range = try self.bit_reader.read_word();
-        self.font_directory.format4.entry_selector = try self.bit_reader.read_word();
-        self.font_directory.format4.range_shift = try self.bit_reader.read_word();
+        self.font_directory.format4.format = try self.bit_reader.read(u16);
+        self.font_directory.format4.length = try self.bit_reader.read(u16);
+        self.font_directory.format4.language = try self.bit_reader.read(u16);
+        self.font_directory.format4.seg_count_x2 = try self.bit_reader.read(u16);
+        self.font_directory.format4.search_range = try self.bit_reader.read(u16);
+        self.font_directory.format4.entry_selector = try self.bit_reader.read(u16);
+        self.font_directory.format4.range_shift = try self.bit_reader.read(u16);
 
         self.font_directory.format4.end_code = try self.allocator.alloc(u16, self.font_directory.format4.seg_count_x2 / 2);
         self.font_directory.format4.start_code = try self.allocator.alloc(u16, self.font_directory.format4.seg_count_x2 / 2);
@@ -322,22 +322,22 @@ pub const TTF = struct {
         self.font_directory.format4.id_range_offset = try self.allocator.alloc(u16, self.font_directory.format4.seg_count_x2 / 2);
 
         for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
-            self.font_directory.format4.end_code[i] = try self.bit_reader.read_word();
+            self.font_directory.format4.end_code[i] = try self.bit_reader.read(u16);
         }
         self.bit_reader.setPos(self.bit_reader.getPos() + 2);
         for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
-            self.font_directory.format4.start_code[i] = try self.bit_reader.read_word();
+            self.font_directory.format4.start_code[i] = try self.bit_reader.read(u16);
         }
         for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
-            self.font_directory.format4.id_delta[i] = try self.bit_reader.read_word();
+            self.font_directory.format4.id_delta[i] = try self.bit_reader.read(u16);
         }
         for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
-            self.font_directory.format4.id_range_offset[i] = try self.bit_reader.read_word();
+            self.font_directory.format4.id_range_offset[i] = try self.bit_reader.read(u16);
         }
         const remaining_bytes = self.font_directory.format4.length - (self.bit_reader.getPos() - offset);
         self.font_directory.format4.glyph_id_array = try self.allocator.alloc(u16, remaining_bytes / 2);
         for (0..self.font_directory.format4.glyph_id_array.len) |i| {
-            self.font_directory.format4.glyph_id_array[i] = try self.bit_reader.read_word();
+            self.font_directory.format4.glyph_id_array[i] = try self.bit_reader.read(u16);
         }
     }
 
@@ -377,16 +377,16 @@ pub const TTF = struct {
         }
     }
 
-    fn get_glyph_outline(self: *Self, glyph_index: usize) !GlyphOutline {
+    fn get_glyph_outline(self: *Self, glyph_index: usize) Error!GlyphOutline {
         const offset: usize = try self.get_glyph_offset(glyph_index);
         var glyph_outline: GlyphOutline = undefined;
         glyph_outline.allocator = self.allocator;
         self.bit_reader.setPos(self.font_directory.glyf_offset + offset);
-        glyph_outline.num_contours = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        glyph_outline.x_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        glyph_outline.y_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        glyph_outline.x_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        glyph_outline.y_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        glyph_outline.num_contours = try self.bit_reader.read(i16);
+        glyph_outline.x_min = try self.bit_reader.read(i16);
+        glyph_outline.y_min = try self.bit_reader.read(i16);
+        glyph_outline.x_max = try self.bit_reader.read(i16);
+        glyph_outline.y_max = try self.bit_reader.read(i16);
 
         std.debug.print("num contours {d}\n", .{glyph_outline.num_contours});
         if (glyph_outline.num_contours == -1) {
@@ -395,20 +395,20 @@ pub const TTF = struct {
 
         glyph_outline.end_contours = try self.allocator.alloc(u16, @as(u16, @bitCast(glyph_outline.num_contours)));
         for (0..glyph_outline.end_contours.len) |i| {
-            glyph_outline.end_contours[i] = try self.bit_reader.read_word();
+            glyph_outline.end_contours[i] = try self.bit_reader.read(u16);
         }
-        glyph_outline.instruction_length = try self.bit_reader.read_word();
+        glyph_outline.instruction_length = try self.bit_reader.read(u16);
         glyph_outline.instructions = try self.allocator.alloc(u8, glyph_outline.instruction_length);
         for (0..glyph_outline.instructions.len) |i| {
-            glyph_outline.instructions[i] = try self.bit_reader.read_byte();
+            glyph_outline.instructions[i] = try self.bit_reader.read(u8);
         }
         const last_index = glyph_outline.end_contours[glyph_outline.end_contours.len - 1];
         glyph_outline.flags = try self.allocator.alloc(u8, last_index + 1);
         var i: usize = 0;
         while (i < glyph_outline.flags.len) : (i += 1) {
-            glyph_outline.flags[i] = try self.bit_reader.read_byte();
+            glyph_outline.flags[i] = try self.bit_reader.read(u8);
             if ((glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.repeat)) != 0) {
-                var repeat_count = @as(i8, @bitCast(try self.bit_reader.read_byte()));
+                var repeat_count = @as(i8, @bitCast(try self.bit_reader.read(u8)));
                 while (repeat_count > 0) {
                     repeat_count -= 1;
                     i += 1;
@@ -422,14 +422,14 @@ pub const TTF = struct {
             const flag_combined: u8 = (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.x_short)) | (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.x_short_pos)) >> 4;
             switch (flag_combined) {
                 0 => {
-                    cur_coord += @as(i16, @bitCast(try self.bit_reader.read_word()));
+                    cur_coord += try self.bit_reader.read(i16);
                 },
                 1 => {},
                 2 => {
-                    cur_coord -= @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read_byte()))));
+                    cur_coord -= @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read(u8)))));
                 },
                 3 => {
-                    cur_coord += @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read_byte()))));
+                    cur_coord += @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read(u8)))));
                 },
                 else => unreachable,
             }
@@ -442,14 +442,14 @@ pub const TTF = struct {
             const flag_combined: u8 = (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.y_short)) >> 1 | (glyph_outline.flags[j] & @intFromEnum(GlyphOutline.Flag.y_short_pos)) >> 5;
             switch (flag_combined) {
                 0 => {
-                    cur_coord += @as(i16, @bitCast(try self.bit_reader.read_word()));
+                    cur_coord += try self.bit_reader.read(i16);
                 },
                 1 => {},
                 2 => {
-                    cur_coord -= @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read_byte()))));
+                    cur_coord -= @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read(u8)))));
                 },
                 3 => {
-                    cur_coord += @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read_byte()))));
+                    cur_coord += @as(i16, @bitCast(@as(u16, @intCast(try self.bit_reader.read(u8)))));
                 },
                 else => unreachable,
             }
@@ -486,71 +486,71 @@ pub const TTF = struct {
         return 0;
     }
 
-    fn get_glyph_offset(self: *Self, glyph_index: usize) !usize {
+    fn get_glyph_offset(self: *Self, glyph_index: usize) Error!usize {
         self.bit_reader.setPos(self.font_directory.head_offset + 50);
-        const loca_type = try self.bit_reader.read_word();
+        const loca_type = try self.bit_reader.read(u16);
         if (loca_type == 0) {
             self.bit_reader.setPos((self.font_directory.loca_offset + (glyph_index * 2)));
-            return @as(usize, @intCast(try self.bit_reader.read_word())) * 2;
+            return @as(usize, @intCast(try self.bit_reader.read(u16))) * 2;
         } else {
             self.bit_reader.setPos(self.font_directory.loca_offset + (glyph_index * 4));
-            return @as(usize, @intCast(try self.bit_reader.read_int()));
+            return @as(usize, @intCast(try self.bit_reader.read(u32)));
         }
     }
 
-    fn read_gpos(self: *Self, offset: u32) !void {
+    fn read_gpos(self: *Self, offset: u32) Error!void {
         self.bit_reader.setPos(offset);
-        self.font_directory.gpos.header.major_version = try self.bit_reader.read_word();
-        self.font_directory.gpos.header.minor_version = try self.bit_reader.read_word();
-        self.font_directory.gpos.header.script_list_offset = try self.bit_reader.read_word();
-        self.font_directory.gpos.header.feature_list_offset = try self.bit_reader.read_word();
-        self.font_directory.gpos.header.lookup_list_offset = try self.bit_reader.read_word();
-        self.font_directory.gpos.header.feature_variations_offset = if (self.font_directory.gpos.header.minor_version == 1) try self.bit_reader.read_word() else null;
+        self.font_directory.gpos.header.major_version = try self.bit_reader.read(u16);
+        self.font_directory.gpos.header.minor_version = try self.bit_reader.read(u16);
+        self.font_directory.gpos.header.script_list_offset = try self.bit_reader.read(u16);
+        self.font_directory.gpos.header.feature_list_offset = try self.bit_reader.read(u16);
+        self.font_directory.gpos.header.lookup_list_offset = try self.bit_reader.read(u16);
+        self.font_directory.gpos.header.feature_variations_offset = if (self.font_directory.gpos.header.minor_version == 1) try self.bit_reader.read(u16) else null;
         std.debug.print("GPOS header {any}\n", .{self.font_directory.gpos.header});
     }
 
-    fn read_head(self: *Self, offset: u32) !void {
+    fn read_head(self: *Self, offset: u32) Error!void {
         self.bit_reader.setPos(offset);
-        self.font_directory.head.major_version = try self.bit_reader.read_word();
-        self.font_directory.head.minor_version = try self.bit_reader.read_word();
-        self.font_directory.head.font_revision = try self.bit_reader.read_int();
-        self.font_directory.head.check_sum = try self.bit_reader.read_int();
-        self.font_directory.head.magic_number = try self.bit_reader.read_int();
-        self.font_directory.head.flags = try self.bit_reader.read_word();
-        self.font_directory.head.units_per_em = try self.bit_reader.read_word();
-        self.font_directory.head.created = try self.bit_reader.read_int();
-        self.font_directory.head.created += try self.bit_reader.read_int();
-        self.font_directory.head.modified = try self.bit_reader.read_int();
-        self.font_directory.head.modified += try self.bit_reader.read_int();
-        self.font_directory.head.x_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        self.font_directory.head.y_min = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        self.font_directory.head.x_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        self.font_directory.head.y_max = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        self.font_directory.head.mac_style = try self.bit_reader.read_word();
-        self.font_directory.head.lowest_rec_PPEM = try self.bit_reader.read_word();
-        self.font_directory.head.font_direction_hint = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        self.font_directory.head.index_to_loc_format = @as(i16, @bitCast(try self.bit_reader.read_word()));
-        self.font_directory.head.glyph_data_format = @as(i16, @bitCast(try self.bit_reader.read_word()));
+        self.font_directory.head.major_version = try self.bit_reader.read(u16);
+        self.font_directory.head.minor_version = try self.bit_reader.read(u16);
+        self.font_directory.head.font_revision = try self.bit_reader.read(u32);
+        self.font_directory.head.check_sum = try self.bit_reader.read(u32);
+        self.font_directory.head.magic_number = try self.bit_reader.read(u32);
+        self.font_directory.head.flags = try self.bit_reader.read(u16);
+        self.font_directory.head.units_per_em = try self.bit_reader.read(u16);
+        self.font_directory.head.created = try self.bit_reader.read(u32);
+        self.font_directory.head.created += try self.bit_reader.read(u32);
+        self.font_directory.head.modified = try self.bit_reader.read(u32);
+        self.font_directory.head.modified += try self.bit_reader.read(u32);
+        self.font_directory.head.x_min = try self.bit_reader.read(i16);
+        self.font_directory.head.y_min = try self.bit_reader.read(i16);
+        self.font_directory.head.x_max = try self.bit_reader.read(i16);
+        self.font_directory.head.y_max = try self.bit_reader.read(i16);
+        self.font_directory.head.mac_style = try self.bit_reader.read(u16);
+        self.font_directory.head.lowest_rec_PPEM = try self.bit_reader.read(u16);
+        self.font_directory.head.font_direction_hint = try self.bit_reader.read(i16);
+        self.font_directory.head.index_to_loc_format = try self.bit_reader.read(i16);
+        self.font_directory.head.glyph_data_format = try self.bit_reader.read(i16);
     }
 
     fn parse_file(self: *Self) !void {
         // offset subtable
-        self.font_directory.offset_subtable.scalar_type = try self.bit_reader.read_int();
-        self.font_directory.offset_subtable.num_tables = try self.bit_reader.read_word();
-        self.font_directory.offset_subtable.search_range = try self.bit_reader.read_word();
-        self.font_directory.offset_subtable.entry_selector = try self.bit_reader.read_word();
-        self.font_directory.offset_subtable.range_shift = try self.bit_reader.read_word();
+        self.font_directory.offset_subtable.scalar_type = try self.bit_reader.read(u32);
+        self.font_directory.offset_subtable.num_tables = try self.bit_reader.read(u16);
+        self.font_directory.offset_subtable.search_range = try self.bit_reader.read(u16);
+        self.font_directory.offset_subtable.entry_selector = try self.bit_reader.read(u16);
+        self.font_directory.offset_subtable.range_shift = try self.bit_reader.read(u16);
 
         // table directory
         self.font_directory.table_directory = try self.allocator.alloc(TableDirectory, self.font_directory.offset_subtable.num_tables);
         for (0..self.font_directory.table_directory.len) |i| {
-            self.font_directory.table_directory[i].tag[0] = try self.bit_reader.read_byte();
-            self.font_directory.table_directory[i].tag[1] = try self.bit_reader.read_byte();
-            self.font_directory.table_directory[i].tag[2] = try self.bit_reader.read_byte();
-            self.font_directory.table_directory[i].tag[3] = try self.bit_reader.read_byte();
-            self.font_directory.table_directory[i].checksum = try self.bit_reader.read_int();
-            self.font_directory.table_directory[i].offset = try self.bit_reader.read_int();
-            self.font_directory.table_directory[i].length = try self.bit_reader.read_int();
+            self.font_directory.table_directory[i].tag[0] = try self.bit_reader.read(u8);
+            self.font_directory.table_directory[i].tag[1] = try self.bit_reader.read(u8);
+            self.font_directory.table_directory[i].tag[2] = try self.bit_reader.read(u8);
+            self.font_directory.table_directory[i].tag[3] = try self.bit_reader.read(u8);
+            self.font_directory.table_directory[i].checksum = try self.bit_reader.read(u32);
+            self.font_directory.table_directory[i].offset = try self.bit_reader.read(u32);
+            self.font_directory.table_directory[i].length = try self.bit_reader.read(u32);
         }
         const cmap_table = try self.find_table("cmap");
         try self.read_cmap(cmap_table);
@@ -581,7 +581,7 @@ pub const TTF = struct {
         }
     }
     //TODO shift every point by the min x and y
-    fn gen_curves(self: *Self, glyph_outline: *GlyphOutline) std.mem.Allocator.Error!void {
+    fn gen_curves(self: *Self, glyph_outline: *GlyphOutline) Error!void {
         var points: std.ArrayList(Point) = std.ArrayList(Point).init(self.allocator);
         var previous_point: ?Point = null;
         var cur_point: Point = undefined;
@@ -692,7 +692,7 @@ pub const TTF = struct {
         glyph_outline.curves = try curves.toOwnedSlice();
     }
 
-    pub fn load(self: *Self, file_name: []const u8) !void {
+    pub fn load(self: *Self, file_name: []const u8) Error!void {
         self.bit_reader = try BitReader.init(.{
             .file_name = file_name,
             .allocator = self.allocator,

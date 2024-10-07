@@ -5,8 +5,6 @@ const texture = @import("texture.zig");
 pub const Texture = texture.Texture;
 pub const PhysicsPixel = physics_pixel.PhysicsPixel;
 
-pub const Error = error{} || texture.Error || std.mem.Allocator.Error;
-
 const JUMPING_MAX = 10;
 
 pub const GameObject = struct {
@@ -22,6 +20,7 @@ pub const GameObject = struct {
     pixel_map: std.AutoHashMap(u32, bool),
     wet_pixels: u32 = 0,
     hot_pixels: u32 = 0,
+    pub const Error = error{} || Texture.Error || std.mem.Allocator.Error;
     pub const Status = enum {
         Wet,
         Hot,

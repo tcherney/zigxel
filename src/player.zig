@@ -4,12 +4,11 @@ const physics_pixel = @import("physics_pixel.zig");
 
 pub const GameObject = game_object.GameObject;
 
-pub const Error = error{} || game_object.Error;
-
 pub const Player = struct {
     allocator: std.mem.Allocator,
     go: GameObject,
     const Self = @This();
+    pub const Error = error{} || GameObject.Error;
     pub fn init(x: i32, y: i32, w_width: u32, tex: *game_object.Texture, allocator: std.mem.Allocator) Error!Self {
         return Self{
             .allocator = allocator,

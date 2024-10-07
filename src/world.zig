@@ -4,14 +4,13 @@ pub const std = @import("std");
 
 pub const Texture = texture.Texture;
 
-pub const Error = error{} || texture.Error;
-
 pub const World = struct {
     tex: Texture,
     bounds: utils.Rectangle,
     viewport: utils.Rectangle = undefined,
     allocator: std.mem.Allocator,
     const Self = @This();
+    pub const Error = error{} || Texture.Error;
     pub fn init(w_width: u32, w_height: u32, v_width: u32, v_height: u32, allocator: std.mem.Allocator) Error!Self {
         var world_tex = Texture.init(allocator);
         try world_tex.rect(w_width, w_height, 0, 0, 0, null);
@@ -34,7 +33,7 @@ pub const World = struct {
     }
     //TODO world generation
 
-    pub fn print(self: *Self) !void {
+    pub fn print(self: *Self) Error!void {
         try self.tex.image_core().write_BMP("world.bmp");
     }
 
