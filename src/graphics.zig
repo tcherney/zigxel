@@ -209,6 +209,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].r = @as(u8, @intFromFloat(rf));
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].g = @as(u8, @intFromFloat(gf));
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].b = @as(u8, @intFromFloat(bf));
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].a = alpha;
                 } else {
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].r = p.r;
                     dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].g = p.g;
@@ -266,7 +267,6 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                         var g: u8 = pixel_buffer[tex_indx].g;
                         var b: u8 = pixel_buffer[tex_indx].b;
                         if (pixel_buffer[tex_indx].a) |alpha| {
-                            std.debug.print("computing alpha {any}", .{alpha});
                             const max_pixel = 255.0;
                             const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
                             var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
@@ -319,7 +319,6 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                         var g: u8 = pixel_buffer[tex_indx].g;
                         var b: u8 = pixel_buffer[tex_indx].b;
                         if (pixel_buffer[tex_indx].a) |alpha| {
-                            std.debug.print("computing alpha {any}", .{alpha});
                             const max_pixel = 255.0;
                             const bkgd = dest.?.pixel_buffer[j_usize * dest.?.width + i_usize];
                             var rf: f32 = if (alpha == 0) 0 else (@as(f32, @floatFromInt(alpha)) / max_pixel) * @as(f32, @floatFromInt(r));
@@ -341,6 +340,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                                 dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].r = r;
                                 dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].g = g;
                                 dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].b = b;
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].a = pixel_buffer[tex_indx].a;
                             },
                         }
 

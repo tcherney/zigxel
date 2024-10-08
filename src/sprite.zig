@@ -9,16 +9,28 @@ pub const Sprite = struct {
     allocator: std.mem.Allocator,
     src: utils.Rectangle,
     dest: utils.Rectangle,
-    tex: Texture,
+    tex: *Texture,
     scaled_buffer: ?[]texture.Pixel = null,
     pub const Self = @This();
     pub const Error = error{OutOfBounds} || Texture.Error || std.mem.Allocator.Error;
-    pub fn init(allocator: std.mem.Allocator, src: utils.Rectangle, dest: utils.Rectangle, tex: Texture) Error!Sprite {
-        if (src.x > tex.width or src.y > tex.height or src.width > tex.width or src.height > tex.height) {
+    pub fn init(allocator: std.mem.Allocator, src: ?utils.Rectangle, dest: ?utils.Rectangle, tex: *Texture) Error!Sprite {
+        var src_rect: utils.Rectangle = undefined;
+        var dest_rect: utils.Rectangle = undefined;
+        if (src == null) {
+            src_rect = utils.Rectangle{ .x = 0, .y = 0, .width = tex.width, .height = tex.height };
+        } else {
+            src_rect = src.?;
+        }
+        if (dest == null) {
+            dest_rect = utils.Rectangle{ .x = 0, .y = 0, .width = tex.width, .height = tex.height };
+        } else {
+            dest_rect = dest.?;
+        }
+        if (src_rect.x > tex.width or src_rect.y > tex.height or src_rect.width > tex.width or src_rect.height > tex.height) {
             return Error.OutOfBounds;
         }
-        var ret = Self{ .allocator = allocator, .src = src, .dest = dest, .tex = tex };
-        if (src.width != dest.width or src.height != dest.height) {
+        var ret = Self{ .allocator = allocator, .src = src_rect, .dest = dest_rect, .tex = tex };
+        if (src_rect.width != dest_rect.width or src_rect.height != dest_rect.height) {
             try ret.scale_buffer();
         }
         return ret;

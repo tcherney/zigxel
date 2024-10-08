@@ -41,14 +41,14 @@ pub const Font = struct {
         return Self{
             .ttf = TTF.init(allocator),
             .allocator = allocator,
-            .color = .{ .r = 255, .g = 255, .b = 255 },
+            .color = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
             .chars = std.AutoHashMap(u8, *Texture).init(allocator),
         };
     }
 
     pub fn set_size(self: *Self, font_size: u16) void {
         self.font_size = font_size;
-        std.debug.print("units per em {any}, font_size {any}\n", .{ self.ttf.font_directory.head.units_per_em, font_size });
+        std.debug.print("units per em {any}, font_size {any}, lowest rec {any}\n", .{ self.ttf.font_directory.head.units_per_em, font_size, self.ttf.font_directory.head.lowest_rec_PPEM });
         self.scale = (1.0 / @as(f32, @floatFromInt(self.ttf.font_directory.head.units_per_em))) * @as(f32, @floatFromInt(font_size));
     }
 
@@ -97,7 +97,6 @@ pub const Font = struct {
         };
     }
 
-    //TODO subdivide the curves by 2-4x to lower the error of the edges
     fn gen_edges(self: *Self, outline: *TTF.GlyphOutline) Error!std.ArrayList(Edge) {
         var edges: std.ArrayList(Edge) = std.ArrayList(Edge).init(self.allocator);
         var bezier_indx: usize = 0;
@@ -158,30 +157,36 @@ pub const Font = struct {
     //TODO figure out kerning
     pub fn texture_from_string(self: *Self, str: []const u8) Error!*Texture {
         var tex: ?*Texture = null;
-        for (str) |character| {
+        for (0..str.len) |i| {
+            const character = str[i];
             const char_tex = self.chars.get(character);
             if (tex == null) {
                 std.debug.print("grabbing copy\n", .{});
-                if (char_tex == null or character == ' ') {
-                    var iter = self.chars.valueIterator();
-                    const other_char_tex = iter.next().?.*;
+                if (char_tex == null) continue;
+                if (character == ' ') {
                     tex = try self.allocator.create(Texture);
                     tex.?.* = Texture.init(self.allocator);
-                    try tex.?.rect(other_char_tex.width, other_char_tex.height, 0, 0, 0, 255);
+                    try tex.?.rect(char_tex.?.width, char_tex.?.height, 0, 0, 0, 0);
                 } else {
                     tex = try char_tex.?.*.copy();
                 }
             } else {
                 std.debug.print("resizing\n", .{});
-                if (char_tex == null or character == ' ') {
-                    var iter = self.chars.valueIterator();
-                    try tex.?.resize(tex.?.width + iter.next().?.*.width + 10, tex.?.height);
+                if (char_tex == null) continue;
+                if (character == ' ') {
+                    try tex.?.resize(tex.?.width + char_tex.?.*.width, tex.?.height);
                 } else {
+                    //std.debug.print("kerning adjust {any}\n", .{self.ttf.kerning_adj(@as(u16, @intCast(str[i - 1])), @as(u16, @intCast(str[i])))});
                     const larger_height = @max(char_tex.?.height, tex.?.height);
-                    try tex.?.resize(tex.?.width + char_tex.?.*.width + 10, larger_height);
-                    for (0..char_tex.?.*.height) |i| {
-                        for (0..char_tex.?.*.width) |j| {
-                            tex.?.pixel_buffer[i * tex.?.width + (j + (tex.?.width - char_tex.?.*.width))] = char_tex.?.*.pixel_buffer[i * char_tex.?.*.width + j];
+                    const horizontal_metrics = self.ttf.get_horizontal_metrics(@as(u16, @intCast(str[i - 1])));
+                    const width_adjust = @as(u32, @intFromFloat(@as(f32, @floatFromInt(horizontal_metrics.lsb)) * self.scale));
+                    //const x_adj = width_adjust;
+                    std.debug.print("width adjust {d}\n", .{width_adjust});
+                    try tex.?.resize(tex.?.width + char_tex.?.*.width + width_adjust, larger_height);
+                    //const y_adj = if (char_tex.?.*.height < tex.?.height) tex.?.height - char_tex.?.*.height else 0;
+                    for (0..char_tex.?.*.height) |y| {
+                        for (0..char_tex.?.*.width) |x| {
+                            tex.?.pixel_buffer[(y) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))] = char_tex.?.*.pixel_buffer[y * char_tex.?.*.width + x];
                         }
                     }
                 }
@@ -201,7 +206,7 @@ pub const Font = struct {
             const height = @as(u32, @intFromFloat(@as(f32, @floatFromInt(outline.y_max - outline.y_min)) * self.scale));
             var tex: *Texture = try self.allocator.create(Texture);
             tex.* = Texture.init(self.allocator);
-            try tex.rect(width, height, 0, 0, 0, 255);
+            try tex.rect(width, height, 0, 0, 0, 0);
 
             std.debug.print("width {d}, height {d}\n", .{ width, height });
             std.debug.print("contour starts {any}\n", .{outline.end_curves});
@@ -284,16 +289,14 @@ pub const Font = struct {
         self.set_size(font_size);
         var key_iter = self.ttf.char_map.keyIterator();
         var key: ?*u8 = key_iter.next();
-        var current_font_size: u16 = font_size;
         while (key != null) : (key = key_iter.next()) {
             const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(key.?.*);
             if (glyph_outline != null) {
                 const width = @as(u32, @intFromFloat(@as(f32, @floatFromInt(glyph_outline.?.x_max - glyph_outline.?.x_min)) * self.scale));
                 const height = @as(u32, @intFromFloat(@as(f32, @floatFromInt(glyph_outline.?.y_max - glyph_outline.?.y_min)) * self.scale));
                 if (width == 0 or height == 0) {
-                    current_font_size += 1;
-                    self.set_size(current_font_size);
-                    key_iter = self.ttf.char_map.keyIterator();
+                    self.set_size(self.ttf.font_directory.head.lowest_rec_PPEM * 2);
+                    break;
                 }
             }
         }

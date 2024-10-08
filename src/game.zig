@@ -38,6 +38,7 @@ pub const Game = struct {
     old_mouse_y: i32 = -1,
     player: ?Player = null,
     font_tex: *Texture = undefined,
+    font_sprite: sprite.Sprite = undefined,
     const Self = @This();
     pub const Error = error{} || image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
     pub fn init(allocator: std.mem.Allocator) Error!Self {
@@ -74,6 +75,7 @@ pub const Game = struct {
             self.player.?.deinit();
         }
         self.font_tex.deinit();
+        self.font_sprite.deinit();
         self.allocator.destroy(self.font_tex);
     }
 
@@ -324,6 +326,9 @@ pub const Game = struct {
             self.player.?.draw(&self.e.renderer, self.current_world.tex);
         }
         self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
+        self.font_sprite.dest.x = self.current_world.viewport.x;
+        self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
+        try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
@@ -341,8 +346,9 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
-        try font.load("arial.ttf", 128, &self.e.renderer);
-        self.font_tex = try font.texture_from_string("HELLO WORLD");
+        try font.load("arial.ttf", 64, &self.e.renderer);
+        self.font_tex = try font.texture_from_string("going,");
+        self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);

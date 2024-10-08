@@ -26,6 +26,73 @@ pub const TTF = struct {
         loca_offset: u32 = undefined,
         head_offset: u32 = undefined,
         head: Head = undefined,
+        kern: ?Kern = undefined,
+        hhea: Hhea = undefined,
+        hmtx: Hmtx = undefined,
+        maxp: Maxp = undefined,
+    };
+    pub const Maxp = struct {
+        version: u32,
+        num_glyphs: u16,
+    };
+    pub const Hhea = struct {
+        major_version: u16,
+        minor_version: u16,
+        ascender: i16,
+        descender: i16,
+        line_gap: i16,
+        advance_width_max: u16,
+        min_left_side_bearing: i16,
+        min_right_side_bearing: i16,
+        x_max_extent: i16,
+        caret_slope_rise: i16,
+        caret_slope_run: i16,
+        caret_offset: i16,
+        reserved: i64,
+        metric_data_format: i16,
+        number_of_h_metrics: u16,
+    };
+    pub const Hmtx = struct {
+        h_metrics: []LongHorMetric,
+        left_side_bearings: ?[]i16 = null,
+        pub const LongHorMetric = struct {
+            advance_width: u16,
+            lsb: i16,
+        };
+    };
+    pub const Kern = struct {
+        header: Header = undefined,
+        sub_tables: []SubTable = undefined,
+        pub const Header = struct {
+            version: u16,
+            n_tables: u16,
+        };
+        pub const SubTable = struct {
+            version: u16,
+            length: u16,
+            coverage: u16,
+            kern_subtable_format0: KernSubtableFormat0,
+            pub const Coverage = enum(u16) {
+                horizontal = 1,
+                minimum = 2,
+                cross_stream = 4,
+                override = 8,
+                reserved = 0x00F0,
+                format = 0xFF00,
+            };
+            pub const KernSubtableFormat0 = struct {
+                n_pairs: u16,
+                search_range: u16,
+                entry_selector: u16,
+                range_shift: u16,
+                kern_pairs: []KernPair,
+                pub const KernPair = struct {
+                    left: u16,
+                    right: u16,
+                    value: i16,
+                };
+            };
+        };
     };
     pub const GPOS = struct {
         header: Header = undefined,
@@ -259,7 +326,7 @@ pub const TTF = struct {
         p1: Point,
         p2: Point,
     };
-    pub const Error = error{ TableNotFound, CompoundNotImplemented } || std.mem.Allocator.Error || BitReader.Error || ByteStream.Error;
+    pub const Error = error{ TableNotFound, CompoundNotImplemented, KernFormatUnsupported } || std.mem.Allocator.Error || BitReader.Error || ByteStream.Error;
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{
@@ -282,6 +349,16 @@ pub const TTF = struct {
             outline = iter.next();
         }
         self.char_map.deinit();
+        if (self.font_directory.kern != null) {
+            for (0..self.font_directory.kern.?.sub_tables.len) |i| {
+                self.allocator.free(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs);
+            }
+            self.allocator.free(self.font_directory.kern.?.sub_tables);
+        }
+        self.allocator.free(self.font_directory.hmtx.h_metrics);
+        if (self.font_directory.hmtx.left_side_bearings != null) {
+            self.allocator.free(self.font_directory.hmtx.left_side_bearings.?);
+        }
     }
 
     fn find_table(self: *Self, table_name: []const u8) Error!*TableDirectory {
@@ -459,7 +536,7 @@ pub const TTF = struct {
         return glyph_outline;
     }
 
-    fn get_glyph_index(self: *Self, code_point: u16) usize {
+    pub fn get_glyph_index(self: *Self, code_point: u16) usize {
         var index: ?usize = null;
         for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
             if (self.font_directory.format4.end_code[i] > code_point) {
@@ -497,7 +574,7 @@ pub const TTF = struct {
             return @as(usize, @intCast(try self.bit_reader.read(u32)));
         }
     }
-
+    //TODO store GPOS data to be used in glyph rendering
     fn read_gpos(self: *Self, offset: u32) Error!void {
         self.bit_reader.setPos(offset);
         self.font_directory.gpos.header.major_version = try self.bit_reader.read(u16);
@@ -507,6 +584,124 @@ pub const TTF = struct {
         self.font_directory.gpos.header.lookup_list_offset = try self.bit_reader.read(u16);
         self.font_directory.gpos.header.feature_variations_offset = if (self.font_directory.gpos.header.minor_version == 1) try self.bit_reader.read(u16) else null;
         std.debug.print("GPOS header {any}\n", .{self.font_directory.gpos.header});
+    }
+
+    //TODO fix linear scan to be binary search
+    pub fn kerning_adj(self: *Self, lhs_index: u16, rhs_index: u16) Point {
+        var ret: Point = Point{};
+        for (0..self.font_directory.kern.?.sub_tables.len) |i| {
+            for (0..self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs.len) |j| {
+                std.debug.print("kerning left index {d}, right index {d}, looking for {d}\n", .{ self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left, self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].right, lhs_index });
+                if (self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != lhs_index) continue;
+                if (self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != rhs_index) continue;
+                std.debug.print("found kerning data\n", .{});
+                // found kerning value for these indicies
+                //vertical
+                if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.horizontal)) == 0) {
+                    if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.override)) != 0) {
+                        ret.y = self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
+                    } else if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.minimum)) != 0) {
+                        ret.y = @min(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.y);
+                    }
+                }
+                // horizontal
+                else {
+                    if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.override)) != 0) {
+                        ret.x = self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
+                    } else if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.minimum)) != 0) {
+                        ret.x = @min(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.x);
+                    }
+                }
+            }
+        }
+        return ret;
+    }
+
+    fn read_kern(self: *Self, offset: u32) Error!void {
+        self.bit_reader.setPos(offset);
+        self.font_directory.kern = Kern{};
+        self.font_directory.kern.?.header.version = try self.bit_reader.read(u16);
+        self.font_directory.kern.?.header.n_tables = try self.bit_reader.read(u16);
+        self.font_directory.kern.?.sub_tables = try self.allocator.alloc(Kern.SubTable, self.font_directory.kern.?.header.n_tables);
+        for (0..self.font_directory.kern.?.sub_tables.len) |i| {
+            self.font_directory.kern.?.sub_tables[i].version = try self.bit_reader.read(u16);
+            self.font_directory.kern.?.sub_tables[i].length = try self.bit_reader.read(u16);
+            self.font_directory.kern.?.sub_tables[i].coverage = try self.bit_reader.read(u16);
+            if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.format)) != 0) {
+                return Error.KernFormatUnsupported;
+            }
+            self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.n_pairs = try self.bit_reader.read(u16);
+            self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.search_range = try self.bit_reader.read(u16);
+            self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.entry_selector = try self.bit_reader.read(u16);
+            self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.range_shift = try self.bit_reader.read(u16);
+            std.debug.print("num pairs {d}\n", .{self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.n_pairs});
+            self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs = try self.allocator.alloc(Kern.SubTable.KernSubtableFormat0.KernPair, self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.n_pairs);
+            for (0..self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs.len) |j| {
+                self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left = try self.bit_reader.read(u16);
+                self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].right = try self.bit_reader.read(u16);
+                self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value = try self.bit_reader.read(i16);
+            }
+        }
+        std.debug.print("kern table {any}\n", .{self.font_directory.kern.?});
+    }
+
+    //TODO grab more metrics from maxp
+    fn read_maxp(self: *Self, offset: u32) Error!void {
+        self.bit_reader.setPos(offset);
+        self.font_directory.maxp.version = try self.bit_reader.read(u32);
+        self.font_directory.maxp.num_glyphs = try self.bit_reader.read(u16);
+        std.debug.print("maxp data {any}\n", .{self.font_directory.maxp});
+    }
+
+    fn read_hhea(self: *Self, offset: u32) Error!void {
+        self.bit_reader.setPos(offset);
+        self.font_directory.hhea.major_version = try self.bit_reader.read(u16);
+        self.font_directory.hhea.minor_version = try self.bit_reader.read(u16);
+        self.font_directory.hhea.ascender = try self.bit_reader.read(i16);
+        self.font_directory.hhea.descender = try self.bit_reader.read(i16);
+        self.font_directory.hhea.line_gap = try self.bit_reader.read(i16);
+        self.font_directory.hhea.advance_width_max = try self.bit_reader.read(u16);
+        self.font_directory.hhea.min_left_side_bearing = try self.bit_reader.read(i16);
+        self.font_directory.hhea.min_right_side_bearing = try self.bit_reader.read(i16);
+        self.font_directory.hhea.x_max_extent = try self.bit_reader.read(i16);
+        self.font_directory.hhea.caret_slope_rise = try self.bit_reader.read(i16);
+        self.font_directory.hhea.caret_slope_run = try self.bit_reader.read(i16);
+        self.font_directory.hhea.caret_offset = try self.bit_reader.read(i16);
+        self.font_directory.hhea.reserved = try self.bit_reader.read(i64);
+        self.font_directory.hhea.metric_data_format = try self.bit_reader.read(i16);
+        self.font_directory.hhea.number_of_h_metrics = try self.bit_reader.read(u16);
+        std.debug.print("hhea data {any}\n", .{self.font_directory.hhea});
+    }
+
+    pub fn get_horizontal_metrics(self: *Self, glyph_index: u16) struct { advance_width: u16, lsb: i16 } {
+        if (glyph_index > self.font_directory.hmtx.h_metrics.len) {
+            return .{
+                .advance_width = self.font_directory.hmtx.h_metrics[self.font_directory.hmtx.h_metrics.len - 1].advance_width,
+                .lsb = self.font_directory.hmtx.left_side_bearings.?[glyph_index - self.font_directory.hmtx.h_metrics.len],
+            };
+        } else {
+            return .{
+                .advance_width = self.font_directory.hmtx.h_metrics[glyph_index].advance_width,
+                .lsb = self.font_directory.hmtx.h_metrics[glyph_index].lsb,
+            };
+        }
+    }
+
+    fn read_hmtx(self: *Self, offset: u32) Error!void {
+        self.bit_reader.setPos(offset);
+        self.font_directory.hmtx.h_metrics = try self.allocator.alloc(Hmtx.LongHorMetric, self.font_directory.hhea.number_of_h_metrics);
+        for (0..self.font_directory.hmtx.h_metrics.len) |i| {
+            self.font_directory.hmtx.h_metrics[i].advance_width = try self.bit_reader.read(u16);
+            self.font_directory.hmtx.h_metrics[i].lsb = try self.bit_reader.read(i16);
+        }
+        if (self.font_directory.maxp.num_glyphs > self.font_directory.hmtx.h_metrics.len) {
+            self.font_directory.hmtx.left_side_bearings = try self.allocator.alloc(i16, self.font_directory.maxp.num_glyphs - self.font_directory.hmtx.h_metrics.len);
+            for (0..self.font_directory.hmtx.left_side_bearings.?.len) |i| {
+                self.font_directory.hmtx.left_side_bearings.?[i] = try self.bit_reader.read(i16);
+            }
+        }
+
+        std.debug.print("hmtx data {any}\n", .{self.font_directory.hmtx});
     }
 
     fn read_head(self: *Self, offset: u32) Error!void {
@@ -565,10 +760,28 @@ pub const TTF = struct {
         try self.read_head(self.font_directory.head_offset);
         const gpos_table = try self.find_table("GPOS");
         try self.read_gpos(gpos_table.offset);
+        if (self.find_table("kern")) |table| {
+            self.read_kern(table.offset) catch {
+                std.debug.print("Unsupported kern format\n", .{});
+                self.font_directory.kern = null;
+            };
+        } else |_| {
+            std.debug.print("no kern table found\n", .{});
+            self.font_directory.kern = null;
+        }
+        const maxp_table = try self.find_table("maxp");
+        try self.read_maxp(maxp_table.offset);
+        const hhea_table = try self.find_table("hhea");
+        try self.read_hhea(hhea_table.offset);
+        const hmtx_table = try self.find_table("hmtx");
+        try self.read_hmtx(hmtx_table.offset);
         self.print_table();
         self.print_cmap();
         self.print_format4();
         for (65..91) |i| {
+            std.debug.print("{c} = {d}, {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))), try self.get_glyph_offset(self.get_glyph_index(@as(u16, @intCast(i)))) });
+        }
+        for (97..123) |i| {
             std.debug.print("{c} = {d}, {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))), try self.get_glyph_offset(self.get_glyph_index(@as(u16, @intCast(i)))) });
         }
     }
@@ -580,7 +793,7 @@ pub const TTF = struct {
             std.debug.print("{d})\t{c}{c}{c}{c}\t{d}\t{d}\n", .{ i + 1, dir.tag[0], dir.tag[1], dir.tag[2], dir.tag[3], dir.length, dir.offset });
         }
     }
-    //TODO shift every point by the min x and y
+
     fn gen_curves(self: *Self, glyph_outline: *GlyphOutline) Error!void {
         var points: std.ArrayList(Point) = std.ArrayList(Point).init(self.allocator);
         var previous_point: ?Point = null;

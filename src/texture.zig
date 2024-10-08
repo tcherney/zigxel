@@ -49,7 +49,7 @@ pub const Texture = struct {
         var pixel_buffer = try self.allocator.alloc(Pixel, width * height);
         for (0..height) |i| {
             for (0..width) |j| {
-                pixel_buffer[i * width + j] = .{ .r = 0, .g = 0, .b = 0, .a = 255 };
+                pixel_buffer[i * width + j] = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
             }
         }
         for (0..self.height) |i| {
