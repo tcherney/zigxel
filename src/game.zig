@@ -347,7 +347,7 @@ pub const Game = struct {
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
         try font.load("arial.ttf", 64, &self.e.renderer);
-        self.font_tex = try font.texture_from_string("going,");
+        self.font_tex = try font.texture_from_string("hello world");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
         self.e.on_key_down(Self, on_key_down, self);

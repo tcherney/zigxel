@@ -177,16 +177,27 @@ pub const Font = struct {
                     try tex.?.resize(tex.?.width + char_tex.?.*.width, tex.?.height);
                 } else {
                     //std.debug.print("kerning adjust {any}\n", .{self.ttf.kerning_adj(@as(u16, @intCast(str[i - 1])), @as(u16, @intCast(str[i])))});
-                    const larger_height = @max(char_tex.?.height, tex.?.height);
+                    const larger_height: u32 = @max(char_tex.?.height, tex.?.height);
+                    const height_diff: i32 = @as(i32, @bitCast(larger_height)) - @as(i32, @bitCast(tex.?.height));
                     const horizontal_metrics = self.ttf.get_horizontal_metrics(@as(u16, @intCast(str[i - 1])));
                     const width_adjust = @as(u32, @intFromFloat(@as(f32, @floatFromInt(horizontal_metrics.lsb)) * self.scale));
                     //const x_adj = width_adjust;
                     std.debug.print("width adjust {d}\n", .{width_adjust});
                     try tex.?.resize(tex.?.width + char_tex.?.*.width + width_adjust, larger_height);
-                    //const y_adj = if (char_tex.?.*.height < tex.?.height) tex.?.height - char_tex.?.*.height else 0;
+                    if (height_diff > 0) {
+                        var y: usize = tex.?.*.height - 1;
+                        while (y >= @as(u32, @bitCast(height_diff))) : (y -= 1) {
+                            for (0..tex.?.*.width) |x| {
+                                const tmp = tex.?.pixel_buffer[(y - @as(u32, @bitCast(height_diff))) * tex.?.width + x];
+                                tex.?.pixel_buffer[(y - @as(u32, @bitCast(height_diff))) * tex.?.width + x] = tex.?.pixel_buffer[y * tex.?.width + x];
+                                tex.?.pixel_buffer[y * tex.?.width + x] = tmp;
+                            }
+                        }
+                    }
+                    const y_adj = if (char_tex.?.*.height < tex.?.height) tex.?.height - char_tex.?.*.height else 0;
                     for (0..char_tex.?.*.height) |y| {
                         for (0..char_tex.?.*.width) |x| {
-                            tex.?.pixel_buffer[(y) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))] = char_tex.?.*.pixel_buffer[y * char_tex.?.*.width + x];
+                            tex.?.pixel_buffer[(y + y_adj) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))] = char_tex.?.*.pixel_buffer[y * char_tex.?.*.width + x];
                         }
                     }
                 }
