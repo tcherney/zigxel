@@ -123,8 +123,37 @@ pub const TTF = struct {
                 };
             };
         };
-        pub const FeatureList = struct {};
-        pub const LookupList = struct {};
+        pub const FeatureList = struct {
+            feature_count: u16,
+            feature_records: []FeatureRecord,
+            pub const FeatureRecord = struct {
+                feature_tag: [4]u8,
+                feature_offset: u16,
+                feature_params_offset: u16,
+                lookup_index_count: u16,
+                lookup_list_indicies: []u16,
+            };
+        };
+        pub const LookupList = struct {
+            lookup_count: u16,
+            lookups: []Lookup,
+            pub const Lookup = struct {
+                lookup_offset: u16,
+                lookup_type: u16,
+                lookup_flag: u16,
+                subtable_count: u16,
+                subtables: SubTable,
+                pub const SubTable = struct {
+                    offset: u16,
+                    format: u16,
+                    glyph_count: ?u16 = null,
+                    glyph_array: ?[]u16 = null,
+                    range_count: ?u16 = null,
+                    range_records: ?[]RangeRecord = null,
+                    pub const RangeRecord = struct { start_gylph_id: u16, end_glyph_id: u16, start_coverage_index: u16 };
+                };
+            };
+        };
         pub const SinglePosFormat = struct {
             format: u16,
             coverage_offset: u16,
@@ -619,6 +648,7 @@ pub const TTF = struct {
         self.font_directory.gpos.header.feature_list_offset = try self.bit_reader.read(u16);
         self.font_directory.gpos.header.lookup_list_offset = try self.bit_reader.read(u16);
         self.font_directory.gpos.header.feature_variations_offset = if (self.font_directory.gpos.header.minor_version == 1) try self.bit_reader.read(u16) else null;
+        //scriptlist
         self.bit_reader.setPos(offset + self.font_directory.gpos.header.script_list_offset);
         self.font_directory.gpos.script_list.script_count = try self.bit_reader.read(u16);
         self.font_directory.gpos.script_list.script_records = try self.allocator.alloc(GPOS.ScriptList.ScriptRecord, self.font_directory.gpos.script_list.script_count);
@@ -660,6 +690,10 @@ pub const TTF = struct {
                 std.debug.print("LangSysRecords tag = {s}, lang_sys_offset = {d}, lookup_order_offset = {d}, required_feature_index = {d}, feature_index_count = {d}, feature_indicies = {any} \n", .{ self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.lookup_order_offset, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.required_feature_index, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies });
             }
         }
+        //featurelist
+        self.bit_reader.setPos(offset + self.font_directory.gpos.header.feature_list_offset);
+        //lookup
+        self.bit_reader.setPos(offset + self.font_directory.gpos.header.lookup_list_offset);
     }
 
     //TODO fix linear scan to be binary search
