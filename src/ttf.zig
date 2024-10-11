@@ -21,7 +21,7 @@ pub const TTF = struct {
         table_directory: []TableDirectory = undefined,
         format4: CMAP.Format4 = undefined,
         cmap: CMAP = undefined,
-        gpos: GPOS = undefined,
+        gpos: ?GPOS = undefined,
         glyf_offset: u32 = undefined,
         loca_offset: u32 = undefined,
         head_offset: u32 = undefined,
@@ -96,9 +96,9 @@ pub const TTF = struct {
     };
     pub const GPOS = struct {
         header: Header = undefined,
-        script_list: ScriptList,
-        lookup_list: LookupList,
-        feature_list: FeatureList,
+        script_list: ScriptList = undefined,
+        lookup_list: LookupList = undefined,
+        feature_list: FeatureList = undefined,
         pub const Header = struct { major_version: u16, minor_version: u16, script_list_offset: u16, feature_list_offset: u16, lookup_list_offset: u16, feature_variations_offset: ?u32 = null };
         pub const ScriptList = struct {
             script_count: u16,
@@ -419,29 +419,31 @@ pub const TTF = struct {
             self.allocator.free(self.font_directory.hmtx.left_side_bearings.?);
         }
 
-        for (0..self.font_directory.gpos.script_list.script_records.len) |i| {
-            for (0..self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
-                self.allocator.free(self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies);
-            }
-            self.allocator.free(self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records);
-        }
-        self.allocator.free(self.font_directory.gpos.script_list.script_records);
-        for (0..self.font_directory.gpos.feature_list.feature_records.len) |i| {
-            self.allocator.free(self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies);
-        }
-        self.allocator.free(self.font_directory.gpos.feature_list.feature_records);
-
-        for (0..self.font_directory.gpos.lookup_list.lookups.len) |i| {
-            for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables.len) |j| {
-                if (self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format == 1) {
-                    self.allocator.free(self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array.?);
-                } else {
-                    self.allocator.free(self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?);
+        if (self.font_directory.gpos != null) {
+            for (0..self.font_directory.gpos.?.script_list.script_records.len) |i| {
+                for (0..self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
+                    self.allocator.free(self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies);
                 }
+                self.allocator.free(self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records);
             }
-            self.allocator.free(self.font_directory.gpos.lookup_list.lookups[i].subtables);
+            self.allocator.free(self.font_directory.gpos.?.script_list.script_records);
+            for (0..self.font_directory.gpos.?.feature_list.feature_records.len) |i| {
+                self.allocator.free(self.font_directory.gpos.?.feature_list.feature_records[i].lookup_list_indicies);
+            }
+            self.allocator.free(self.font_directory.gpos.?.feature_list.feature_records);
+
+            for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
+                for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
+                    if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].format == 1) {
+                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].glyph_array.?);
+                    } else {
+                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?);
+                    }
+                }
+                self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables);
+            }
+            self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups);
         }
-        self.allocator.free(self.font_directory.gpos.lookup_list.lookups);
     }
 
     fn find_table(self: *Self, table_name: []const u8) Error!*TableDirectory {
@@ -661,127 +663,128 @@ pub const TTF = struct {
     //TODO store GPOS data to be used in glyph rendering
     fn read_gpos(self: *Self, offset: u32) Error!void {
         self.bit_reader.setPos(offset);
-        self.font_directory.gpos.header.major_version = try self.bit_reader.read(u16);
-        self.font_directory.gpos.header.minor_version = try self.bit_reader.read(u16);
-        self.font_directory.gpos.header.script_list_offset = try self.bit_reader.read(u16);
-        self.font_directory.gpos.header.feature_list_offset = try self.bit_reader.read(u16);
-        self.font_directory.gpos.header.lookup_list_offset = try self.bit_reader.read(u16);
-        self.font_directory.gpos.header.feature_variations_offset = if (self.font_directory.gpos.header.minor_version == 1) try self.bit_reader.read(u16) else null;
+        self.font_directory.gpos = GPOS{};
+        self.font_directory.gpos.?.header.major_version = try self.bit_reader.read(u16);
+        self.font_directory.gpos.?.header.minor_version = try self.bit_reader.read(u16);
+        self.font_directory.gpos.?.header.script_list_offset = try self.bit_reader.read(u16);
+        self.font_directory.gpos.?.header.feature_list_offset = try self.bit_reader.read(u16);
+        self.font_directory.gpos.?.header.lookup_list_offset = try self.bit_reader.read(u16);
+        self.font_directory.gpos.?.header.feature_variations_offset = if (self.font_directory.gpos.?.header.minor_version == 1) try self.bit_reader.read(u16) else null;
         //scriptlist
-        self.bit_reader.setPos(offset + self.font_directory.gpos.header.script_list_offset);
-        self.font_directory.gpos.script_list.script_count = try self.bit_reader.read(u16);
-        self.font_directory.gpos.script_list.script_records = try self.allocator.alloc(GPOS.ScriptList.ScriptRecord, self.font_directory.gpos.script_list.script_count);
-        for (0..self.font_directory.gpos.script_list.script_records.len) |i| {
-            self.font_directory.gpos.script_list.script_records[i].script_tag[0] = try self.bit_reader.read(u8);
-            self.font_directory.gpos.script_list.script_records[i].script_tag[1] = try self.bit_reader.read(u8);
-            self.font_directory.gpos.script_list.script_records[i].script_tag[2] = try self.bit_reader.read(u8);
-            self.font_directory.gpos.script_list.script_records[i].script_tag[3] = try self.bit_reader.read(u8);
-            self.font_directory.gpos.script_list.script_records[i].script_offset = try self.bit_reader.read(u16);
+        self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.script_list_offset);
+        self.font_directory.gpos.?.script_list.script_count = try self.bit_reader.read(u16);
+        self.font_directory.gpos.?.script_list.script_records = try self.allocator.alloc(GPOS.ScriptList.ScriptRecord, self.font_directory.gpos.?.script_list.script_count);
+        for (0..self.font_directory.gpos.?.script_list.script_records.len) |i| {
+            self.font_directory.gpos.?.script_list.script_records[i].script_tag[0] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.?.script_list.script_records[i].script_tag[1] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.?.script_list.script_records[i].script_tag[2] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.?.script_list.script_records[i].script_tag[3] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.?.script_list.script_records[i].script_offset = try self.bit_reader.read(u16);
         }
-        for (0..self.font_directory.gpos.script_list.script_records.len) |i| {
-            self.bit_reader.setPos(offset + self.font_directory.gpos.header.script_list_offset + self.font_directory.gpos.script_list.script_records[i].script_offset);
-            self.font_directory.gpos.script_list.script_records[i].script_table.default_lang_sys_offset = try self.bit_reader.read(u16);
-            self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_count = try self.bit_reader.read(u16);
-            self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records = try self.allocator.alloc(GPOS.ScriptList.ScriptRecord.ScriptTable.LangSysRecord, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_count);
-            for (0..self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag[0] = try self.bit_reader.read(u8);
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag[1] = try self.bit_reader.read(u8);
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag[2] = try self.bit_reader.read(u8);
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag[3] = try self.bit_reader.read(u8);
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset = try self.bit_reader.read(u16);
+        for (0..self.font_directory.gpos.?.script_list.script_records.len) |i| {
+            self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.script_list_offset + self.font_directory.gpos.?.script_list.script_records[i].script_offset);
+            self.font_directory.gpos.?.script_list.script_records[i].script_table.default_lang_sys_offset = try self.bit_reader.read(u16);
+            self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_count = try self.bit_reader.read(u16);
+            self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records = try self.allocator.alloc(GPOS.ScriptList.ScriptRecord.ScriptTable.LangSysRecord, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_count);
+            for (0..self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag[0] = try self.bit_reader.read(u8);
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag[1] = try self.bit_reader.read(u8);
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag[2] = try self.bit_reader.read(u8);
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag[3] = try self.bit_reader.read(u8);
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset = try self.bit_reader.read(u16);
             }
-            for (0..self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
-                self.bit_reader.setPos(offset + self.font_directory.gpos.header.script_list_offset + self.font_directory.gpos.script_list.script_records[i].script_offset + self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset);
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.lookup_order_offset = try self.bit_reader.read(u16);
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.required_feature_index = try self.bit_reader.read(u16);
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count = try self.bit_reader.read(u16);
-                self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies = try self.allocator.alloc(u16, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count);
-                for (0..self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies.len) |k| {
-                    self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies[k] = try self.bit_reader.read(u16);
+            for (0..self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
+                self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.script_list_offset + self.font_directory.gpos.?.script_list.script_records[i].script_offset + self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset);
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.lookup_order_offset = try self.bit_reader.read(u16);
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.required_feature_index = try self.bit_reader.read(u16);
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count = try self.bit_reader.read(u16);
+                self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies = try self.allocator.alloc(u16, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count);
+                for (0..self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies.len) |k| {
+                    self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies[k] = try self.bit_reader.read(u16);
                 }
             }
         }
-        std.debug.print("GPOS header {any}\n", .{self.font_directory.gpos.header});
-        std.debug.print("ScriptList Count = {d}\n", .{self.font_directory.gpos.script_list.script_count});
-        for (0..self.font_directory.gpos.script_list.script_records.len) |i| {
-            std.debug.print("ScriptRecords tag = {s}, offset = {d}, default_lang_sys_offset = {d}, lang_sys_count = {d}\n", .{ self.font_directory.gpos.script_list.script_records[i].script_tag, self.font_directory.gpos.script_list.script_records[i].script_offset, self.font_directory.gpos.script_list.script_records[i].script_table.default_lang_sys_offset, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_count });
-            for (0..self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
-                std.debug.print("LangSysRecords tag = {s}, lang_sys_offset = {d}, lookup_order_offset = {d}, required_feature_index = {d}, feature_index_count = {d}, feature_indicies = {any} \n", .{ self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.lookup_order_offset, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.required_feature_index, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies });
+        std.debug.print("GPOS header {any}\n", .{self.font_directory.gpos.?.header});
+        std.debug.print("ScriptList Count = {d}\n", .{self.font_directory.gpos.?.script_list.script_count});
+        for (0..self.font_directory.gpos.?.script_list.script_records.len) |i| {
+            std.debug.print("ScriptRecords tag = {s}, offset = {d}, default_lang_sys_offset = {d}, lang_sys_count = {d}\n", .{ self.font_directory.gpos.?.script_list.script_records[i].script_tag, self.font_directory.gpos.?.script_list.script_records[i].script_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.default_lang_sys_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_count });
+            for (0..self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
+                std.debug.print("LangSysRecords tag = {s}, lang_sys_offset = {d}, lookup_order_offset = {d}, required_feature_index = {d}, feature_index_count = {d}, feature_indicies = {any} \n", .{ self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.lookup_order_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.required_feature_index, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies });
             }
         }
         //lookup
-        self.bit_reader.setPos(offset + self.font_directory.gpos.header.lookup_list_offset);
-        self.font_directory.gpos.lookup_list.lookup_count = try self.bit_reader.read(u16);
-        self.font_directory.gpos.lookup_list.lookups = try self.allocator.alloc(GPOS.LookupList.Lookup, self.font_directory.gpos.lookup_list.lookup_count);
-        for (0..self.font_directory.gpos.lookup_list.lookups.len) |i| {
-            self.font_directory.gpos.lookup_list.lookups[i].lookup_offset = try self.bit_reader.read(u16);
+        self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.lookup_list_offset);
+        self.font_directory.gpos.?.lookup_list.lookup_count = try self.bit_reader.read(u16);
+        self.font_directory.gpos.?.lookup_list.lookups = try self.allocator.alloc(GPOS.LookupList.Lookup, self.font_directory.gpos.?.lookup_list.lookup_count);
+        for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
+            self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset = try self.bit_reader.read(u16);
         }
-        for (0..self.font_directory.gpos.lookup_list.lookups.len) |i| {
-            self.bit_reader.setPos(offset + self.font_directory.gpos.header.lookup_list_offset + self.font_directory.gpos.lookup_list.lookups[i].lookup_offset);
-            self.font_directory.gpos.lookup_list.lookups[i].lookup_type = try self.bit_reader.read(u16);
-            self.font_directory.gpos.lookup_list.lookups[i].lookup_flag = try self.bit_reader.read(u16);
-            self.font_directory.gpos.lookup_list.lookups[i].subtable_count = try self.bit_reader.read(u16);
-            self.font_directory.gpos.lookup_list.lookups[i].subtables = try self.allocator.alloc(GPOS.LookupList.Lookup.SubTable, self.font_directory.gpos.lookup_list.lookups[i].subtable_count);
-            for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables.len) |j| {
-                self.font_directory.gpos.lookup_list.lookups[i].subtables[j].offset = try self.bit_reader.read(u16);
+        for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
+            self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.lookup_list_offset + self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset);
+            self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type = try self.bit_reader.read(u16);
+            self.font_directory.gpos.?.lookup_list.lookups[i].lookup_flag = try self.bit_reader.read(u16);
+            self.font_directory.gpos.?.lookup_list.lookups[i].subtable_count = try self.bit_reader.read(u16);
+            self.font_directory.gpos.?.lookup_list.lookups[i].subtables = try self.allocator.alloc(GPOS.LookupList.Lookup.SubTable, self.font_directory.gpos.?.lookup_list.lookups[i].subtable_count);
+            for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
+                self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].offset = try self.bit_reader.read(u16);
             }
-            for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables.len) |j| {
-                self.bit_reader.setPos(offset + self.font_directory.gpos.header.lookup_list_offset + self.font_directory.gpos.lookup_list.lookups[i].lookup_offset + self.font_directory.gpos.lookup_list.lookups[i].subtables[j].offset);
-                self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format = try self.bit_reader.read(u16);
-                if (self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format == 1) {
-                    self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_count = try self.bit_reader.read(u16);
-                    self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array = try self.allocator.alloc(u16, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_count.?);
-                    for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array.?.len) |k| {
-                        self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array.?[k] = try self.bit_reader.read(u16);
+            for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
+                self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.lookup_list_offset + self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset + self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].offset);
+                self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].format = try self.bit_reader.read(u16);
+                if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].format == 1) {
+                    self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].glyph_count = try self.bit_reader.read(u16);
+                    self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].glyph_array = try self.allocator.alloc(u16, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].glyph_count.?);
+                    for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].glyph_array.?.len) |k| {
+                        self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].glyph_array.?[k] = try self.bit_reader.read(u16);
                     }
                 } else {
-                    self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_count = try self.bit_reader.read(u16);
-                    self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records = try self.allocator.alloc(GPOS.LookupList.Lookup.SubTable.RangeRecord, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_count.?);
-                    for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?.len) |k| {
-                        self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].start_gylph_id = try self.bit_reader.read(u16);
-                        self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].end_glyph_id = try self.bit_reader.read(u16);
-                        self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].start_coverage_index = try self.bit_reader.read(u16);
+                    self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_count = try self.bit_reader.read(u16);
+                    self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records = try self.allocator.alloc(GPOS.LookupList.Lookup.SubTable.RangeRecord, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_count.?);
+                    for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?.len) |k| {
+                        self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?[k].start_gylph_id = try self.bit_reader.read(u16);
+                        self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?[k].end_glyph_id = try self.bit_reader.read(u16);
+                        self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?[k].start_coverage_index = try self.bit_reader.read(u16);
                     }
                 }
             }
         }
-        std.debug.print("LookupList Count = {d}\n", .{self.font_directory.gpos.lookup_list.lookup_count});
-        for (0..self.font_directory.gpos.lookup_list.lookups.len) |i| {
-            std.debug.print("Lookups offset = {d}, lookup_type = {d}, lookup_flag = {d}, subtable_count = {d}\n", .{ self.font_directory.gpos.lookup_list.lookups[i].lookup_offset, self.font_directory.gpos.lookup_list.lookups[i].lookup_type, self.font_directory.gpos.lookup_list.lookups[i].lookup_flag, self.font_directory.gpos.lookup_list.lookups[i].subtable_count });
-            for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables.len) |j| {
-                if (self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format == 1) {
-                    std.debug.print("SubTables offset = {d}, format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ self.font_directory.gpos.lookup_list.lookups[i].subtables[j].offset, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_count.?, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array.? });
+        std.debug.print("LookupList Count = {d}\n", .{self.font_directory.gpos.?.lookup_list.lookup_count});
+        for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
+            std.debug.print("Lookups offset = {d}, lookup_type = {d}, lookup_flag = {d}, subtable_count = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_flag, self.font_directory.gpos.?.lookup_list.lookups[i].subtable_count });
+            for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
+                if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].format == 1) {
+                    std.debug.print("SubTables offset = {d}, format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].offset, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].format, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].glyph_count.?, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].glyph_array.? });
                 } else {
-                    std.debug.print("SubTables offset = {d}, format = {d}, range_count = {d}\n", .{ self.font_directory.gpos.lookup_list.lookups[i].subtables[j].offset, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_count.? });
-                    for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?.len) |k| {
-                        std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].start_gylph_id, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].end_glyph_id, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].start_coverage_index });
+                    std.debug.print("SubTables offset = {d}, format = {d}, range_count = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].offset, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].format, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_count.? });
+                    for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?.len) |k| {
+                        std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?[k].start_gylph_id, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?[k].end_glyph_id, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].range_records.?[k].start_coverage_index });
                     }
                 }
             }
         }
         //featurelist
-        self.bit_reader.setPos(offset + self.font_directory.gpos.header.feature_list_offset);
-        self.font_directory.gpos.feature_list.feature_count = try self.bit_reader.read(u16);
-        self.font_directory.gpos.feature_list.feature_records = try self.allocator.alloc(GPOS.FeatureList.FeatureRecord, self.font_directory.gpos.feature_list.feature_count);
-        for (0..self.font_directory.gpos.feature_list.feature_records.len) |i| {
-            self.font_directory.gpos.feature_list.feature_records[i].feature_tag[0] = try self.bit_reader.read(u8);
-            self.font_directory.gpos.feature_list.feature_records[i].feature_tag[1] = try self.bit_reader.read(u8);
-            self.font_directory.gpos.feature_list.feature_records[i].feature_tag[2] = try self.bit_reader.read(u8);
-            self.font_directory.gpos.feature_list.feature_records[i].feature_tag[3] = try self.bit_reader.read(u8);
-            self.font_directory.gpos.feature_list.feature_records[i].feature_offset = try self.bit_reader.read(u16);
+        self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.feature_list_offset);
+        self.font_directory.gpos.?.feature_list.feature_count = try self.bit_reader.read(u16);
+        self.font_directory.gpos.?.feature_list.feature_records = try self.allocator.alloc(GPOS.FeatureList.FeatureRecord, self.font_directory.gpos.?.feature_list.feature_count);
+        for (0..self.font_directory.gpos.?.feature_list.feature_records.len) |i| {
+            self.font_directory.gpos.?.feature_list.feature_records[i].feature_tag[0] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.?.feature_list.feature_records[i].feature_tag[1] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.?.feature_list.feature_records[i].feature_tag[2] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.?.feature_list.feature_records[i].feature_tag[3] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.?.feature_list.feature_records[i].feature_offset = try self.bit_reader.read(u16);
         }
-        for (0..self.font_directory.gpos.feature_list.feature_records.len) |i| {
-            self.bit_reader.setPos(self.font_directory.gpos.feature_list.feature_records[i].feature_offset + offset + self.font_directory.gpos.header.feature_list_offset);
-            self.font_directory.gpos.feature_list.feature_records[i].feature_params_offset = try self.bit_reader.read(u16);
-            self.font_directory.gpos.feature_list.feature_records[i].lookup_index_count = try self.bit_reader.read(u16);
-            self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies = try self.allocator.alloc(u16, self.font_directory.gpos.feature_list.feature_records[i].lookup_index_count);
-            for (0..self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies.len) |j| {
-                self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies[j] = try self.bit_reader.read(u16);
+        for (0..self.font_directory.gpos.?.feature_list.feature_records.len) |i| {
+            self.bit_reader.setPos(self.font_directory.gpos.?.feature_list.feature_records[i].feature_offset + offset + self.font_directory.gpos.?.header.feature_list_offset);
+            self.font_directory.gpos.?.feature_list.feature_records[i].feature_params_offset = try self.bit_reader.read(u16);
+            self.font_directory.gpos.?.feature_list.feature_records[i].lookup_index_count = try self.bit_reader.read(u16);
+            self.font_directory.gpos.?.feature_list.feature_records[i].lookup_list_indicies = try self.allocator.alloc(u16, self.font_directory.gpos.?.feature_list.feature_records[i].lookup_index_count);
+            for (0..self.font_directory.gpos.?.feature_list.feature_records[i].lookup_list_indicies.len) |j| {
+                self.font_directory.gpos.?.feature_list.feature_records[i].lookup_list_indicies[j] = try self.bit_reader.read(u16);
             }
         }
-        std.debug.print("FeatureList Count = {d}\n", .{self.font_directory.gpos.feature_list.feature_count});
-        for (0..self.font_directory.gpos.script_list.script_records.len) |i| {
-            std.debug.print("FeatureRecord tag = {s}, offset = {d}, feature_params_offset = {d}, lookup_index_count = {d}, lookup_list_indicies = {any}\n", .{ self.font_directory.gpos.feature_list.feature_records[i].feature_tag, self.font_directory.gpos.feature_list.feature_records[i].feature_offset, self.font_directory.gpos.feature_list.feature_records[i].feature_params_offset, self.font_directory.gpos.feature_list.feature_records[i].lookup_index_count, self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies });
+        std.debug.print("FeatureList Count = {d}\n", .{self.font_directory.gpos.?.feature_list.feature_count});
+        for (0..self.font_directory.gpos.?.script_list.script_records.len) |i| {
+            std.debug.print("FeatureRecord tag = {s}, offset = {d}, feature_params_offset = {d}, lookup_index_count = {d}, lookup_list_indicies = {any}\n", .{ self.font_directory.gpos.?.feature_list.feature_records[i].feature_tag, self.font_directory.gpos.?.feature_list.feature_records[i].feature_offset, self.font_directory.gpos.?.feature_list.feature_records[i].feature_params_offset, self.font_directory.gpos.?.feature_list.feature_records[i].lookup_index_count, self.font_directory.gpos.?.feature_list.feature_records[i].lookup_list_indicies });
         }
     }
 
@@ -957,8 +960,12 @@ pub const TTF = struct {
         const head_table = try self.find_table("head");
         self.font_directory.head_offset = head_table.offset;
         try self.read_head(self.font_directory.head_offset);
-        const gpos_table = try self.find_table("GPOS");
-        try self.read_gpos(gpos_table.offset);
+        if (self.find_table("GPOS")) |table| {
+            try self.read_gpos(table.offset);
+        } else |_| {
+            std.debug.print("no gpos table found\n", .{});
+            self.font_directory.gpos = null;
+        }
         if (self.find_table("kern")) |table| {
             self.read_kern(table.offset) catch {
                 std.debug.print("Unsupported kern format\n", .{});

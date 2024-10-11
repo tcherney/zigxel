@@ -180,7 +180,10 @@ pub const Font = struct {
                     const larger_height: u32 = @max(char_tex.?.height, tex.?.height);
                     const height_diff: i32 = @as(i32, @bitCast(larger_height)) - @as(i32, @bitCast(tex.?.height));
                     const horizontal_metrics = self.ttf.get_horizontal_metrics(@as(u16, @intCast(str[i - 1])));
-                    const width_adjust = @as(u32, @intFromFloat(@as(f32, @floatFromInt(horizontal_metrics.lsb)) * self.scale));
+                    const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(character);
+                    std.debug.print("x_max {d}, advance_width {d}\n", .{ glyph_outline.?.x_max, horizontal_metrics.advance_width });
+                    const advance = if ((@as(i16, @bitCast(horizontal_metrics.advance_width)) - glyph_outline.?.x_max) < 0) 0 else @as(i16, @bitCast(horizontal_metrics.advance_width)) - glyph_outline.?.x_max;
+                    const width_adjust = @as(u32, @intFromFloat(@as(f32, @floatFromInt(advance + horizontal_metrics.lsb)) * self.scale));
                     //const x_adj = width_adjust;
                     std.debug.print("width adjust {d}\n", .{width_adjust});
                     try tex.?.resize(tex.?.width + char_tex.?.*.width + width_adjust, larger_height);
