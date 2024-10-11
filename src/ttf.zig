@@ -97,6 +97,8 @@ pub const TTF = struct {
     pub const GPOS = struct {
         header: Header = undefined,
         script_list: ScriptList,
+        lookup_list: LookupList,
+        feature_list: FeatureList,
         pub const Header = struct { major_version: u16, minor_version: u16, script_list_offset: u16, feature_list_offset: u16, lookup_list_offset: u16, feature_variations_offset: ?u32 = null };
         pub const ScriptList = struct {
             script_count: u16,
@@ -142,7 +144,7 @@ pub const TTF = struct {
                 lookup_type: u16,
                 lookup_flag: u16,
                 subtable_count: u16,
-                subtables: SubTable,
+                subtables: []SubTable,
                 pub const SubTable = struct {
                     offset: u16,
                     format: u16,
@@ -424,6 +426,22 @@ pub const TTF = struct {
             self.allocator.free(self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records);
         }
         self.allocator.free(self.font_directory.gpos.script_list.script_records);
+        for (0..self.font_directory.gpos.feature_list.feature_records.len) |i| {
+            self.allocator.free(self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies);
+        }
+        self.allocator.free(self.font_directory.gpos.feature_list.feature_records);
+
+        for (0..self.font_directory.gpos.lookup_list.lookups.len) |i| {
+            for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables.len) |j| {
+                if (self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format == 1) {
+                    self.allocator.free(self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array.?);
+                } else {
+                    self.allocator.free(self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?);
+                }
+            }
+            self.allocator.free(self.font_directory.gpos.lookup_list.lookups[i].subtables);
+        }
+        self.allocator.free(self.font_directory.gpos.lookup_list.lookups);
     }
 
     fn find_table(self: *Self, table_name: []const u8) Error!*TableDirectory {
@@ -639,6 +657,7 @@ pub const TTF = struct {
             return @as(usize, @intCast(try self.bit_reader.read(u32)));
         }
     }
+    //https://learn.microsoft.com/en-us/typography/opentype/spec/gpos
     //TODO store GPOS data to be used in glyph rendering
     fn read_gpos(self: *Self, offset: u32) Error!void {
         self.bit_reader.setPos(offset);
@@ -690,10 +709,80 @@ pub const TTF = struct {
                 std.debug.print("LangSysRecords tag = {s}, lang_sys_offset = {d}, lookup_order_offset = {d}, required_feature_index = {d}, feature_index_count = {d}, feature_indicies = {any} \n", .{ self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.lookup_order_offset, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.required_feature_index, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count, self.font_directory.gpos.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies });
             }
         }
-        //featurelist
-        self.bit_reader.setPos(offset + self.font_directory.gpos.header.feature_list_offset);
         //lookup
         self.bit_reader.setPos(offset + self.font_directory.gpos.header.lookup_list_offset);
+        self.font_directory.gpos.lookup_list.lookup_count = try self.bit_reader.read(u16);
+        self.font_directory.gpos.lookup_list.lookups = try self.allocator.alloc(GPOS.LookupList.Lookup, self.font_directory.gpos.lookup_list.lookup_count);
+        for (0..self.font_directory.gpos.lookup_list.lookups.len) |i| {
+            self.font_directory.gpos.lookup_list.lookups[i].lookup_offset = try self.bit_reader.read(u16);
+        }
+        for (0..self.font_directory.gpos.lookup_list.lookups.len) |i| {
+            self.bit_reader.setPos(offset + self.font_directory.gpos.header.lookup_list_offset + self.font_directory.gpos.lookup_list.lookups[i].lookup_offset);
+            self.font_directory.gpos.lookup_list.lookups[i].lookup_type = try self.bit_reader.read(u16);
+            self.font_directory.gpos.lookup_list.lookups[i].lookup_flag = try self.bit_reader.read(u16);
+            self.font_directory.gpos.lookup_list.lookups[i].subtable_count = try self.bit_reader.read(u16);
+            self.font_directory.gpos.lookup_list.lookups[i].subtables = try self.allocator.alloc(GPOS.LookupList.Lookup.SubTable, self.font_directory.gpos.lookup_list.lookups[i].subtable_count);
+            for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables.len) |j| {
+                self.font_directory.gpos.lookup_list.lookups[i].subtables[j].offset = try self.bit_reader.read(u16);
+            }
+            for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables.len) |j| {
+                self.bit_reader.setPos(offset + self.font_directory.gpos.header.lookup_list_offset + self.font_directory.gpos.lookup_list.lookups[i].lookup_offset + self.font_directory.gpos.lookup_list.lookups[i].subtables[j].offset);
+                self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format = try self.bit_reader.read(u16);
+                if (self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format == 1) {
+                    self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_count = try self.bit_reader.read(u16);
+                    self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array = try self.allocator.alloc(u16, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_count.?);
+                    for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array.?.len) |k| {
+                        self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array.?[k] = try self.bit_reader.read(u16);
+                    }
+                } else {
+                    self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_count = try self.bit_reader.read(u16);
+                    self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records = try self.allocator.alloc(GPOS.LookupList.Lookup.SubTable.RangeRecord, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_count.?);
+                    for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?.len) |k| {
+                        self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].start_gylph_id = try self.bit_reader.read(u16);
+                        self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].end_glyph_id = try self.bit_reader.read(u16);
+                        self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].start_coverage_index = try self.bit_reader.read(u16);
+                    }
+                }
+            }
+        }
+        std.debug.print("LookupList Count = {d}\n", .{self.font_directory.gpos.lookup_list.lookup_count});
+        for (0..self.font_directory.gpos.lookup_list.lookups.len) |i| {
+            std.debug.print("Lookups offset = {d}, lookup_type = {d}, lookup_flag = {d}, subtable_count = {d}\n", .{ self.font_directory.gpos.lookup_list.lookups[i].lookup_offset, self.font_directory.gpos.lookup_list.lookups[i].lookup_type, self.font_directory.gpos.lookup_list.lookups[i].lookup_flag, self.font_directory.gpos.lookup_list.lookups[i].subtable_count });
+            for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables.len) |j| {
+                if (self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format == 1) {
+                    std.debug.print("SubTables offset = {d}, format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ self.font_directory.gpos.lookup_list.lookups[i].subtables[j].offset, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_count.?, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].glyph_array.? });
+                } else {
+                    std.debug.print("SubTables offset = {d}, format = {d}, range_count = {d}\n", .{ self.font_directory.gpos.lookup_list.lookups[i].subtables[j].offset, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].format, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_count.? });
+                    for (0..self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?.len) |k| {
+                        std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].start_gylph_id, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].end_glyph_id, self.font_directory.gpos.lookup_list.lookups[i].subtables[j].range_records.?[k].start_coverage_index });
+                    }
+                }
+            }
+        }
+        //featurelist
+        self.bit_reader.setPos(offset + self.font_directory.gpos.header.feature_list_offset);
+        self.font_directory.gpos.feature_list.feature_count = try self.bit_reader.read(u16);
+        self.font_directory.gpos.feature_list.feature_records = try self.allocator.alloc(GPOS.FeatureList.FeatureRecord, self.font_directory.gpos.feature_list.feature_count);
+        for (0..self.font_directory.gpos.feature_list.feature_records.len) |i| {
+            self.font_directory.gpos.feature_list.feature_records[i].feature_tag[0] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.feature_list.feature_records[i].feature_tag[1] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.feature_list.feature_records[i].feature_tag[2] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.feature_list.feature_records[i].feature_tag[3] = try self.bit_reader.read(u8);
+            self.font_directory.gpos.feature_list.feature_records[i].feature_offset = try self.bit_reader.read(u16);
+        }
+        for (0..self.font_directory.gpos.feature_list.feature_records.len) |i| {
+            self.bit_reader.setPos(self.font_directory.gpos.feature_list.feature_records[i].feature_offset + offset + self.font_directory.gpos.header.feature_list_offset);
+            self.font_directory.gpos.feature_list.feature_records[i].feature_params_offset = try self.bit_reader.read(u16);
+            self.font_directory.gpos.feature_list.feature_records[i].lookup_index_count = try self.bit_reader.read(u16);
+            self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies = try self.allocator.alloc(u16, self.font_directory.gpos.feature_list.feature_records[i].lookup_index_count);
+            for (0..self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies.len) |j| {
+                self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies[j] = try self.bit_reader.read(u16);
+            }
+        }
+        std.debug.print("FeatureList Count = {d}\n", .{self.font_directory.gpos.feature_list.feature_count});
+        for (0..self.font_directory.gpos.script_list.script_records.len) |i| {
+            std.debug.print("FeatureRecord tag = {s}, offset = {d}, feature_params_offset = {d}, lookup_index_count = {d}, lookup_list_indicies = {any}\n", .{ self.font_directory.gpos.feature_list.feature_records[i].feature_tag, self.font_directory.gpos.feature_list.feature_records[i].feature_offset, self.font_directory.gpos.feature_list.feature_records[i].feature_params_offset, self.font_directory.gpos.feature_list.feature_records[i].lookup_index_count, self.font_directory.gpos.feature_list.feature_records[i].lookup_list_indicies });
+        }
     }
 
     //TODO fix linear scan to be binary search
