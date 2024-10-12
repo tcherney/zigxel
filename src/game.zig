@@ -346,7 +346,7 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
-        try font.load("envy.ttf", 64, &self.e.renderer);
+        try font.load("arial.ttf", 64, &self.e.renderer);
         self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();

@@ -46,6 +46,7 @@ pub const Texture = struct {
 
     // resize without adjusting where pixels lie
     pub fn resize(self: *Self, width: u32, height: u32) Error!void {
+        std.debug.print("resizing from {d}x{d} to {d}x{d}\n", .{ self.width, self.height, width, height });
         var pixel_buffer = try self.allocator.alloc(Pixel, width * height);
         for (0..height) |i| {
             for (0..width) |j| {

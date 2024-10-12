@@ -157,9 +157,11 @@ pub const Font = struct {
     //TODO figure out kerning
     pub fn texture_from_string(self: *Self, str: []const u8) Error!*Texture {
         var tex: ?*Texture = null;
+        var baseline_y: u32 = 0;
         for (0..str.len) |i| {
             const character = str[i];
             const char_tex = self.chars.get(character);
+            std.debug.print("rendering {c}\n", .{character});
             if (tex == null) {
                 std.debug.print("grabbing copy\n", .{});
                 if (char_tex == null) continue;
@@ -169,24 +171,49 @@ pub const Font = struct {
                     try tex.?.rect(char_tex.?.width, char_tex.?.height, 0, 0, 0, 0);
                 } else {
                     tex = try char_tex.?.*.copy();
+                    const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(character);
+                    const y_from_base = @as(u32, @intFromFloat(@abs(@as(f32, @floatFromInt(glyph_outline.?.y_min)) * self.scale)));
+                    std.debug.print("y_from_base {d}, baseline_y {d}\n", .{ y_from_base, baseline_y });
+                    if (y_from_base > baseline_y) {
+                        baseline_y = y_from_base;
+                        try tex.?.resize(tex.?.width, baseline_y + tex.?.height);
+                        var y: usize = tex.?.*.height - 1;
+                        while (y >= @as(u32, @bitCast(baseline_y))) : (y -= 1) {
+                            for (0..tex.?.*.width) |x| {
+                                const tmp = tex.?.pixel_buffer[(y - @as(u32, @bitCast(baseline_y))) * tex.?.width + x];
+                                tex.?.pixel_buffer[(y - @as(u32, @bitCast(baseline_y))) * tex.?.width + x] = tex.?.pixel_buffer[y * tex.?.width + x];
+                                tex.?.pixel_buffer[y * tex.?.width + x] = tmp;
+                            }
+                        }
+                    }
                 }
             } else {
                 std.debug.print("resizing\n", .{});
-                if (char_tex == null) continue;
-                if (character == ' ') {
-                    try tex.?.resize(tex.?.width + char_tex.?.*.width, tex.?.height);
+                if (character == ' ' or char_tex == null) {
+                    if (char_tex == null) {
+                        const default_width = @as(u32, @intFromFloat(@as(f32, @floatFromInt(self.ttf.font_directory.hhea.advance_width_max)) * self.scale));
+                        try tex.?.resize(tex.?.width + default_width, tex.?.height);
+                    } else {
+                        try tex.?.resize(tex.?.width + char_tex.?.*.width, tex.?.height);
+                    }
                 } else {
                     //std.debug.print("kerning adjust {any}\n", .{self.ttf.kerning_adj(@as(u16, @intCast(str[i - 1])), @as(u16, @intCast(str[i])))});
-                    const larger_height: u32 = @max(char_tex.?.height, tex.?.height);
+                    const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(character);
+                    const y_from_base = @as(u32, @intFromFloat(@abs(@as(f32, @floatFromInt(glyph_outline.?.y_min)) * self.scale)));
+                    std.debug.print("y_from_base {d}, baseline_y {d}\n", .{ y_from_base, baseline_y });
+                    if (y_from_base > baseline_y) {
+                        baseline_y = y_from_base;
+                    }
+                    const larger_height: u32 = @max(char_tex.?.height + baseline_y, tex.?.height);
                     const height_diff: i32 = @as(i32, @bitCast(larger_height)) - @as(i32, @bitCast(tex.?.height));
                     const horizontal_metrics = self.ttf.get_horizontal_metrics(@as(u16, @intCast(str[i - 1])));
-                    const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(character);
-                    std.debug.print("x_max {d}, advance_width {d}\n", .{ glyph_outline.?.x_max, horizontal_metrics.advance_width });
-                    const advance = if ((@as(i16, @bitCast(horizontal_metrics.advance_width)) - glyph_outline.?.x_max) < 0) 0 else @as(i16, @bitCast(horizontal_metrics.advance_width)) - glyph_outline.?.x_max;
-                    const width_adjust = @as(u32, @intFromFloat(@as(f32, @floatFromInt(advance + horizontal_metrics.lsb)) * self.scale));
+
+                    std.debug.print("x_max {d}, metrics {any}\n", .{ glyph_outline.?.x_max, horizontal_metrics });
+                    var width_adjust = @as(i32, @intFromFloat(@as(f32, @floatFromInt(@as(i16, @bitCast(horizontal_metrics.advance_width)) - horizontal_metrics.lsb - (glyph_outline.?.x_max))) * self.scale));
                     //const x_adj = width_adjust;
                     std.debug.print("width adjust {d}\n", .{width_adjust});
-                    try tex.?.resize(tex.?.width + char_tex.?.*.width + width_adjust, larger_height);
+                    if (width_adjust < 0) width_adjust = 1;
+                    try tex.?.resize(tex.?.width + char_tex.?.*.width + @as(u32, @bitCast(width_adjust)), larger_height);
                     if (height_diff > 0) {
                         var y: usize = tex.?.*.height - 1;
                         while (y >= @as(u32, @bitCast(height_diff))) : (y -= 1) {
@@ -197,12 +224,18 @@ pub const Font = struct {
                             }
                         }
                     }
-                    const y_adj = if (char_tex.?.*.height < tex.?.height) tex.?.height - char_tex.?.*.height else 0;
+                    //const y_adj = if (char_tex.?.*.height < tex.?.height) tex.?.height - char_tex.?.*.height else 0;
                     for (0..char_tex.?.*.height) |y| {
                         for (0..char_tex.?.*.width) |x| {
-                            tex.?.pixel_buffer[(y + y_adj) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))] = char_tex.?.*.pixel_buffer[y * char_tex.?.*.width + x];
+                            //std.debug.print("y {d} - baseline_y {d} + tex.?.height {d} - char_tex.?.*.height {d}\n", .{ y, baseline_y, tex.?.height, char_tex.?.*.height });
+                            //std.debug.print("final {d}\n", .{(y + tex.?.height - baseline_y - char_tex.?.*.height) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))});
+                            tex.?.pixel_buffer[(y + y_from_base + tex.?.height - baseline_y - char_tex.?.*.height) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))] = char_tex.?.*.pixel_buffer[y * char_tex.?.*.width + x];
                         }
                     }
+                    // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].r = 0;
+                    // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].g = 255;
+                    // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].b = 0;
+                    // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].a = null;
                 }
             }
         }
