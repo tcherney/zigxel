@@ -272,10 +272,10 @@ pub const TTF = struct {
             extension_offset: u32 = undefined,
         };
         pub const ValueRecord = struct {
-            x_placement: i16,
-            y_placement: i16,
-            x_advance: i16,
-            y_advance: i16,
+            x_placement: i16 = undefined,
+            y_placement: i16 = undefined,
+            x_advance: i16 = undefined,
+            y_advance: i16 = undefined,
             x_place_device_offset: ?u16 = null,
             y_place_device_offset: ?u16 = null,
             x_adv_device_offset: ?u16 = null,
@@ -463,7 +463,11 @@ pub const TTF = struct {
                 for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
                     if (self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type == 9) {
                         switch (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pos_extension_format.?.extension_lookup_type) {
-                            1 => {},
+                            1 => {
+                                if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].single_pos_format.?.format == 2) {
+                                    self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].single_pos_format.?.value_records.?);
+                                }
+                            },
                             2 => {
                                 if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.format == 1) {
                                     for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.pair_set_records.?.len) |k| {
@@ -724,6 +728,75 @@ pub const TTF = struct {
         }
     }
 
+    fn read_value_record(self: *Self, value_record: *GPOS.ValueRecord, value_format: u16) Error!void {
+        if (value_format & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT) != 0) {
+            value_record.x_placement = try self.bit_reader.read(i16);
+        } else {
+            value_record.x_placement = 0;
+        }
+        if (value_format & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT) != 0) {
+            value_record.y_placement = try self.bit_reader.read(i16);
+        } else {
+            value_record.y_placement = 0;
+        }
+        if (value_format & @intFromEnum(GPOS.ValueFormat.X_ADVANCE) != 0) {
+            value_record.x_advance = try self.bit_reader.read(i16);
+        } else {
+            value_record.x_advance = 0;
+        }
+        if (value_format & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE) != 0) {
+            value_record.y_advance = try self.bit_reader.read(i16);
+        } else {
+            value_record.y_advance = 0;
+        }
+        if (value_format & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT_DEVICE) != 0) {
+            value_record.x_place_device_offset = try self.bit_reader.read(u16);
+        } else {
+            value_record.x_place_device_offset = null;
+        }
+        if (value_format & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT_DEVICE) != 0) {
+            value_record.y_place_device_offset = try self.bit_reader.read(u16);
+        } else {
+            value_record.y_place_device_offset = null;
+        }
+        if (value_format & @intFromEnum(GPOS.ValueFormat.X_ADVANCE_DEVICE) != 0) {
+            value_record.x_adv_device_offset = try self.bit_reader.read(u16);
+        } else {
+            value_record.x_adv_device_offset = null;
+        }
+        if (value_format & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE_DEVICE) != 0) {
+            value_record.y_adv_device_offset = try self.bit_reader.read(u16);
+        } else {
+            value_record.y_adv_device_offset = null;
+        }
+    }
+
+    fn process_single_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
+        subtable.single_pos_format = GPOS.SinglePosFormat{};
+        subtable.single_pos_format.?.format = try self.bit_reader.read(u16);
+        subtable.single_pos_format.?.coverage_offset = try self.bit_reader.read(u16);
+        subtable.single_pos_format.?.value_format = try self.bit_reader.read(u16);
+        std.debug.print("SinglePosFormat format = {d}, coverage_offset = {d}, value_format = {d}\n", .{ subtable.single_pos_format.?.format, subtable.single_pos_format.?.coverage_offset, subtable.single_pos_format.?.value_format });
+        if (subtable.single_pos_format.?.format == 1) {
+            subtable.single_pos_format.?.value_records = null;
+            subtable.single_pos_format.?.value_count = null;
+            subtable.single_pos_format.?.value_record = GPOS.ValueRecord{};
+            try self.read_value_record(&subtable.single_pos_format.?.value_record.?, subtable.single_pos_format.?.value_format);
+            std.debug.print("ValueRecord = {any}\n", .{subtable.single_pos_format.?.value_record});
+        } else if (subtable.single_pos_format.?.format == 2) {
+            subtable.single_pos_format.?.value_record = null;
+            subtable.single_pos_format.?.value_count = try self.bit_reader.read(u16);
+            subtable.single_pos_format.?.value_records = try self.allocator.alloc(GPOS.ValueRecord, subtable.single_pos_format.?.value_count.?);
+            std.debug.print("ValueRecords count = {any}\n", .{subtable.single_pos_format.?.value_count});
+            for (0..subtable.single_pos_format.?.value_records.?.len) |i| {
+                try self.read_value_record(&subtable.single_pos_format.?.value_records.?[i], subtable.single_pos_format.?.value_format);
+                std.debug.print("ValueRecord = {any}\n", .{subtable.single_pos_format.?.value_records.?[i]});
+            }
+        }
+
+        self.bit_reader.setPos(offset + subtable.single_pos_format.?.coverage_offset);
+        try self.read_coverage_table(&subtable.coverage);
+    }
     fn process_pair_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
         subtable.pair_pos_format = GPOS.PairPosFormat{};
         subtable.pair_pos_format.?.format = try self.bit_reader.read(u16);
@@ -744,90 +817,12 @@ pub const TTF = struct {
                 for (0..subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records.len) |j| {
                     subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].second_glyph = try self.bit_reader.read(u16);
                     if (subtable.pair_pos_format.?.value_format1 != 0) {
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.x_placement = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.x_placement = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.y_placement = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.y_placement = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.X_ADVANCE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.x_advance = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.x_advance = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.y_advance = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.y_advance = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.x_place_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.x_place_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.y_place_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.y_place_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.X_ADVANCE_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.x_adv_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.x_adv_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.y_adv_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?.y_adv_device_offset = null;
-                        }
+                        try self.read_value_record(&subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?, subtable.pair_pos_format.?.value_format1);
                     } else {
                         subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1 = null;
                     }
                     if (subtable.pair_pos_format.?.value_format2 != 0) {
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.x_placement = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.x_placement = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.y_placement = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.y_placement = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.X_ADVANCE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.x_advance = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.x_advance = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.y_advance = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.y_advance = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.x_place_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.x_place_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.y_place_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.y_place_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.X_ADVANCE_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.x_adv_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.x_adv_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.y_adv_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?.y_adv_device_offset = null;
-                        }
+                        try self.read_value_record(&subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?, subtable.pair_pos_format.?.value_format2);
                     } else {
                         subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2 = null;
                     }
@@ -849,92 +844,12 @@ pub const TTF = struct {
                 subtable.pair_pos_format.?.class1_records.?[i].class2_records = try self.allocator.alloc(GPOS.PairPosFormat.Class2, subtable.pair_pos_format.?.class2_count.?);
                 for (0..subtable.pair_pos_format.?.class1_records.?[i].class2_records.len) |j| {
                     if (subtable.pair_pos_format.?.value_format1 != 0) {
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.x_placement = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.x_placement = 0;
-                        }
-
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.y_placement = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.y_placement = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.X_ADVANCE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.x_advance = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.x_advance = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.y_advance = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.y_advance = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.x_place_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.x_place_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.y_place_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.y_place_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.X_ADVANCE_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.x_adv_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.x_adv_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format1 & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.y_adv_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?.y_adv_device_offset = null;
-                        }
+                        try self.read_value_record(&subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?, subtable.pair_pos_format.?.value_format1);
                     } else {
                         subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1 = null;
                     }
                     if (subtable.pair_pos_format.?.value_format2 != 0) {
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.x_placement = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.x_placement = 0;
-                        }
-
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.y_placement = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.y_placement = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.X_ADVANCE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.x_advance = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.x_advance = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.y_advance = try self.bit_reader.read(i16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.y_advance = 0;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.x_place_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.x_place_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.y_place_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.y_place_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.X_ADVANCE_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.x_adv_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.x_adv_device_offset = null;
-                        }
-                        if (subtable.pair_pos_format.?.value_format2 & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE_DEVICE) != 0) {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.y_adv_device_offset = try self.bit_reader.read(u16);
-                        } else {
-                            subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?.y_adv_device_offset = null;
-                        }
+                        try self.read_value_record(&subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?, subtable.pair_pos_format.?.value_format2);
                     } else {
                         subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2 = null;
                     }
@@ -1011,7 +926,7 @@ pub const TTF = struct {
         self.bit_reader.setPos(offset);
         switch (lookup_type) {
             1 => {
-                subtable.single_pos_format = GPOS.SinglePosFormat{};
+                try self.process_single_pos_format(subtable, offset);
             },
             2 => {
                 try self.process_pair_pos_format(subtable, offset);
