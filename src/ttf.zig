@@ -154,19 +154,25 @@ pub const TTF = struct {
                     mark_lig_pos_format: ?MarkLigPosFormat = null,
                     mark_mark_pos_format: ?MarkMarkPosFormat = null,
                     pos_extension_format: ?PosExtensionFormat = null,
-                    coverage: Coverage = undefined,
-                    pub const Coverage = struct {
-                        format: u16 = 0,
-                        glyph_count: ?u16 = null,
-                        glyph_array: ?[]u16 = null,
-                        range_count: ?u16 = null,
-                        range_records: ?[]RangeRecord = null,
-                        pub const RangeRecord = struct { start_gylph_id: u16, end_glyph_id: u16, start_coverage_index: u16 };
-                    };
                 };
             };
         };
 
+        pub const Coverage = struct {
+            format: u16 = 0,
+            glyph_count: ?u16 = null,
+            glyph_array: ?[]u16 = null,
+            range_count: ?u16 = null,
+            range_records: ?[]RangeRecord = null,
+            pub const RangeRecord = struct { start_gylph_id: u16, end_glyph_id: u16, start_coverage_index: u16 };
+            pub fn deinit(self: *Coverage, allocator: std.mem.Allocator) void {
+                if (self.format == 1) {
+                    allocator.free(self.glyph_array.?);
+                } else if (self.format == 2) {
+                    allocator.free(self.range_records.?);
+                }
+            }
+        };
         pub const SinglePosFormat = struct {
             format: u16 = undefined,
             coverage_offset: u16 = undefined,
@@ -174,6 +180,7 @@ pub const TTF = struct {
             value_record: ?ValueRecord = null,
             value_count: ?u16 = null,
             value_records: ?[]ValueRecord = null,
+            coverage: Coverage = undefined,
         };
         pub const PairPosFormat = struct {
             format: u16 = undefined,
@@ -189,6 +196,7 @@ pub const TTF = struct {
             pair_set_records: ?[]PairSet = null,
             class_def1: ClassDefFormat = undefined,
             class_def2: ClassDefFormat = undefined,
+            coverage: Coverage = undefined,
             pub const Class1 = struct {
                 class2_records: []Class2 = undefined,
             };
@@ -212,6 +220,7 @@ pub const TTF = struct {
             coverage_offset: u16 = undefined,
             entry_exit_count: u16 = undefined,
             entry_exit_records: []EntryExit = undefined,
+            coverage: Coverage = undefined,
             pub const EntryExit = struct {
                 entry_anchor_offset: ?u16 = null,
                 exit_anchor_offset: ?u16 = null,
@@ -224,11 +233,16 @@ pub const TTF = struct {
             mark_class_count: u16 = undefined,
             mark_array_offset: u16 = undefined,
             base_array_offset: u16 = undefined,
+            base_array: BaseArray = undefined,
+            mark_array: MarkArray = undefined,
+            base_coverage: Coverage = undefined,
+            mark_coverage: Coverage = undefined,
             pub const BaseArray = struct {
                 base_count: u16 = undefined,
                 base_records: []BaseRecord = undefined,
+                base_anchor_offsets: []?u16,
                 pub const BaseRecord = struct {
-                    base_anchor_offsets: []?u16,
+                    base_anchors: []Anchor,
                 };
             };
         };
@@ -299,6 +313,20 @@ pub const TTF = struct {
             anchor_point: ?u16 = null,
             x_device_offset: ?u16 = null,
             y_device_offset: ?u16 = null,
+            pub fn read(self: *Anchor, bit_reader: *BitReader) Error!void {
+                self.format = try bit_reader.read(u16);
+                self.x_coord = try bit_reader.read(u16);
+                self.y_coord = try bit_reader.read(u16);
+                self.anchor_point = null;
+                self.x_device_offset = null;
+                self.y_device_offset = null;
+                if (self.format == 2) {
+                    self.anchor_point = try bit_reader.read(u16);
+                } else if (self.format == 3) {
+                    self.x_device_offset = try bit_reader.read(u16);
+                    self.y_device_offset = try bit_reader.read(u16);
+                }
+            }
         };
         pub const MarkArray = struct {
             mark_count: u16,
@@ -462,55 +490,70 @@ pub const TTF = struct {
             for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
                 for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
                     if (self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type == 9) {
-                        switch (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pos_extension_format.?.extension_lookup_type) {
-                            1 => {
-                                if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].single_pos_format.?.format == 2) {
-                                    self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].single_pos_format.?.value_records.?);
-                                }
-                            },
-                            2 => {
-                                if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.format == 1) {
-                                    for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.pair_set_records.?.len) |k| {
-                                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.pair_set_records.?[k].pair_value_records);
-                                    }
-                                    self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.pair_set_records.?);
-                                } else {
-                                    for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class1_records.?.len) |k| {
-                                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class1_records.?[k].class2_records);
-                                    }
-                                    self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class1_records.?);
-                                    if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class_def1.class_range_records != null) {
-                                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class_def1.class_range_records.?);
-                                    }
-                                    if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class_def1.class_values != null) {
-                                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class_def1.class_values.?);
-                                    }
-                                    if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class_def2.class_range_records != null) {
-                                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class_def2.class_range_records.?);
-                                    }
-                                    if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class_def2.class_values != null) {
-                                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pair_pos_format.?.class_def2.class_values.?);
-                                    }
-                                }
-                            },
-                            3 => {},
-                            4 => {},
-                            5 => {},
-                            6 => {},
-                            7 => {},
-                            8 => {},
-                            else => unreachable,
-                        }
-                    }
-                    if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.format == 1) {
-                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.glyph_array.?);
-                    } else if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.format == 2) {
-                        self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.range_records.?);
+                        self.deinit_subtable(&self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j], self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pos_extension_format.?.extension_lookup_type);
+                    } else {
+                        self.deinit_subtable(&self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j], self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type);
                     }
                 }
                 self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups[i].subtables);
             }
             self.allocator.free(self.font_directory.gpos.?.lookup_list.lookups);
+        }
+    }
+
+    fn deinit_subtable(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, lookup_type: u16) void {
+        switch (lookup_type) {
+            1 => {
+                if (subtable.single_pos_format.?.format == 2) {
+                    self.allocator.free(subtable.single_pos_format.?.value_records.?);
+                }
+                subtable.single_pos_format.?.coverage.deinit(self.allocator);
+            },
+            2 => {
+                if (subtable.pair_pos_format.?.format == 1) {
+                    for (0..subtable.pair_pos_format.?.pair_set_records.?.len) |k| {
+                        self.allocator.free(subtable.pair_pos_format.?.pair_set_records.?[k].pair_value_records);
+                    }
+                    self.allocator.free(subtable.pair_pos_format.?.pair_set_records.?);
+                } else {
+                    for (0..subtable.pair_pos_format.?.class1_records.?.len) |k| {
+                        self.allocator.free(subtable.pair_pos_format.?.class1_records.?[k].class2_records);
+                    }
+                    self.allocator.free(subtable.pair_pos_format.?.class1_records.?);
+                    if (subtable.pair_pos_format.?.class_def1.class_range_records != null) {
+                        self.allocator.free(subtable.pair_pos_format.?.class_def1.class_range_records.?);
+                    }
+                    if (subtable.pair_pos_format.?.class_def1.class_values != null) {
+                        self.allocator.free(subtable.pair_pos_format.?.class_def1.class_values.?);
+                    }
+                    if (subtable.pair_pos_format.?.class_def2.class_range_records != null) {
+                        self.allocator.free(subtable.pair_pos_format.?.class_def2.class_range_records.?);
+                    }
+                    if (subtable.pair_pos_format.?.class_def2.class_values != null) {
+                        self.allocator.free(subtable.pair_pos_format.?.class_def2.class_values.?);
+                    }
+                }
+
+                subtable.pair_pos_format.?.coverage.deinit(self.allocator);
+            },
+            3 => {
+                self.allocator.free(subtable.cursive_pos_format.?.entry_exit_records);
+                subtable.cursive_pos_format.?.coverage.deinit(self.allocator);
+            },
+            4 => {
+                for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |i| {
+                    self.allocator.free(subtable.mark_base_pos_format.?.base_array.base_records[i].base_anchors);
+                }
+                self.allocator.free(subtable.mark_base_pos_format.?.base_array.base_anchor_offsets);
+                self.allocator.free(subtable.mark_base_pos_format.?.base_array.base_records);
+                subtable.mark_base_pos_format.?.base_coverage.deinit(self.allocator);
+                subtable.mark_base_pos_format.?.mark_coverage.deinit(self.allocator);
+            },
+            5 => {},
+            6 => {},
+            7 => {},
+            8 => {},
+            else => unreachable,
         }
     }
 
@@ -795,7 +838,7 @@ pub const TTF = struct {
         }
 
         self.bit_reader.setPos(offset + subtable.single_pos_format.?.coverage_offset);
-        try self.read_coverage_table(&subtable.coverage);
+        try self.read_coverage_table(&subtable.single_pos_format.?.coverage);
     }
     fn process_pair_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
         subtable.pair_pos_format = GPOS.PairPosFormat{};
@@ -919,7 +962,68 @@ pub const TTF = struct {
             }
         }
         self.bit_reader.setPos(offset + subtable.pair_pos_format.?.coverage_offset);
-        try self.read_coverage_table(&subtable.coverage);
+        try self.read_coverage_table(&subtable.pair_pos_format.?.coverage);
+    }
+
+    fn process_cursive_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
+        subtable.cursive_pos_format = GPOS.CursivePosFormat{};
+        subtable.cursive_pos_format.?.format = try self.bit_reader.read(u16);
+        subtable.cursive_pos_format.?.coverage_offset = try self.bit_reader.read(u16);
+        subtable.cursive_pos_format.?.entry_exit_count = try self.bit_reader.read(u16);
+        subtable.cursive_pos_format.?.entry_exit_records = try self.allocator.alloc(GPOS.CursivePosFormat.EntryExit, subtable.cursive_pos_format.?.entry_exit_count);
+        for (0..subtable.cursive_pos_format.?.entry_exit_records.len) |i| {
+            subtable.cursive_pos_format.?.entry_exit_records[i].entry_anchor_offset = try self.bit_reader.read(u16);
+            subtable.cursive_pos_format.?.entry_exit_records[i].exit_anchor_offset = try self.bit_reader.read(u16);
+        }
+        std.debug.print("CursivePosFormat format = {d}, coverage_offset = {d}, entry_exit_count = {d}\n", .{ subtable.cursive_pos_format.?.format, subtable.cursive_pos_format.?.coverage_offset, subtable.cursive_pos_format.?.entry_exit_count });
+        for (0..subtable.cursive_pos_format.?.entry_exit_records.len) |i| {
+            std.debug.print("EntryExit {any}\n", .{subtable.cursive_pos_format.?.entry_exit_records[i]});
+        }
+        //TODO grab anchor tables, need cursive font example
+        self.bit_reader.setPos(offset + subtable.cursive_pos_format.?.coverage_offset);
+        try self.read_coverage_table(&subtable.cursive_pos_format.?.coverage);
+    }
+
+    fn process_mark_base_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
+        subtable.mark_base_pos_format = GPOS.MarkBasePosFormat{};
+        subtable.mark_base_pos_format.?.format = try self.bit_reader.read(u16);
+        subtable.mark_base_pos_format.?.mark_coverage_offset = try self.bit_reader.read(u16);
+        subtable.mark_base_pos_format.?.base_coverage_offset = try self.bit_reader.read(u16);
+        subtable.mark_base_pos_format.?.mark_class_count = try self.bit_reader.read(u16);
+        subtable.mark_base_pos_format.?.mark_array_offset = try self.bit_reader.read(u16);
+        subtable.mark_base_pos_format.?.base_array_offset = try self.bit_reader.read(u16);
+
+        self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.base_array_offset);
+        subtable.mark_base_pos_format.?.base_array.base_count = try self.bit_reader.read(u16);
+        subtable.mark_base_pos_format.?.base_array.base_records = try self.allocator.alloc(GPOS.MarkBasePosFormat.BaseArray.BaseRecord, subtable.mark_base_pos_format.?.base_array.base_count);
+        subtable.mark_base_pos_format.?.base_array.base_anchor_offsets = try self.allocator.alloc(?u16, subtable.mark_base_pos_format.?.mark_class_count);
+        for (0..subtable.mark_base_pos_format.?.base_array.base_anchor_offsets.len) |i| {
+            subtable.mark_base_pos_format.?.base_array.base_anchor_offsets[i] = try self.bit_reader.read(u16);
+        }
+
+        for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |i| {
+            subtable.mark_base_pos_format.?.base_array.base_records[i].base_anchors = try self.allocator.alloc(GPOS.Anchor, subtable.mark_base_pos_format.?.mark_class_count);
+        }
+
+        for (0..subtable.mark_base_pos_format.?.base_array.base_anchor_offsets.len) |i| {
+            self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.base_array_offset + subtable.mark_base_pos_format.?.base_array.base_anchor_offsets[i].?);
+            for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |j| {
+                try subtable.mark_base_pos_format.?.base_array.base_records[j].base_anchors[i].read(&self.bit_reader);
+            }
+        }
+        std.debug.print("BaseArray base_count = {d}, class_count = {d}\n", .{ subtable.mark_base_pos_format.?.base_array.base_count, subtable.mark_base_pos_format.?.mark_class_count });
+
+        for (0..subtable.mark_base_pos_format.?.base_array.base_anchor_offsets.len) |i| {
+            for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |j| {
+                std.debug.print("BaseAnchor = {any}\n", .{subtable.mark_base_pos_format.?.base_array.base_records[j].base_anchors[i]});
+            }
+        }
+
+        self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.base_coverage_offset);
+        try self.read_coverage_table(&subtable.mark_base_pos_format.?.base_coverage);
+
+        self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.mark_coverage_offset);
+        try self.read_coverage_table(&subtable.mark_base_pos_format.?.mark_coverage);
     }
 
     fn process_lookup_format(self: *Self, lookup_type: u16, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
@@ -932,10 +1036,10 @@ pub const TTF = struct {
                 try self.process_pair_pos_format(subtable, offset);
             },
             3 => {
-                subtable.cursive_pos_format = GPOS.CursivePosFormat{};
+                try self.process_cursive_pos_format(subtable, offset);
             },
             4 => {
-                subtable.mark_base_pos_format = GPOS.MarkBasePosFormat{};
+                try self.process_mark_base_pos_format(subtable, offset);
             },
             5 => {
                 subtable.mark_lig_pos_format = GPOS.MarkLigPosFormat{};
@@ -950,12 +1054,13 @@ pub const TTF = struct {
                 subtable.pos_extension_format.?.format = try self.bit_reader.read(u16);
                 subtable.pos_extension_format.?.extension_lookup_type = try self.bit_reader.read(u16);
                 subtable.pos_extension_format.?.extension_offset = try self.bit_reader.read(u32);
+                std.debug.print("PosExtensionFormat format = {d}, extensionLookupType = {d}, extensionOffset = {d}\n", .{ subtable.pos_extension_format.?.format, subtable.pos_extension_format.?.extension_lookup_type, subtable.pos_extension_format.?.extension_offset });
             },
             else => unreachable,
         }
     }
 
-    fn read_coverage_table(self: *Self, coverage: *GPOS.LookupList.Lookup.SubTable.Coverage) Error!void {
+    fn read_coverage_table(self: *Self, coverage: *GPOS.Coverage) Error!void {
         coverage.format = try self.bit_reader.read(u16);
         if (coverage.format == 1) {
             coverage.glyph_count = try self.bit_reader.read(u16);
@@ -965,11 +1070,19 @@ pub const TTF = struct {
             }
         } else {
             coverage.range_count = try self.bit_reader.read(u16);
-            coverage.range_records = try self.allocator.alloc(GPOS.LookupList.Lookup.SubTable.Coverage.RangeRecord, coverage.range_count.?);
+            coverage.range_records = try self.allocator.alloc(GPOS.Coverage.RangeRecord, coverage.range_count.?);
             for (0..coverage.range_records.?.len) |k| {
                 coverage.range_records.?[k].start_gylph_id = try self.bit_reader.read(u16);
                 coverage.range_records.?[k].end_glyph_id = try self.bit_reader.read(u16);
                 coverage.range_records.?[k].start_coverage_index = try self.bit_reader.read(u16);
+            }
+        }
+        if (coverage.format == 1) {
+            std.debug.print("Coverage Table format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ coverage.format, coverage.glyph_count.?, coverage.glyph_array.? });
+        } else if (coverage.format == 2) {
+            std.debug.print("Coverage Table format = {d}, range_count = {d}\n", .{ coverage.format, coverage.range_count.? });
+            for (0..coverage.range_records.?.len) |k| {
+                std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ coverage.range_records.?[k].start_gylph_id, coverage.range_records.?[k].end_glyph_id, coverage.range_records.?[k].start_coverage_index });
             }
         }
     }
@@ -1034,6 +1147,7 @@ pub const TTF = struct {
         for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
             self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset = try self.bit_reader.read(u16);
         }
+        std.debug.print("LookupList Count = {d}\n", .{self.font_directory.gpos.?.lookup_list.lookup_count});
         for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
             self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.lookup_list_offset + self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset);
             self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type = try self.bit_reader.read(u16);
@@ -1043,6 +1157,7 @@ pub const TTF = struct {
             for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
                 self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].offset = try self.bit_reader.read(u16);
             }
+            std.debug.print("Lookups offset = {d}, lookup_type = {d}, lookup_flag = {d}, subtable_count = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_flag, self.font_directory.gpos.?.lookup_list.lookups[i].subtable_count });
             for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
                 try self.process_lookup_format(self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type, &self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j], offset + self.font_directory.gpos.?.header.lookup_list_offset + self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset + self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].offset);
                 if (self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type == 9) {
@@ -1050,23 +1165,7 @@ pub const TTF = struct {
                 }
             }
         }
-        std.debug.print("LookupList Count = {d}\n", .{self.font_directory.gpos.?.lookup_list.lookup_count});
-        for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
-            std.debug.print("Lookups offset = {d}, lookup_type = {d}, lookup_flag = {d}, subtable_count = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_flag, self.font_directory.gpos.?.lookup_list.lookups[i].subtable_count });
-            for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
-                if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pos_extension_format != null) {
-                    std.debug.print("PosExtensionFormat format = {d}, extensionLookupType = {d}, extensionOffset = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pos_extension_format.?.format, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pos_extension_format.?.extension_lookup_type, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].pos_extension_format.?.extension_offset });
-                }
-                if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.format == 1) {
-                    std.debug.print("Coverage Table format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.format, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.glyph_count.?, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.glyph_array.? });
-                } else if (self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.format == 2) {
-                    std.debug.print("Coverage Table format = {d}, range_count = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.format, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.range_count.? });
-                    for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.range_records.?.len) |k| {
-                        std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.range_records.?[k].start_gylph_id, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.range_records.?[k].end_glyph_id, self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].coverage.range_records.?[k].start_coverage_index });
-                    }
-                }
-            }
-        }
+
         //featurelist
         self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.feature_list_offset);
         self.font_directory.gpos.?.feature_list.feature_count = try self.bit_reader.read(u16);
