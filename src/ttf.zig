@@ -334,6 +334,7 @@ pub const TTF = struct {
             pub const MarkRecord = struct {
                 mark_class: u16,
                 mark_anchor_offset: u16,
+                anchor: Anchor,
             };
         };
         pub const ClassDefFormat = struct {
@@ -548,6 +549,7 @@ pub const TTF = struct {
                 self.allocator.free(subtable.mark_base_pos_format.?.base_array.base_records);
                 subtable.mark_base_pos_format.?.base_coverage.deinit(self.allocator);
                 subtable.mark_base_pos_format.?.mark_coverage.deinit(self.allocator);
+                self.allocator.free(subtable.mark_base_pos_format.?.mark_array.mark_records);
             },
             5 => {},
             6 => {},
@@ -1017,6 +1019,22 @@ pub const TTF = struct {
             for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |j| {
                 std.debug.print("BaseAnchor = {any}\n", .{subtable.mark_base_pos_format.?.base_array.base_records[j].base_anchors[i]});
             }
+        }
+
+        self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.mark_array_offset);
+        subtable.mark_base_pos_format.?.mark_array.mark_count = try self.bit_reader.read(u16);
+        subtable.mark_base_pos_format.?.mark_array.mark_records = try self.allocator.alloc(GPOS.MarkArray.MarkRecord, subtable.mark_base_pos_format.?.mark_array.mark_count);
+        for (0..subtable.mark_base_pos_format.?.mark_array.mark_records.len) |i| {
+            subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_class = try self.bit_reader.read(u16);
+            subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_anchor_offset = try self.bit_reader.read(u16);
+        }
+        for (0..subtable.mark_base_pos_format.?.mark_array.mark_records.len) |i| {
+            self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.mark_array_offset + subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_anchor_offset);
+            try subtable.mark_base_pos_format.?.mark_array.mark_records[i].anchor.read(&self.bit_reader);
+        }
+        std.debug.print("MarkArray count = {d}\n", .{subtable.mark_base_pos_format.?.mark_array.mark_count});
+        for (0..subtable.mark_base_pos_format.?.mark_array.mark_records.len) |i| {
+            std.debug.print("MarkRecord class = {d}, offset = {d}, anchor = {any}\n", .{ subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_class, subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_anchor_offset, subtable.mark_base_pos_format.?.mark_array.mark_records[i].anchor });
         }
 
         self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.base_coverage_offset);
