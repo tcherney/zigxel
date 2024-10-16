@@ -592,14 +592,85 @@ pub const TTF = struct {
             mark_array: MarkArray = undefined,
             pub const LigatureArray = struct {
                 ligature_count: u16 = undefined,
-                ligature_attach_offsets: []u16 = undefined,
+                ligature_attach: []LigatureAttach,
+                pub fn read(self: *LigatureArray, bit_reader: *BitReader, offset: u32, class_count: u16, allocator: std.mem.Allocator) Error!void {
+                    bit_reader.setPos(offset);
+                    self.ligature_count = try bit_reader.read(u16);
+                    self.ligature_attach = try allocator.alloc(LigatureAttach, self.ligature_count);
+                    for (0..self.ligature_attach.len) |i| {
+                        self.ligature_attach[i].offset = try bit_reader.read(u16);
+                    }
+                    for (0..self.ligature_attach.len) |i| {
+                        try self.ligature_attach[i].read(bit_reader, offset, class_count, allocator);
+                    }
+                }
+                pub fn deinit(self: *LigatureArray, allocator: std.mem.Allocator) void {
+                    for (0..self.ligature_attach.len) |i| {
+                        self.ligature_attach[i].deinit(allocator);
+                    }
+                    allocator.free(self.ligature_attach);
+                }
+                pub fn print(self: *LigatureArray) void {
+                    std.debug.print("LigatureArray count = {d}\n", .{self.ligature_count});
+                    for (0..self.ligature_attach.len) |i| {
+                        self.ligature_attach[i].print();
+                    }
+                }
             };
             pub const LigatureAttach = struct {
+                offset: u16 = undefined,
                 component_count: u16 = undefined,
                 component_records: []ComponentRecord = undefined,
                 pub const ComponentRecord = struct {
-                    ligature_anchor_offsets: []?u16 = undefined,
+                    anchor_offsets: []?u16 = undefined,
+                    anchors: []Anchor,
+                    pub fn read(
+                        self: *ComponentRecord,
+                        bit_reader: *BitReader,
+                        offset: u32,
+                    ) Error!void {
+                        for (0..self.anchors.len) |i| {
+                            bit_reader.setPos(offset + self.anchor_offsets[i].?);
+                            try self.anchors[i].read(bit_reader);
+                        }
+                    }
+                    pub fn print(self: *ComponentRecord) void {
+                        std.debug.print("ComponentRecord\n", .{});
+                        for (0..self.anchors.len) |i| {
+                            std.debug.print("offset = {d}, anchor = {any}\n", .{ self.anchor_offsets[i].?, self.anchors[i] });
+                        }
+                    }
                 };
+                pub fn read(self: *LigatureAttach, bit_reader: *BitReader, offset: u32, class_count: u16, allocator: std.mem.Allocator) Error!void {
+                    bit_reader.setPos(offset + self.offset);
+                    self.component_count = try bit_reader.read(u16);
+                    self.component_records = try allocator.alloc(ComponentRecord, self.component_count);
+                    for (0..self.component_records.len) |i| {
+                        self.component_records[i].anchor_offsets = try allocator.alloc(?u16, class_count);
+                        self.component_records[i].anchors = try allocator.alloc(Anchor, class_count);
+                    }
+                    for (0..self.component_records.len) |i| {
+                        for (0..self.component_records[i].anchor_offsets.len) |j| {
+                            self.component_records[i].anchor_offsets[j] = try bit_reader.read(u16);
+                        }
+                    }
+                    for (0..self.component_records.len) |i| {
+                        try self.component_records[i].read(bit_reader, offset + self.offset);
+                    }
+                }
+                pub fn deinit(self: *LigatureAttach, allocator: std.mem.Allocator) void {
+                    for (0..self.component_records.len) |i| {
+                        allocator.free(self.component_records[i].anchor_offsets);
+                        allocator.free(self.component_records[i].anchors);
+                    }
+                    allocator.free(self.component_records);
+                }
+                pub fn print(self: *LigatureAttach) void {
+                    std.debug.print("LigatureAttach offset = {d}, component_count = {d}\n", .{ self.offset, self.component_count });
+                    for (0..self.component_records.len) |i| {
+                        self.component_records[i].print();
+                    }
+                }
             };
             pub fn init() MarkLigPosFormat {
                 return MarkLigPosFormat{};
@@ -613,13 +684,13 @@ pub const TTF = struct {
                 self.mark_array_offset = try bit_reader.read(u16);
                 self.ligature_array_offset = try bit_reader.read(u16);
 
-                //TODO read ligature array
-
+                try self.lig_array.read(bit_reader, offset + self.ligature_array_offset, self.mark_class_count, allocator);
                 try self.mark_array.read(bit_reader, offset + self.mark_array_offset, allocator);
                 try self.lig_coverage.read(bit_reader, offset + self.ligature_coverage_offset, allocator);
                 try self.mark_coverage.read(bit_reader, offset + self.mark_coverage_offset, allocator);
             }
             pub fn deinit(self: *MarkLigPosFormat, allocator: std.mem.Allocator) void {
+                self.lig_array.deinit(allocator);
                 self.mark_array.deinit(allocator);
                 self.lig_coverage.deinit(allocator);
                 self.mark_coverage.deinit(allocator);
@@ -631,6 +702,7 @@ pub const TTF = struct {
                 self.lig_coverage.print();
                 std.debug.print("MarkCoverage\n", .{});
                 self.mark_coverage.print();
+                self.lig_array.print();
                 self.mark_array.print();
             }
         };
