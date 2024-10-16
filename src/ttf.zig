@@ -172,6 +172,35 @@ pub const TTF = struct {
                     allocator.free(self.range_records.?);
                 }
             }
+            pub fn read(self: *Coverage, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                if (self.format == 1) {
+                    self.glyph_count = try bit_reader.read(u16);
+                    self.glyph_array = try allocator.alloc(u16, self.glyph_count.?);
+                    for (0..self.glyph_array.?.len) |k| {
+                        self.glyph_array.?[k] = try bit_reader.read(u16);
+                    }
+                } else {
+                    self.range_count = try bit_reader.read(u16);
+                    self.range_records = try allocator.alloc(GPOS.Coverage.RangeRecord, self.range_count.?);
+                    for (0..self.range_records.?.len) |k| {
+                        self.range_records.?[k].start_gylph_id = try bit_reader.read(u16);
+                        self.range_records.?[k].end_glyph_id = try bit_reader.read(u16);
+                        self.range_records.?[k].start_coverage_index = try bit_reader.read(u16);
+                    }
+                }
+            }
+            pub fn print(self: *Coverage) void {
+                if (self.format == 1) {
+                    std.debug.print("Coverage Table format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ self.format, self.glyph_count.?, self.glyph_array.? });
+                } else if (self.format == 2) {
+                    std.debug.print("Coverage Table format = {d}, range_count = {d}\n", .{ self.format, self.range_count.? });
+                    for (0..self.range_records.?.len) |k| {
+                        std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.range_records.?[k].start_gylph_id, self.range_records.?[k].end_glyph_id, self.range_records.?[k].start_coverage_index });
+                    }
+                }
+            }
         };
         pub const SinglePosFormat = struct {
             format: u16 = undefined,
@@ -181,6 +210,52 @@ pub const TTF = struct {
             value_count: ?u16 = null,
             value_records: ?[]ValueRecord = null,
             coverage: Coverage = undefined,
+            pub fn init() SinglePosFormat {
+                return SinglePosFormat{};
+            }
+            pub fn read(self: *SinglePosFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                self.coverage_offset = try bit_reader.read(u16);
+                self.value_format = try bit_reader.read(u16);
+                std.debug.print("SinglePosFormat format = {d}, coverage_offset = {d}, value_format = {d}\n", .{ self.format, self.coverage_offset, self.value_format });
+                if (self.format == 1) {
+                    self.value_records = null;
+                    self.value_count = null;
+                    self.value_record = GPOS.ValueRecord.init();
+                    try self.value_record.?.read(bit_reader, self.value_format);
+                    std.debug.print("ValueRecord = {any}\n", .{self.value_record});
+                } else if (self.format == 2) {
+                    self.value_record = null;
+                    self.value_count = try bit_reader.read(u16);
+                    self.value_records = try allocator.alloc(GPOS.ValueRecord, self.value_count.?);
+                    std.debug.print("ValueRecords count = {any}\n", .{self.value_count});
+                    for (0..self.value_records.?.len) |i| {
+                        self.value_records.?[i] = GPOS.ValueRecord.init();
+                        try self.value_records.?[i].read(bit_reader, self.value_format);
+                        std.debug.print("ValueRecord = {any}\n", .{self.value_records.?[i]});
+                    }
+                }
+                try self.coverage.read(bit_reader, offset + self.coverage_offset, allocator);
+            }
+            pub fn print(self: *SinglePosFormat) void {
+                std.debug.print("SinglePosFormat format = {d}, coverage_offset = {d}, value_format = {d}\n", .{ self.format, self.coverage_offset, self.value_format });
+                self.coverage.print();
+                if (self.format == 1) {
+                    std.debug.print("ValueRecord = {any}\n", .{self.value_record});
+                } else if (self.format == 2) {
+                    std.debug.print("ValueRecords count = {any}\n", .{self.value_count});
+                    for (0..self.value_records.?.len) |i| {
+                        std.debug.print("ValueRecord = {any}\n", .{self.value_records.?[i]});
+                    }
+                }
+            }
+            pub fn deinit(self: *SinglePosFormat, allocator: std.mem.Allocator) void {
+                if (self.format == 2) {
+                    allocator.free(self.value_records.?);
+                }
+                self.coverage.deinit(allocator);
+            }
         };
         pub const PairPosFormat = struct {
             format: u16 = undefined,
@@ -214,6 +289,175 @@ pub const TTF = struct {
                     value_record2: ?ValueRecord = undefined,
                 };
             };
+            pub fn init() PairPosFormat {
+                return PairPosFormat{};
+            }
+            pub fn read(self: *PairPosFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                self.coverage_offset = try bit_reader.read(u16);
+                self.value_format1 = try bit_reader.read(u16);
+                self.value_format2 = try bit_reader.read(u16);
+                if (self.format == 1) {
+                    self.pair_set_count = try bit_reader.read(u16);
+                    self.pair_set_records = try allocator.alloc(GPOS.PairPosFormat.PairSet, self.pair_set_count.?);
+                    for (0..self.pair_set_records.?.len) |i| {
+                        self.pair_set_records.?[i].pair_set_offset = try bit_reader.read(u16);
+                    }
+                    for (0..self.pair_set_records.?.len) |i| {
+                        bit_reader.setPos(offset + self.pair_set_records.?[i].pair_set_offset);
+                        self.pair_set_records.?[i].pair_value_count = try bit_reader.read(u16);
+                        self.pair_set_records.?[i].pair_value_records = try allocator.alloc(GPOS.PairPosFormat.PairSet.PairValue, self.pair_set_records.?[i].pair_value_count);
+                        for (0..self.pair_set_records.?[i].pair_value_records.len) |j| {
+                            self.pair_set_records.?[i].pair_value_records[j].second_glyph = try bit_reader.read(u16);
+                            if (self.value_format1 != 0) {
+                                self.pair_set_records.?[i].pair_value_records[j].value_record1 = GPOS.ValueRecord.init();
+                                try self.pair_set_records.?[i].pair_value_records[j].value_record1.?.read(bit_reader, self.value_format1);
+                            } else {
+                                self.pair_set_records.?[i].pair_value_records[j].value_record1 = null;
+                            }
+                            if (self.value_format2 != 0) {
+                                self.pair_set_records.?[i].pair_value_records[j].value_record2 = GPOS.ValueRecord.init();
+                                try self.pair_set_records.?[i].pair_value_records[j].value_record2.?.read(bit_reader, self.value_format2);
+                            } else {
+                                self.pair_set_records.?[i].pair_value_records[j].value_record2 = null;
+                            }
+                        }
+                    }
+                } else {
+                    self.class_def1_offset = try bit_reader.read(u16);
+                    self.class_def2_offset = try bit_reader.read(u16);
+                    self.class1_count = try bit_reader.read(u16);
+                    self.class2_count = try bit_reader.read(u16);
+                    self.class1_records = try allocator.alloc(GPOS.PairPosFormat.Class1, self.class1_count.?);
+                    for (0..self.class1_records.?.len) |i| {
+                        self.class1_records.?[i].class2_records = try allocator.alloc(GPOS.PairPosFormat.Class2, self.class2_count.?);
+                        for (0..self.class1_records.?[i].class2_records.len) |j| {
+                            if (self.value_format1 != 0) {
+                                self.class1_records.?[i].class2_records[j].value_record1 = GPOS.ValueRecord.init();
+                                try self.class1_records.?[i].class2_records[j].value_record1.?.read(bit_reader, self.value_format1);
+                            } else {
+                                self.class1_records.?[i].class2_records[j].value_record1 = null;
+                            }
+                            if (self.value_format2 != 0) {
+                                self.class1_records.?[i].class2_records[j].value_record2 = GPOS.ValueRecord.init();
+                                try self.class1_records.?[i].class2_records[j].value_record2.?.read(bit_reader, self.value_format2);
+                            } else {
+                                self.class1_records.?[i].class2_records[j].value_record2 = null;
+                            }
+                        }
+                    }
+                    bit_reader.setPos(offset + self.class_def1_offset.?);
+                    self.class_def1.format = try bit_reader.read(u16);
+                    if (self.class_def1.format == 1) {
+                        self.class_def1.start_glyph_id = try bit_reader.read(u16);
+                        self.class_def1.glyph_count = try bit_reader.read(u16);
+                        self.class_def1.class_values = try allocator.alloc(u16, self.class_def1.glyph_count.?);
+                        for (0..self.class_def1.class_values.?.len) |i| {
+                            self.class_def1.class_values.?[i] = try bit_reader.read(u16);
+                        }
+                        self.class_def1.class_range_count = null;
+                        self.class_def1.class_range_records = null;
+                    } else {
+                        self.class_def1.start_glyph_id = null;
+                        self.class_def1.glyph_count = null;
+                        self.class_def1.class_values = null;
+                        self.class_def1.class_range_count = try bit_reader.read(u16);
+                        self.class_def1.class_range_records = try allocator.alloc(GPOS.ClassDefFormat.ClassRange, self.class_def1.class_range_count.?);
+                        for (0..self.class_def1.class_range_records.?.len) |i| {
+                            self.class_def1.class_range_records.?[i].start_glyph_id = try bit_reader.read(u16);
+                            self.class_def1.class_range_records.?[i].end_glyph_id = try bit_reader.read(u16);
+                            self.class_def1.class_range_records.?[i].class = try bit_reader.read(u16);
+                        }
+                    }
+                    bit_reader.setPos(offset + self.class_def2_offset.?);
+                    self.class_def2.format = try bit_reader.read(u16);
+                    if (self.class_def2.format == 1) {
+                        self.class_def2.start_glyph_id = try bit_reader.read(u16);
+                        self.class_def2.glyph_count = try bit_reader.read(u16);
+                        self.class_def2.class_values = try allocator.alloc(u16, self.class_def2.glyph_count.?);
+                        for (0..self.class_def2.class_values.?.len) |i| {
+                            self.class_def2.class_values.?[i] = try bit_reader.read(u16);
+                        }
+                        self.class_def2.class_range_count = null;
+                        self.class_def2.class_range_records = null;
+                    } else {
+                        self.class_def2.start_glyph_id = null;
+                        self.class_def2.glyph_count = null;
+                        self.class_def2.class_values = null;
+                        self.class_def2.class_range_count = try bit_reader.read(u16);
+                        self.class_def2.class_range_records = try allocator.alloc(GPOS.ClassDefFormat.ClassRange, self.class_def2.class_range_count.?);
+                        for (0..self.class_def2.class_range_records.?.len) |i| {
+                            self.class_def2.class_range_records.?[i].start_glyph_id = try bit_reader.read(u16);
+                            self.class_def2.class_range_records.?[i].end_glyph_id = try bit_reader.read(u16);
+                            self.class_def2.class_range_records.?[i].class = try bit_reader.read(u16);
+                        }
+                    }
+                }
+
+                try self.coverage.read(bit_reader, offset + self.coverage_offset, allocator);
+            }
+            pub fn deinit(self: *PairPosFormat, allocator: std.mem.Allocator) void {
+                if (self.format == 1) {
+                    for (0..self.pair_set_records.?.len) |k| {
+                        allocator.free(self.pair_set_records.?[k].pair_value_records);
+                    }
+                    allocator.free(self.pair_set_records.?);
+                } else {
+                    for (0..self.class1_records.?.len) |k| {
+                        allocator.free(self.class1_records.?[k].class2_records);
+                    }
+                    allocator.free(self.class1_records.?);
+                    if (self.class_def1.class_range_records != null) {
+                        allocator.free(self.class_def1.class_range_records.?);
+                    }
+                    if (self.class_def1.class_values != null) {
+                        allocator.free(self.class_def1.class_values.?);
+                    }
+                    if (self.class_def2.class_range_records != null) {
+                        allocator.free(self.class_def2.class_range_records.?);
+                    }
+                    if (self.class_def2.class_values != null) {
+                        allocator.free(self.class_def2.class_values.?);
+                    }
+                }
+
+                self.coverage.deinit(allocator);
+            }
+            pub fn print(self: *PairPosFormat) void {
+                if (self.format == 1) {
+                    std.debug.print("PairPosFormat format = {d}, coverage_offset = {d}, value_format1 = {d}, value_format2 = {d}, pairset_count = {d}\n", .{ self.format, self.coverage_offset, self.value_format1, self.value_format2, self.pair_set_count.? });
+                    self.coverage.print();
+                    for (0..self.pair_set_records.?.len) |i| {
+                        std.debug.print("Pairset offset = {d}, count = {d}\n", .{ self.pair_set_records.?[i].pair_set_offset, self.pair_set_records.?[i].pair_value_count });
+                        std.debug.print("PairValue records\n", .{});
+                        for (0..self.pair_set_records.?[i].pair_value_records.len) |j| {
+                            std.debug.print("value_record1 = {any}, value_record2 = {any}\n", .{ self.class1_records.?[i].class2_records[j].value_record1, self.class1_records.?[i].class2_records[j].value_record2 });
+                        }
+                    }
+                } else {
+                    std.debug.print("PairPosFormat format = {d}, coverage_offset = {d}, value_format1 = {d}, value_format2 = {d}, class_def1_offset = {d}, class_def2_offset = {d}, class1_count = {d}, class2_count = {d}\n", .{ self.format, self.coverage_offset, self.value_format1, self.value_format2, self.class_def1_offset.?, self.class_def2_offset.?, self.class1_count.?, self.class2_count.? });
+                    self.coverage.print();
+                    for (0..self.class1_records.?.len) |i| {
+                        std.debug.print("Class Records\n", .{});
+                        for (0..self.class1_records.?[i].class2_records.len) |j| {
+                            std.debug.print("value_record1 = {any}, value_record2 = {any}\n", .{ self.class1_records.?[i].class2_records[j].value_record1, self.class1_records.?[i].class2_records[j].value_record2 });
+                        }
+                    }
+                    std.debug.print("ClassDef1 format = {d}, start_glyph_id = {any}, glyph_count = {any}, class_values = {any}, class_range_count = {any}\n", .{ self.class_def1.format, self.class_def1.start_glyph_id, self.class_def1.glyph_count, self.class_def1.class_values, self.class_def1.class_range_count });
+                    if (self.class_def1.class_range_records != null) {
+                        for (0..self.class_def1.class_range_records.?.len) |i| {
+                            std.debug.print("ClassRange start_glyph_id = {d}, end_glyph_id = {d}, class = {d}\n", .{ self.class_def1.class_range_records.?[i].start_glyph_id, self.class_def1.class_range_records.?[i].end_glyph_id, self.class_def1.class_range_records.?[i].class });
+                        }
+                    }
+                    std.debug.print("ClassDef2 format = {d}, start_glyph_id = {any}, glyph_count = {any}, class_values = {any}, class_range_count = {any}\n", .{ self.class_def2.format, self.class_def2.start_glyph_id, self.class_def2.glyph_count, self.class_def2.class_values, self.class_def2.class_range_count });
+                    if (self.class_def2.class_range_records != null) {
+                        for (0..self.class_def2.class_range_records.?.len) |i| {
+                            std.debug.print("ClassRange start_glyph_id = {d}, end_glyph_id = {d}, class = {d}\n", .{ self.class_def2.class_range_records.?[i].start_glyph_id, self.class_def2.class_range_records.?[i].end_glyph_id, self.class_def2.class_range_records.?[i].class });
+                        }
+                    }
+                }
+            }
         };
         pub const CursivePosFormat = struct {
             format: u16 = undefined,
@@ -225,6 +469,34 @@ pub const TTF = struct {
                 entry_anchor_offset: ?u16 = null,
                 exit_anchor_offset: ?u16 = null,
             };
+            pub fn init() CursivePosFormat {
+                return CursivePosFormat{};
+            }
+            pub fn read(self: *CursivePosFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                self.coverage_offset = try bit_reader.read(u16);
+                self.entry_exit_count = try bit_reader.read(u16);
+                self.entry_exit_records = try allocator.alloc(GPOS.CursivePosFormat.EntryExit, self.entry_exit_count);
+                for (0..self.entry_exit_records.len) |i| {
+                    self.entry_exit_records[i].entry_anchor_offset = try bit_reader.read(u16);
+                    self.entry_exit_records[i].exit_anchor_offset = try bit_reader.read(u16);
+                }
+
+                //TODO grab anchor tables, need cursive font example
+                try self.coverage.read(bit_reader, offset + self.coverage_offset, allocator);
+            }
+            pub fn deinit(self: *CursivePosFormat, allocator: std.mem.Allocator) void {
+                allocator.free(self.entry_exit_records);
+                self.coverage.deinit(allocator);
+            }
+            pub fn print(self: *CursivePosFormat) void {
+                std.debug.print("CursivePosFormat format = {d}, coverage_offset = {d}, entry_exit_count = {d}\n", .{ self.format, self.coverage_offset, self.entry_exit_count });
+                self.coverage.print();
+                for (0..self.entry_exit_records.len) |i| {
+                    std.debug.print("EntryExit {any}\n", .{self.entry_exit_records[i]});
+                }
+            }
         };
         pub const MarkBasePosFormat = struct {
             format: u16 = undefined,
@@ -245,6 +517,67 @@ pub const TTF = struct {
                     base_anchors: []Anchor,
                 };
             };
+            pub fn init() MarkBasePosFormat {
+                return MarkBasePosFormat{};
+            }
+            pub fn read(self: *MarkBasePosFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                self.mark_coverage_offset = try bit_reader.read(u16);
+                self.base_coverage_offset = try bit_reader.read(u16);
+                self.mark_class_count = try bit_reader.read(u16);
+                self.mark_array_offset = try bit_reader.read(u16);
+                self.base_array_offset = try bit_reader.read(u16);
+
+                bit_reader.setPos(offset + self.base_array_offset);
+                self.base_array.base_count = try bit_reader.read(u16);
+                self.base_array.base_records = try allocator.alloc(GPOS.MarkBasePosFormat.BaseArray.BaseRecord, self.base_array.base_count);
+                self.base_array.base_anchor_offsets = try allocator.alloc(?u16, self.mark_class_count);
+                for (0..self.base_array.base_anchor_offsets.len) |i| {
+                    self.base_array.base_anchor_offsets[i] = try bit_reader.read(u16);
+                }
+
+                for (0..self.base_array.base_records.len) |i| {
+                    self.base_array.base_records[i].base_anchors = try allocator.alloc(GPOS.Anchor, self.mark_class_count);
+                }
+
+                for (0..self.base_array.base_anchor_offsets.len) |i| {
+                    bit_reader.setPos(offset + self.base_array_offset + self.base_array.base_anchor_offsets[i].?);
+                    for (0..self.base_array.base_records.len) |j| {
+                        try self.base_array.base_records[j].base_anchors[i].read(bit_reader);
+                    }
+                }
+
+                try self.mark_array.read(bit_reader, offset + self.mark_array_offset, allocator);
+
+                try self.base_coverage.read(bit_reader, offset + self.base_coverage_offset, allocator);
+                try self.mark_coverage.read(bit_reader, offset + self.mark_coverage_offset, allocator);
+            }
+            pub fn deinit(self: *MarkBasePosFormat, allocator: std.mem.Allocator) void {
+                for (0..self.base_array.base_records.len) |i| {
+                    allocator.free(self.base_array.base_records[i].base_anchors);
+                }
+                allocator.free(self.base_array.base_anchor_offsets);
+                allocator.free(self.base_array.base_records);
+                self.base_coverage.deinit(allocator);
+                self.mark_coverage.deinit(allocator);
+                self.mark_array.deinit(allocator);
+            }
+            pub fn print(self: *MarkBasePosFormat) void {
+                std.debug.print("MarkBasePosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
+                std.debug.print("BaseCoverage\n", .{});
+                self.base_coverage.print();
+                std.debug.print("MarkCoverage\n", .{});
+                self.mark_coverage.print();
+                std.debug.print("BaseArray base_count = {d}\n", .{self.base_array.base_count});
+                for (0..self.base_array.base_anchor_offsets.len) |i| {
+                    for (0..self.base_array.base_records.len) |j| {
+                        std.debug.print("BaseAnchor = {any}\n", .{self.base_array.base_records[j].base_anchors[i]});
+                    }
+                }
+
+                self.mark_array.print();
+            }
         };
         pub const MarkLigPosFormat = struct {
             format: u16 = undefined,
@@ -253,6 +586,10 @@ pub const TTF = struct {
             mark_class_count: u16 = undefined,
             mark_array_offset: u16 = undefined,
             ligature_array_offset: u16 = undefined,
+            lig_coverage: Coverage = undefined,
+            mark_coverage: Coverage = undefined,
+            lig_array: LigatureArray = undefined,
+            mark_array: MarkArray = undefined,
             pub const LigatureArray = struct {
                 ligature_count: u16 = undefined,
                 ligature_attach_offsets: []u16 = undefined,
@@ -264,6 +601,38 @@ pub const TTF = struct {
                     ligature_anchor_offsets: []?u16 = undefined,
                 };
             };
+            pub fn init() MarkLigPosFormat {
+                return MarkLigPosFormat{};
+            }
+            pub fn read(self: *MarkLigPosFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                self.mark_coverage_offset = try bit_reader.read(u16);
+                self.ligature_coverage_offset = try bit_reader.read(u16);
+                self.mark_class_count = try bit_reader.read(u16);
+                self.mark_array_offset = try bit_reader.read(u16);
+                self.ligature_array_offset = try bit_reader.read(u16);
+
+                //TODO read ligature array
+
+                try self.mark_array.read(bit_reader, offset + self.mark_array_offset, allocator);
+                try self.lig_coverage.read(bit_reader, offset + self.ligature_coverage_offset, allocator);
+                try self.mark_coverage.read(bit_reader, offset + self.mark_coverage_offset, allocator);
+            }
+            pub fn deinit(self: *MarkLigPosFormat, allocator: std.mem.Allocator) void {
+                self.mark_array.deinit(allocator);
+                self.lig_coverage.deinit(allocator);
+                self.mark_coverage.deinit(allocator);
+            }
+
+            pub fn print(self: *MarkLigPosFormat) void {
+                std.debug.print("MarkLigPosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
+                std.debug.print("LigCoverage\n", .{});
+                self.lig_coverage.print();
+                std.debug.print("MarkCoverage\n", .{});
+                self.mark_coverage.print();
+                self.mark_array.print();
+            }
         };
         pub const MarkMarkPosFormat = struct {
             format: u16 = undefined,
@@ -279,11 +648,42 @@ pub const TTF = struct {
                     mark2_anchor_offsets: []?u16 = undefined,
                 };
             };
+            pub fn init() MarkMarkPosFormat {
+                return MarkMarkPosFormat{};
+            }
+            //TODO
+            pub fn read(self: *MarkMarkPosFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                _ = self;
+                _ = bit_reader;
+                _ = offset;
+                _ = allocator;
+            }
+            pub fn deinit(self: *MarkMarkPosFormat, allocator: std.mem.Allocator) void {
+                _ = self;
+                _ = allocator;
+            }
+
+            pub fn print(self: *MarkMarkPosFormat) void {
+                _ = self;
+                std.debug.print("MarkMarkPosFormat\n", .{});
+            }
         };
         pub const PosExtensionFormat = struct {
             format: u16 = undefined,
             extension_lookup_type: u16 = undefined,
             extension_offset: u32 = undefined,
+            pub fn init() PosExtensionFormat {
+                return PosExtensionFormat{};
+            }
+            pub fn read(self: *PosExtensionFormat, bit_reader: *BitReader, offset: u32) Error!void {
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                self.extension_lookup_type = try bit_reader.read(u16);
+                self.extension_offset = try bit_reader.read(u32);
+            }
+            pub fn print(self: *PosExtensionFormat) void {
+                std.debug.print("PosExtensionFormat format = {d}, extensionLookupType = {d}, extensionOffset = {d}\n", .{ self.format, self.extension_lookup_type, self.extension_offset });
+            }
         };
         pub const ValueRecord = struct {
             x_placement: i16 = undefined,
@@ -294,6 +694,51 @@ pub const TTF = struct {
             y_place_device_offset: ?u16 = null,
             x_adv_device_offset: ?u16 = null,
             y_adv_device_offset: ?u16 = null,
+            pub fn init() ValueRecord {
+                return ValueRecord{};
+            }
+            pub fn read(self: *ValueRecord, bit_reader: *BitReader, value_format: u16) Error!void {
+                if (value_format & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT) != 0) {
+                    self.x_placement = try bit_reader.read(i16);
+                } else {
+                    self.x_placement = 0;
+                }
+                if (value_format & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT) != 0) {
+                    self.y_placement = try bit_reader.read(i16);
+                } else {
+                    self.y_placement = 0;
+                }
+                if (value_format & @intFromEnum(GPOS.ValueFormat.X_ADVANCE) != 0) {
+                    self.x_advance = try bit_reader.read(i16);
+                } else {
+                    self.x_advance = 0;
+                }
+                if (value_format & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE) != 0) {
+                    self.y_advance = try bit_reader.read(i16);
+                } else {
+                    self.y_advance = 0;
+                }
+                if (value_format & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT_DEVICE) != 0) {
+                    self.x_place_device_offset = try bit_reader.read(u16);
+                } else {
+                    self.x_place_device_offset = null;
+                }
+                if (value_format & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT_DEVICE) != 0) {
+                    self.y_place_device_offset = try bit_reader.read(u16);
+                } else {
+                    self.y_place_device_offset = null;
+                }
+                if (value_format & @intFromEnum(GPOS.ValueFormat.X_ADVANCE_DEVICE) != 0) {
+                    self.x_adv_device_offset = try bit_reader.read(u16);
+                } else {
+                    self.x_adv_device_offset = null;
+                }
+                if (value_format & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE_DEVICE) != 0) {
+                    self.y_adv_device_offset = try bit_reader.read(u16);
+                } else {
+                    self.y_adv_device_offset = null;
+                }
+            }
         };
         pub const ValueFormat = enum(u16) {
             X_PLACEMENT = 1,
@@ -308,15 +753,15 @@ pub const TTF = struct {
         };
         pub const Anchor = struct {
             format: u16,
-            x_coord: u16,
-            y_coord: u16,
+            x_coord: i16,
+            y_coord: i16,
             anchor_point: ?u16 = null,
             x_device_offset: ?u16 = null,
             y_device_offset: ?u16 = null,
             pub fn read(self: *Anchor, bit_reader: *BitReader) Error!void {
                 self.format = try bit_reader.read(u16);
-                self.x_coord = try bit_reader.read(u16);
-                self.y_coord = try bit_reader.read(u16);
+                self.x_coord = try bit_reader.read(i16);
+                self.y_coord = try bit_reader.read(i16);
                 self.anchor_point = null;
                 self.x_device_offset = null;
                 self.y_device_offset = null;
@@ -336,6 +781,29 @@ pub const TTF = struct {
                 mark_anchor_offset: u16,
                 anchor: Anchor,
             };
+            pub fn deinit(self: *MarkArray, allocator: std.mem.Allocator) void {
+                allocator.free(self.mark_records);
+            }
+            pub fn read(self: *MarkArray, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                self.mark_count = try bit_reader.read(u16);
+                self.mark_records = try allocator.alloc(GPOS.MarkArray.MarkRecord, self.mark_count);
+                for (0..self.mark_records.len) |i| {
+                    self.mark_records[i].mark_class = try bit_reader.read(u16);
+                    self.mark_records[i].mark_anchor_offset = try bit_reader.read(u16);
+                }
+                for (0..self.mark_records.len) |i| {
+                    bit_reader.setPos(offset + self.mark_records[i].mark_anchor_offset);
+                    try self.mark_records[i].anchor.read(bit_reader);
+                }
+            }
+
+            pub fn print(self: *MarkArray) void {
+                std.debug.print("MarkArray count = {d}\n", .{self.mark_count});
+                for (0..self.mark_records.len) |i| {
+                    std.debug.print("MarkRecord class = {d}, offset = {d}, anchor = {any}\n", .{ self.mark_records[i].mark_class, self.mark_records[i].mark_anchor_offset, self.mark_records[i].anchor });
+                }
+            }
         };
         pub const ClassDefFormat = struct {
             format: u16 = undefined,
@@ -441,7 +909,7 @@ pub const TTF = struct {
         p1: Point,
         p2: Point,
     };
-    pub const Error = error{ TableNotFound, CompoundNotImplemented, KernFormatUnsupported } || std.mem.Allocator.Error || BitReader.Error || ByteStream.Error;
+    pub const Error = error{ MissingRequiredTable, CompoundNotImplemented, KernFormatUnsupported } || std.mem.Allocator.Error || BitReader.Error || ByteStream.Error;
     const Self = @This();
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{
@@ -505,67 +973,36 @@ pub const TTF = struct {
     fn deinit_subtable(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, lookup_type: u16) void {
         switch (lookup_type) {
             1 => {
-                if (subtable.single_pos_format.?.format == 2) {
-                    self.allocator.free(subtable.single_pos_format.?.value_records.?);
-                }
-                subtable.single_pos_format.?.coverage.deinit(self.allocator);
+                subtable.single_pos_format.?.deinit(self.allocator);
             },
             2 => {
-                if (subtable.pair_pos_format.?.format == 1) {
-                    for (0..subtable.pair_pos_format.?.pair_set_records.?.len) |k| {
-                        self.allocator.free(subtable.pair_pos_format.?.pair_set_records.?[k].pair_value_records);
-                    }
-                    self.allocator.free(subtable.pair_pos_format.?.pair_set_records.?);
-                } else {
-                    for (0..subtable.pair_pos_format.?.class1_records.?.len) |k| {
-                        self.allocator.free(subtable.pair_pos_format.?.class1_records.?[k].class2_records);
-                    }
-                    self.allocator.free(subtable.pair_pos_format.?.class1_records.?);
-                    if (subtable.pair_pos_format.?.class_def1.class_range_records != null) {
-                        self.allocator.free(subtable.pair_pos_format.?.class_def1.class_range_records.?);
-                    }
-                    if (subtable.pair_pos_format.?.class_def1.class_values != null) {
-                        self.allocator.free(subtable.pair_pos_format.?.class_def1.class_values.?);
-                    }
-                    if (subtable.pair_pos_format.?.class_def2.class_range_records != null) {
-                        self.allocator.free(subtable.pair_pos_format.?.class_def2.class_range_records.?);
-                    }
-                    if (subtable.pair_pos_format.?.class_def2.class_values != null) {
-                        self.allocator.free(subtable.pair_pos_format.?.class_def2.class_values.?);
-                    }
-                }
-
-                subtable.pair_pos_format.?.coverage.deinit(self.allocator);
+                subtable.pair_pos_format.?.deinit(self.allocator);
             },
             3 => {
-                self.allocator.free(subtable.cursive_pos_format.?.entry_exit_records);
-                subtable.cursive_pos_format.?.coverage.deinit(self.allocator);
+                subtable.cursive_pos_format.?.deinit(self.allocator);
             },
             4 => {
-                for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |i| {
-                    self.allocator.free(subtable.mark_base_pos_format.?.base_array.base_records[i].base_anchors);
-                }
-                self.allocator.free(subtable.mark_base_pos_format.?.base_array.base_anchor_offsets);
-                self.allocator.free(subtable.mark_base_pos_format.?.base_array.base_records);
-                subtable.mark_base_pos_format.?.base_coverage.deinit(self.allocator);
-                subtable.mark_base_pos_format.?.mark_coverage.deinit(self.allocator);
-                self.allocator.free(subtable.mark_base_pos_format.?.mark_array.mark_records);
+                subtable.mark_base_pos_format.?.deinit(self.allocator);
             },
-            5 => {},
-            6 => {},
+            5 => {
+                subtable.mark_lig_pos_format.?.deinit(self.allocator);
+            },
+            6 => {
+                subtable.mark_mark_pos_format.?.deinit(self.allocator);
+            },
             7 => {},
             8 => {},
             else => unreachable,
         }
     }
 
-    fn find_table(self: *Self, table_name: []const u8) Error!*TableDirectory {
+    fn find_table(self: *Self, table_name: []const u8) ?*TableDirectory {
         for (0..self.font_directory.table_directory.len) |i| {
             if (std.mem.eql(u8, &self.font_directory.table_directory[i].tag, table_name)) {
                 return &self.font_directory.table_directory[i];
             }
         }
-        return Error.TableNotFound;
+        return null;
     }
 
     fn read_cmap(self: *Self, cmap_table: *TableDirectory) Error!void {
@@ -773,337 +1210,57 @@ pub const TTF = struct {
         }
     }
 
-    fn read_value_record(self: *Self, value_record: *GPOS.ValueRecord, value_format: u16) Error!void {
-        if (value_format & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT) != 0) {
-            value_record.x_placement = try self.bit_reader.read(i16);
-        } else {
-            value_record.x_placement = 0;
-        }
-        if (value_format & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT) != 0) {
-            value_record.y_placement = try self.bit_reader.read(i16);
-        } else {
-            value_record.y_placement = 0;
-        }
-        if (value_format & @intFromEnum(GPOS.ValueFormat.X_ADVANCE) != 0) {
-            value_record.x_advance = try self.bit_reader.read(i16);
-        } else {
-            value_record.x_advance = 0;
-        }
-        if (value_format & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE) != 0) {
-            value_record.y_advance = try self.bit_reader.read(i16);
-        } else {
-            value_record.y_advance = 0;
-        }
-        if (value_format & @intFromEnum(GPOS.ValueFormat.X_PLACEMENT_DEVICE) != 0) {
-            value_record.x_place_device_offset = try self.bit_reader.read(u16);
-        } else {
-            value_record.x_place_device_offset = null;
-        }
-        if (value_format & @intFromEnum(GPOS.ValueFormat.Y_PLACEMENT_DEVICE) != 0) {
-            value_record.y_place_device_offset = try self.bit_reader.read(u16);
-        } else {
-            value_record.y_place_device_offset = null;
-        }
-        if (value_format & @intFromEnum(GPOS.ValueFormat.X_ADVANCE_DEVICE) != 0) {
-            value_record.x_adv_device_offset = try self.bit_reader.read(u16);
-        } else {
-            value_record.x_adv_device_offset = null;
-        }
-        if (value_format & @intFromEnum(GPOS.ValueFormat.Y_ADVANCE_DEVICE) != 0) {
-            value_record.y_adv_device_offset = try self.bit_reader.read(u16);
-        } else {
-            value_record.y_adv_device_offset = null;
-        }
-    }
-
-    fn process_single_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
-        subtable.single_pos_format = GPOS.SinglePosFormat{};
-        subtable.single_pos_format.?.format = try self.bit_reader.read(u16);
-        subtable.single_pos_format.?.coverage_offset = try self.bit_reader.read(u16);
-        subtable.single_pos_format.?.value_format = try self.bit_reader.read(u16);
-        std.debug.print("SinglePosFormat format = {d}, coverage_offset = {d}, value_format = {d}\n", .{ subtable.single_pos_format.?.format, subtable.single_pos_format.?.coverage_offset, subtable.single_pos_format.?.value_format });
-        if (subtable.single_pos_format.?.format == 1) {
-            subtable.single_pos_format.?.value_records = null;
-            subtable.single_pos_format.?.value_count = null;
-            subtable.single_pos_format.?.value_record = GPOS.ValueRecord{};
-            try self.read_value_record(&subtable.single_pos_format.?.value_record.?, subtable.single_pos_format.?.value_format);
-            std.debug.print("ValueRecord = {any}\n", .{subtable.single_pos_format.?.value_record});
-        } else if (subtable.single_pos_format.?.format == 2) {
-            subtable.single_pos_format.?.value_record = null;
-            subtable.single_pos_format.?.value_count = try self.bit_reader.read(u16);
-            subtable.single_pos_format.?.value_records = try self.allocator.alloc(GPOS.ValueRecord, subtable.single_pos_format.?.value_count.?);
-            std.debug.print("ValueRecords count = {any}\n", .{subtable.single_pos_format.?.value_count});
-            for (0..subtable.single_pos_format.?.value_records.?.len) |i| {
-                try self.read_value_record(&subtable.single_pos_format.?.value_records.?[i], subtable.single_pos_format.?.value_format);
-                std.debug.print("ValueRecord = {any}\n", .{subtable.single_pos_format.?.value_records.?[i]});
-            }
-        }
-
-        self.bit_reader.setPos(offset + subtable.single_pos_format.?.coverage_offset);
-        try self.read_coverage_table(&subtable.single_pos_format.?.coverage);
-    }
-    fn process_pair_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
-        subtable.pair_pos_format = GPOS.PairPosFormat{};
-        subtable.pair_pos_format.?.format = try self.bit_reader.read(u16);
-        subtable.pair_pos_format.?.coverage_offset = try self.bit_reader.read(u16);
-        subtable.pair_pos_format.?.value_format1 = try self.bit_reader.read(u16);
-        subtable.pair_pos_format.?.value_format2 = try self.bit_reader.read(u16);
-        if (subtable.pair_pos_format.?.format == 1) {
-            subtable.pair_pos_format.?.pair_set_count = try self.bit_reader.read(u16);
-            subtable.pair_pos_format.?.pair_set_records = try self.allocator.alloc(GPOS.PairPosFormat.PairSet, subtable.pair_pos_format.?.pair_set_count.?);
-            for (0..subtable.pair_pos_format.?.pair_set_records.?.len) |i| {
-                subtable.pair_pos_format.?.pair_set_records.?[i].pair_set_offset = try self.bit_reader.read(u16);
-            }
-            std.debug.print("PairPosFormat format = {d}, coverage_offset = {d}, value_format1 = {d}, value_format2 = {d}, pairset_count = {d}\n", .{ subtable.pair_pos_format.?.format, subtable.pair_pos_format.?.coverage_offset, subtable.pair_pos_format.?.value_format1, subtable.pair_pos_format.?.value_format2, subtable.pair_pos_format.?.pair_set_count.? });
-            for (0..subtable.pair_pos_format.?.pair_set_records.?.len) |i| {
-                self.bit_reader.setPos(offset + subtable.pair_pos_format.?.pair_set_records.?[i].pair_set_offset);
-                subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_count = try self.bit_reader.read(u16);
-                subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records = try self.allocator.alloc(GPOS.PairPosFormat.PairSet.PairValue, subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_count);
-                for (0..subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records.len) |j| {
-                    subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].second_glyph = try self.bit_reader.read(u16);
-                    if (subtable.pair_pos_format.?.value_format1 != 0) {
-                        try self.read_value_record(&subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1.?, subtable.pair_pos_format.?.value_format1);
-                    } else {
-                        subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record1 = null;
-                    }
-                    if (subtable.pair_pos_format.?.value_format2 != 0) {
-                        try self.read_value_record(&subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2.?, subtable.pair_pos_format.?.value_format2);
-                    } else {
-                        subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records[j].value_record2 = null;
-                    }
-                }
-                std.debug.print("Pairset offset = {d}, count = {d}\n", .{ subtable.pair_pos_format.?.pair_set_records.?[i].pair_set_offset, subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_count });
-                std.debug.print("PairValue records\n", .{});
-                for (0..subtable.pair_pos_format.?.pair_set_records.?[i].pair_value_records.len) |j| {
-                    std.debug.print("value_record1 = {any}, value_record2 = {any}\n", .{ subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1, subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2 });
-                }
-            }
-        } else {
-            subtable.pair_pos_format.?.class_def1_offset = try self.bit_reader.read(u16);
-            subtable.pair_pos_format.?.class_def2_offset = try self.bit_reader.read(u16);
-            subtable.pair_pos_format.?.class1_count = try self.bit_reader.read(u16);
-            subtable.pair_pos_format.?.class2_count = try self.bit_reader.read(u16);
-            subtable.pair_pos_format.?.class1_records = try self.allocator.alloc(GPOS.PairPosFormat.Class1, subtable.pair_pos_format.?.class1_count.?);
-            std.debug.print("PairPosFormat format = {d}, coverage_offset = {d}, value_format1 = {d}, value_format2 = {d}, class_def1_offset = {d}, class_def2_offset = {d}, class1_count = {d}, class2_count = {d}\n", .{ subtable.pair_pos_format.?.format, subtable.pair_pos_format.?.coverage_offset, subtable.pair_pos_format.?.value_format1, subtable.pair_pos_format.?.value_format2, subtable.pair_pos_format.?.class_def1_offset.?, subtable.pair_pos_format.?.class_def2_offset.?, subtable.pair_pos_format.?.class1_count.?, subtable.pair_pos_format.?.class2_count.? });
-            for (0..subtable.pair_pos_format.?.class1_records.?.len) |i| {
-                subtable.pair_pos_format.?.class1_records.?[i].class2_records = try self.allocator.alloc(GPOS.PairPosFormat.Class2, subtable.pair_pos_format.?.class2_count.?);
-                for (0..subtable.pair_pos_format.?.class1_records.?[i].class2_records.len) |j| {
-                    if (subtable.pair_pos_format.?.value_format1 != 0) {
-                        try self.read_value_record(&subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1.?, subtable.pair_pos_format.?.value_format1);
-                    } else {
-                        subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1 = null;
-                    }
-                    if (subtable.pair_pos_format.?.value_format2 != 0) {
-                        try self.read_value_record(&subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2.?, subtable.pair_pos_format.?.value_format2);
-                    } else {
-                        subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2 = null;
-                    }
-                }
-                std.debug.print("Class Records\n", .{});
-                for (0..subtable.pair_pos_format.?.class1_records.?[i].class2_records.len) |j| {
-                    std.debug.print("value_record1 = {any}, value_record2 = {any}\n", .{ subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record1, subtable.pair_pos_format.?.class1_records.?[i].class2_records[j].value_record2 });
-                }
-            }
-            self.bit_reader.setPos(offset + subtable.pair_pos_format.?.class_def1_offset.?);
-            subtable.pair_pos_format.?.class_def1.format = try self.bit_reader.read(u16);
-            if (subtable.pair_pos_format.?.class_def1.format == 1) {
-                subtable.pair_pos_format.?.class_def1.start_glyph_id = try self.bit_reader.read(u16);
-                subtable.pair_pos_format.?.class_def1.glyph_count = try self.bit_reader.read(u16);
-                subtable.pair_pos_format.?.class_def1.class_values = try self.allocator.alloc(u16, subtable.pair_pos_format.?.class_def1.glyph_count.?);
-                for (0..subtable.pair_pos_format.?.class_def1.class_values.?.len) |i| {
-                    subtable.pair_pos_format.?.class_def1.class_values.?[i] = try self.bit_reader.read(u16);
-                }
-                subtable.pair_pos_format.?.class_def1.class_range_count = null;
-                subtable.pair_pos_format.?.class_def1.class_range_records = null;
-            } else {
-                subtable.pair_pos_format.?.class_def1.start_glyph_id = null;
-                subtable.pair_pos_format.?.class_def1.glyph_count = null;
-                subtable.pair_pos_format.?.class_def1.class_values = null;
-                subtable.pair_pos_format.?.class_def1.class_range_count = try self.bit_reader.read(u16);
-                subtable.pair_pos_format.?.class_def1.class_range_records = try self.allocator.alloc(GPOS.ClassDefFormat.ClassRange, subtable.pair_pos_format.?.class_def1.class_range_count.?);
-                for (0..subtable.pair_pos_format.?.class_def1.class_range_records.?.len) |i| {
-                    subtable.pair_pos_format.?.class_def1.class_range_records.?[i].start_glyph_id = try self.bit_reader.read(u16);
-                    subtable.pair_pos_format.?.class_def1.class_range_records.?[i].end_glyph_id = try self.bit_reader.read(u16);
-                    subtable.pair_pos_format.?.class_def1.class_range_records.?[i].class = try self.bit_reader.read(u16);
-                }
-            }
-            std.debug.print("ClassDef1 format = {d}, start_glyph_id = {any}, glyph_count = {any}, class_values = {any}, class_range_count = {any}\n", .{ subtable.pair_pos_format.?.class_def1.format, subtable.pair_pos_format.?.class_def1.start_glyph_id, subtable.pair_pos_format.?.class_def1.glyph_count, subtable.pair_pos_format.?.class_def1.class_values, subtable.pair_pos_format.?.class_def1.class_range_count });
-            if (subtable.pair_pos_format.?.class_def1.class_range_records != null) {
-                for (0..subtable.pair_pos_format.?.class_def1.class_range_records.?.len) |i| {
-                    std.debug.print("ClassRange start_glyph_id = {d}, end_glyph_id = {d}, class = {d}\n", .{ subtable.pair_pos_format.?.class_def1.class_range_records.?[i].start_glyph_id, subtable.pair_pos_format.?.class_def1.class_range_records.?[i].end_glyph_id, subtable.pair_pos_format.?.class_def1.class_range_records.?[i].class });
-                }
-            }
-            self.bit_reader.setPos(offset + subtable.pair_pos_format.?.class_def2_offset.?);
-            subtable.pair_pos_format.?.class_def2.format = try self.bit_reader.read(u16);
-            if (subtable.pair_pos_format.?.class_def2.format == 1) {
-                subtable.pair_pos_format.?.class_def2.start_glyph_id = try self.bit_reader.read(u16);
-                subtable.pair_pos_format.?.class_def2.glyph_count = try self.bit_reader.read(u16);
-                subtable.pair_pos_format.?.class_def2.class_values = try self.allocator.alloc(u16, subtable.pair_pos_format.?.class_def2.glyph_count.?);
-                for (0..subtable.pair_pos_format.?.class_def2.class_values.?.len) |i| {
-                    subtable.pair_pos_format.?.class_def2.class_values.?[i] = try self.bit_reader.read(u16);
-                }
-                subtable.pair_pos_format.?.class_def2.class_range_count = null;
-                subtable.pair_pos_format.?.class_def2.class_range_records = null;
-            } else {
-                subtable.pair_pos_format.?.class_def2.start_glyph_id = null;
-                subtable.pair_pos_format.?.class_def2.glyph_count = null;
-                subtable.pair_pos_format.?.class_def2.class_values = null;
-                subtable.pair_pos_format.?.class_def2.class_range_count = try self.bit_reader.read(u16);
-                subtable.pair_pos_format.?.class_def2.class_range_records = try self.allocator.alloc(GPOS.ClassDefFormat.ClassRange, subtable.pair_pos_format.?.class_def2.class_range_count.?);
-                for (0..subtable.pair_pos_format.?.class_def2.class_range_records.?.len) |i| {
-                    subtable.pair_pos_format.?.class_def2.class_range_records.?[i].start_glyph_id = try self.bit_reader.read(u16);
-                    subtable.pair_pos_format.?.class_def2.class_range_records.?[i].end_glyph_id = try self.bit_reader.read(u16);
-                    subtable.pair_pos_format.?.class_def2.class_range_records.?[i].class = try self.bit_reader.read(u16);
-                }
-            }
-            std.debug.print("ClassDef2 format = {d}, start_glyph_id = {any}, glyph_count = {any}, class_values = {any}, class_range_count = {any}\n", .{ subtable.pair_pos_format.?.class_def2.format, subtable.pair_pos_format.?.class_def2.start_glyph_id, subtable.pair_pos_format.?.class_def2.glyph_count, subtable.pair_pos_format.?.class_def2.class_values, subtable.pair_pos_format.?.class_def2.class_range_count });
-            if (subtable.pair_pos_format.?.class_def2.class_range_records != null) {
-                for (0..subtable.pair_pos_format.?.class_def2.class_range_records.?.len) |i| {
-                    std.debug.print("ClassRange start_glyph_id = {d}, end_glyph_id = {d}, class = {d}\n", .{ subtable.pair_pos_format.?.class_def2.class_range_records.?[i].start_glyph_id, subtable.pair_pos_format.?.class_def2.class_range_records.?[i].end_glyph_id, subtable.pair_pos_format.?.class_def2.class_range_records.?[i].class });
-                }
-            }
-        }
-        self.bit_reader.setPos(offset + subtable.pair_pos_format.?.coverage_offset);
-        try self.read_coverage_table(&subtable.pair_pos_format.?.coverage);
-    }
-
-    fn process_cursive_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
-        subtable.cursive_pos_format = GPOS.CursivePosFormat{};
-        subtable.cursive_pos_format.?.format = try self.bit_reader.read(u16);
-        subtable.cursive_pos_format.?.coverage_offset = try self.bit_reader.read(u16);
-        subtable.cursive_pos_format.?.entry_exit_count = try self.bit_reader.read(u16);
-        subtable.cursive_pos_format.?.entry_exit_records = try self.allocator.alloc(GPOS.CursivePosFormat.EntryExit, subtable.cursive_pos_format.?.entry_exit_count);
-        for (0..subtable.cursive_pos_format.?.entry_exit_records.len) |i| {
-            subtable.cursive_pos_format.?.entry_exit_records[i].entry_anchor_offset = try self.bit_reader.read(u16);
-            subtable.cursive_pos_format.?.entry_exit_records[i].exit_anchor_offset = try self.bit_reader.read(u16);
-        }
-        std.debug.print("CursivePosFormat format = {d}, coverage_offset = {d}, entry_exit_count = {d}\n", .{ subtable.cursive_pos_format.?.format, subtable.cursive_pos_format.?.coverage_offset, subtable.cursive_pos_format.?.entry_exit_count });
-        for (0..subtable.cursive_pos_format.?.entry_exit_records.len) |i| {
-            std.debug.print("EntryExit {any}\n", .{subtable.cursive_pos_format.?.entry_exit_records[i]});
-        }
-        //TODO grab anchor tables, need cursive font example
-        self.bit_reader.setPos(offset + subtable.cursive_pos_format.?.coverage_offset);
-        try self.read_coverage_table(&subtable.cursive_pos_format.?.coverage);
-    }
-
-    fn process_mark_base_pos_format(self: *Self, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
-        subtable.mark_base_pos_format = GPOS.MarkBasePosFormat{};
-        subtable.mark_base_pos_format.?.format = try self.bit_reader.read(u16);
-        subtable.mark_base_pos_format.?.mark_coverage_offset = try self.bit_reader.read(u16);
-        subtable.mark_base_pos_format.?.base_coverage_offset = try self.bit_reader.read(u16);
-        subtable.mark_base_pos_format.?.mark_class_count = try self.bit_reader.read(u16);
-        subtable.mark_base_pos_format.?.mark_array_offset = try self.bit_reader.read(u16);
-        subtable.mark_base_pos_format.?.base_array_offset = try self.bit_reader.read(u16);
-
-        self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.base_array_offset);
-        subtable.mark_base_pos_format.?.base_array.base_count = try self.bit_reader.read(u16);
-        subtable.mark_base_pos_format.?.base_array.base_records = try self.allocator.alloc(GPOS.MarkBasePosFormat.BaseArray.BaseRecord, subtable.mark_base_pos_format.?.base_array.base_count);
-        subtable.mark_base_pos_format.?.base_array.base_anchor_offsets = try self.allocator.alloc(?u16, subtable.mark_base_pos_format.?.mark_class_count);
-        for (0..subtable.mark_base_pos_format.?.base_array.base_anchor_offsets.len) |i| {
-            subtable.mark_base_pos_format.?.base_array.base_anchor_offsets[i] = try self.bit_reader.read(u16);
-        }
-
-        for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |i| {
-            subtable.mark_base_pos_format.?.base_array.base_records[i].base_anchors = try self.allocator.alloc(GPOS.Anchor, subtable.mark_base_pos_format.?.mark_class_count);
-        }
-
-        for (0..subtable.mark_base_pos_format.?.base_array.base_anchor_offsets.len) |i| {
-            self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.base_array_offset + subtable.mark_base_pos_format.?.base_array.base_anchor_offsets[i].?);
-            for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |j| {
-                try subtable.mark_base_pos_format.?.base_array.base_records[j].base_anchors[i].read(&self.bit_reader);
-            }
-        }
-        std.debug.print("BaseArray base_count = {d}, class_count = {d}\n", .{ subtable.mark_base_pos_format.?.base_array.base_count, subtable.mark_base_pos_format.?.mark_class_count });
-
-        for (0..subtable.mark_base_pos_format.?.base_array.base_anchor_offsets.len) |i| {
-            for (0..subtable.mark_base_pos_format.?.base_array.base_records.len) |j| {
-                std.debug.print("BaseAnchor = {any}\n", .{subtable.mark_base_pos_format.?.base_array.base_records[j].base_anchors[i]});
-            }
-        }
-
-        self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.mark_array_offset);
-        subtable.mark_base_pos_format.?.mark_array.mark_count = try self.bit_reader.read(u16);
-        subtable.mark_base_pos_format.?.mark_array.mark_records = try self.allocator.alloc(GPOS.MarkArray.MarkRecord, subtable.mark_base_pos_format.?.mark_array.mark_count);
-        for (0..subtable.mark_base_pos_format.?.mark_array.mark_records.len) |i| {
-            subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_class = try self.bit_reader.read(u16);
-            subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_anchor_offset = try self.bit_reader.read(u16);
-        }
-        for (0..subtable.mark_base_pos_format.?.mark_array.mark_records.len) |i| {
-            self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.mark_array_offset + subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_anchor_offset);
-            try subtable.mark_base_pos_format.?.mark_array.mark_records[i].anchor.read(&self.bit_reader);
-        }
-        std.debug.print("MarkArray count = {d}\n", .{subtable.mark_base_pos_format.?.mark_array.mark_count});
-        for (0..subtable.mark_base_pos_format.?.mark_array.mark_records.len) |i| {
-            std.debug.print("MarkRecord class = {d}, offset = {d}, anchor = {any}\n", .{ subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_class, subtable.mark_base_pos_format.?.mark_array.mark_records[i].mark_anchor_offset, subtable.mark_base_pos_format.?.mark_array.mark_records[i].anchor });
-        }
-
-        self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.base_coverage_offset);
-        try self.read_coverage_table(&subtable.mark_base_pos_format.?.base_coverage);
-
-        self.bit_reader.setPos(offset + subtable.mark_base_pos_format.?.mark_coverage_offset);
-        try self.read_coverage_table(&subtable.mark_base_pos_format.?.mark_coverage);
-    }
-
     fn process_lookup_format(self: *Self, lookup_type: u16, subtable: *GPOS.LookupList.Lookup.SubTable, offset: u32) Error!void {
-        self.bit_reader.setPos(offset);
         switch (lookup_type) {
             1 => {
-                try self.process_single_pos_format(subtable, offset);
+                subtable.single_pos_format = GPOS.SinglePosFormat.init();
+                try subtable.single_pos_format.?.read(&self.bit_reader, offset, self.allocator);
+                subtable.single_pos_format.?.print();
             },
             2 => {
-                try self.process_pair_pos_format(subtable, offset);
+                subtable.pair_pos_format = GPOS.PairPosFormat.init();
+                try subtable.pair_pos_format.?.read(&self.bit_reader, offset, self.allocator);
+                subtable.pair_pos_format.?.print();
             },
             3 => {
-                try self.process_cursive_pos_format(subtable, offset);
+                subtable.cursive_pos_format = GPOS.CursivePosFormat.init();
+                try subtable.cursive_pos_format.?.read(&self.bit_reader, offset, self.allocator);
+                subtable.cursive_pos_format.?.print();
             },
             4 => {
-                try self.process_mark_base_pos_format(subtable, offset);
+                subtable.mark_base_pos_format = GPOS.MarkBasePosFormat.init();
+                try subtable.mark_base_pos_format.?.read(&self.bit_reader, offset, self.allocator);
+                subtable.mark_base_pos_format.?.print();
             },
             5 => {
-                subtable.mark_lig_pos_format = GPOS.MarkLigPosFormat{};
+                subtable.mark_lig_pos_format = GPOS.MarkLigPosFormat.init();
+                try subtable.mark_lig_pos_format.?.read(&self.bit_reader, offset, self.allocator);
+                subtable.mark_lig_pos_format.?.print();
             },
             6 => {
-                subtable.mark_mark_pos_format = GPOS.MarkMarkPosFormat{};
+                subtable.mark_mark_pos_format = GPOS.MarkMarkPosFormat.init();
+                try subtable.mark_mark_pos_format.?.read(&self.bit_reader, offset, self.allocator);
+                subtable.mark_mark_pos_format.?.print();
             },
-            7 => {},
-            8 => {},
+            7 => {
+                // subtable.single_pos_format = GPOS.SinglePosFormat.init();
+                // try subtable.single_pos_format.?.read(&self.bit_reader, offset, self.allocator);
+                // subtable.single_pos_format.?.print();
+            },
+            8 => {
+                // subtable.single_pos_format = GPOS.SinglePosFormat.init();
+                // try subtable.single_pos_format.?.read(&self.bit_reader, offset, self.allocator);
+                // subtable.single_pos_format.?.print();
+            },
             9 => {
-                subtable.pos_extension_format = GPOS.PosExtensionFormat{};
-                subtable.pos_extension_format.?.format = try self.bit_reader.read(u16);
-                subtable.pos_extension_format.?.extension_lookup_type = try self.bit_reader.read(u16);
-                subtable.pos_extension_format.?.extension_offset = try self.bit_reader.read(u32);
-                std.debug.print("PosExtensionFormat format = {d}, extensionLookupType = {d}, extensionOffset = {d}\n", .{ subtable.pos_extension_format.?.format, subtable.pos_extension_format.?.extension_lookup_type, subtable.pos_extension_format.?.extension_offset });
+                subtable.pos_extension_format = GPOS.PosExtensionFormat.init();
+                try subtable.pos_extension_format.?.read(&self.bit_reader, offset);
+                subtable.pos_extension_format.?.print();
             },
             else => unreachable,
         }
     }
 
-    fn read_coverage_table(self: *Self, coverage: *GPOS.Coverage) Error!void {
-        coverage.format = try self.bit_reader.read(u16);
-        if (coverage.format == 1) {
-            coverage.glyph_count = try self.bit_reader.read(u16);
-            coverage.glyph_array = try self.allocator.alloc(u16, coverage.glyph_count.?);
-            for (0..coverage.glyph_array.?.len) |k| {
-                coverage.glyph_array.?[k] = try self.bit_reader.read(u16);
-            }
-        } else {
-            coverage.range_count = try self.bit_reader.read(u16);
-            coverage.range_records = try self.allocator.alloc(GPOS.Coverage.RangeRecord, coverage.range_count.?);
-            for (0..coverage.range_records.?.len) |k| {
-                coverage.range_records.?[k].start_gylph_id = try self.bit_reader.read(u16);
-                coverage.range_records.?[k].end_glyph_id = try self.bit_reader.read(u16);
-                coverage.range_records.?[k].start_coverage_index = try self.bit_reader.read(u16);
-            }
-        }
-        if (coverage.format == 1) {
-            std.debug.print("Coverage Table format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ coverage.format, coverage.glyph_count.?, coverage.glyph_array.? });
-        } else if (coverage.format == 2) {
-            std.debug.print("Coverage Table format = {d}, range_count = {d}\n", .{ coverage.format, coverage.range_count.? });
-            for (0..coverage.range_records.?.len) |k| {
-                std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ coverage.range_records.?[k].start_gylph_id, coverage.range_records.?[k].end_glyph_id, coverage.range_records.?[k].start_coverage_index });
-            }
-        }
-    }
     //https://learn.microsoft.com/en-us/typography/opentype/spec/gpos
     //TODO store GPOS data to be used in glyph rendering
     fn read_gpos(self: *Self, offset: u32) Error!void {
@@ -1371,20 +1528,20 @@ pub const TTF = struct {
             self.font_directory.table_directory[i].offset = try self.bit_reader.read(u32);
             self.font_directory.table_directory[i].length = try self.bit_reader.read(u32);
         }
-        const cmap_table = try self.find_table("cmap");
+        const cmap_table = self.find_table("cmap") orelse return Error.MissingRequiredTable;
         try self.read_cmap(cmap_table);
         try self.read_format4(cmap_table.offset + self.font_directory.cmap.cmap_encoding_subtables[0].offset);
 
-        const glyf_table = try self.find_table("glyf");
+        const glyf_table = self.find_table("glyf") orelse return Error.MissingRequiredTable;
         self.font_directory.glyf_offset = glyf_table.offset;
-        const loca_table = try self.find_table("loca");
+        const loca_table = self.find_table("loca") orelse return Error.MissingRequiredTable;
         self.font_directory.loca_offset = loca_table.offset;
-        const head_table = try self.find_table("head");
+        const head_table = self.find_table("head") orelse return Error.MissingRequiredTable;
         self.font_directory.head_offset = head_table.offset;
         try self.read_head(self.font_directory.head_offset);
         if (self.find_table("GPOS")) |table| {
             try self.read_gpos(table.offset);
-        } else |_| {
+        } else {
             std.debug.print("no gpos table found\n", .{});
             self.font_directory.gpos = null;
         }
@@ -1393,15 +1550,15 @@ pub const TTF = struct {
                 std.debug.print("Unsupported kern format\n", .{});
                 self.font_directory.kern = null;
             };
-        } else |_| {
+        } else {
             std.debug.print("no kern table found\n", .{});
             self.font_directory.kern = null;
         }
-        const maxp_table = try self.find_table("maxp");
+        const maxp_table = self.find_table("maxp") orelse return Error.MissingRequiredTable;
         try self.read_maxp(maxp_table.offset);
-        const hhea_table = try self.find_table("hhea");
+        const hhea_table = self.find_table("hhea") orelse return Error.MissingRequiredTable;
         try self.read_hhea(hhea_table.offset);
-        const hmtx_table = try self.find_table("hmtx");
+        const hmtx_table = self.find_table("hmtx") orelse return Error.MissingRequiredTable;
         try self.read_hmtx(hmtx_table.offset);
         self.print_table();
         self.print_cmap();
