@@ -713,31 +713,83 @@ pub const TTF = struct {
             mark_class_count: u16 = undefined,
             mark1_array_offset: u16 = undefined,
             mark2_array_offset: u16 = undefined,
+            mark1_array: MarkArray = undefined,
+            mark2_array: Mark2Array = undefined,
+            mark1_coverage: Coverage = undefined,
+            mark2_coverage: Coverage = undefined,
             pub const Mark2Array = struct {
                 mark2_count: u16 = undefined,
                 mark2_records: []Mark2 = undefined,
                 pub const Mark2 = struct {
-                    mark2_anchor_offsets: []?u16 = undefined,
+                    mark2_anchor_offsets: []u16 = undefined,
+                    anchors: []Anchor = undefined,
                 };
+                pub fn deinit(self: *Mark2Array, allocator: std.mem.Allocator) void {
+                    for (0..self.mark2_records.len) |i| {
+                        allocator.free(self.mark2_records[i].mark2_anchor_offsets);
+                        allocator.free(self.mark2_records[i].anchors);
+                    }
+                    allocator.free(self.mark2_records);
+                }
+                pub fn read(self: *Mark2Array, bit_reader: *BitReader, offset: u32, class_count: u16, allocator: std.mem.Allocator) Error!void {
+                    bit_reader.setPos(offset);
+                    self.mark2_count = try bit_reader.read(u16);
+                    self.mark2_records = try allocator.alloc(GPOS.MarkMarkPosFormat.Mark2Array.Mark2, self.mark2_count);
+                    for (0..self.mark2_records.len) |i| {
+                        self.mark2_records[i].mark2_anchor_offsets = try allocator.alloc(u16, class_count);
+                        self.mark2_records[i].anchors = try allocator.alloc(Anchor, class_count);
+                        for (0..self.mark2_records[i].mark2_anchor_offsets.len) |j| {
+                            self.mark2_records[i].mark2_anchor_offsets[j] = try bit_reader.read(u16);
+                        }
+                    }
+                    for (0..self.mark2_records.len) |i| {
+                        for (0..self.mark2_records[i].mark2_anchor_offsets.len) |j| {
+                            bit_reader.setPos(offset + self.mark2_records[i].mark2_anchor_offsets[j]);
+                            try self.mark2_records[i].anchors[j].read(bit_reader);
+                        }
+                    }
+                }
+
+                pub fn print(self: *Mark2Array) void {
+                    std.debug.print("Mark2Array count = {d}\n", .{self.mark2_count});
+                    for (0..self.mark2_records.len) |i| {
+                        std.debug.print("Mark2Array offset = {any}, anchor = {any}\n", .{ self.mark2_records[i].mark2_anchor_offsets, self.mark2_records[i].anchors });
+                    }
+                }
             };
             pub fn init() MarkMarkPosFormat {
                 return MarkMarkPosFormat{};
             }
-            //TODO
             pub fn read(self: *MarkMarkPosFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
-                _ = self;
-                _ = bit_reader;
-                _ = offset;
-                _ = allocator;
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                self.mark1_coverage_offset = try bit_reader.read(u16);
+                self.mark2_coverage_offset = try bit_reader.read(u16);
+                self.mark_class_count = try bit_reader.read(u16);
+                self.mark1_array_offset = try bit_reader.read(u16);
+                self.mark2_array_offset = try bit_reader.read(u16);
+
+                try self.mark1_array.read(bit_reader, offset + self.mark1_array_offset, allocator);
+                try self.mark2_array.read(bit_reader, offset + self.mark2_array_offset, self.mark_class_count, allocator);
+
+                try self.mark1_coverage.read(bit_reader, offset + self.mark1_coverage_offset, allocator);
+                try self.mark2_coverage.read(bit_reader, offset + self.mark2_coverage_offset, allocator);
             }
             pub fn deinit(self: *MarkMarkPosFormat, allocator: std.mem.Allocator) void {
-                _ = self;
-                _ = allocator;
+                self.mark1_coverage.deinit(allocator);
+                self.mark2_coverage.deinit(allocator);
+                self.mark1_array.deinit(allocator);
+                self.mark2_array.deinit(allocator);
             }
 
             pub fn print(self: *MarkMarkPosFormat) void {
-                _ = self;
-                std.debug.print("MarkMarkPosFormat\n", .{});
+                std.debug.print("MarkMarkPosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
+                std.debug.print("Mark1Coverage\n", .{});
+                self.mark1_coverage.print();
+                std.debug.print("Mark2Coverage\n", .{});
+                self.mark2_coverage.print();
+                self.mark1_array.print();
+                self.mark2_array.print();
             }
         };
         pub const PosExtensionFormat = struct {
