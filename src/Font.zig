@@ -197,7 +197,6 @@ pub const Font = struct {
                         try tex.?.resize(tex.?.width + char_tex.?.*.width, tex.?.height);
                     }
                 } else {
-                    //std.debug.print("kerning adjust {any}\n", .{self.ttf.kerning_adj(@as(u16, @intCast(str[i - 1])), @as(u16, @intCast(str[i])))});
                     const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(character);
                     const y_from_base = @as(u32, @intFromFloat(@abs(@as(f32, @floatFromInt(glyph_outline.?.y_min)) * self.scale)));
                     std.debug.print("y_from_base {d}, baseline_y {d}\n", .{ y_from_base, baseline_y });
@@ -207,7 +206,7 @@ pub const Font = struct {
                     const larger_height: u32 = @max(char_tex.?.height + baseline_y, tex.?.height);
                     const height_diff: i32 = @as(i32, @bitCast(larger_height)) - @as(i32, @bitCast(tex.?.height));
                     const horizontal_metrics = self.ttf.get_horizontal_metrics(@as(u16, @intCast(str[i - 1])));
-
+                    std.debug.print("kerning adjust {any}\n", .{self.ttf.kerning_adj(@as(u16, @intCast(str[i - 1])), @as(u16, @intCast(str[i])))});
                     std.debug.print("x_max {d}, metrics {any}\n", .{ glyph_outline.?.x_max, horizontal_metrics });
                     var width_adjust = @as(i32, @intFromFloat(@as(f32, @floatFromInt(@as(i16, @bitCast(horizontal_metrics.advance_width)) - horizontal_metrics.lsb - (glyph_outline.?.x_max))) * self.scale));
                     //const x_adj = width_adjust;

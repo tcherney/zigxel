@@ -16,6 +16,7 @@ pub const WindowSize = event_manager.WindowSize;
 pub const RenderCallback = utils.CallbackError(u64, Error);
 pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Timer.Error || std.posix.GetRandomError;
 
+//TODO remove generic just make it a variable
 pub fn Engine(comptime color_type: utils.ColorMode) type {
     return struct {
         renderer: Graphics(color_type) = undefined,
@@ -49,7 +50,7 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
                 self.window_change_size = term.Size{ .width = @as(usize, @intCast(win_size.width)), .height = @as(usize, @intCast(win_size.height)) };
             }
         }
-
+        //TODO multithreaded rendering?? can split target texture into multiple parts
         fn render_loop(self: *Self) Error!void {
             var timer: std.time.Timer = try std.time.Timer.start();
             var elapsed: f64 = 0.0;

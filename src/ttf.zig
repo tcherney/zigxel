@@ -153,6 +153,8 @@ pub const TTF = struct {
                     mark_base_pos_format: ?MarkBasePosFormat = null,
                     mark_lig_pos_format: ?MarkLigPosFormat = null,
                     mark_mark_pos_format: ?MarkMarkPosFormat = null,
+                    sequence_context_format: ?SequenceContextFormat = null,
+                    chained_sequence_context_format: ?ChainedSequenceContextFormat = null,
                     pos_extension_format: ?PosExtensionFormat = null,
                 };
             };
@@ -792,6 +794,253 @@ pub const TTF = struct {
                 self.mark2_array.print();
             }
         };
+        //TODO
+        pub const SequenceContextFormat = struct {
+            pub fn init() SequenceContextFormat {
+                return SequenceContextFormat{};
+            }
+            pub fn read(self: *SequenceContextFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                _ = self;
+                _ = allocator;
+            }
+            pub fn print(self: *SequenceContextFormat) void {
+                _ = self;
+                std.debug.print("SequenceContextFormat\n", .{});
+            }
+            pub fn deinit(self: *SequenceContextFormat, allocator: std.mem.Allocator) void {
+                _ = self;
+                _ = allocator;
+            }
+        };
+        pub const ChainedSequenceContextFormat = struct {
+            format: u16 = undefined,
+            coverage_offset: ?u16 = null,
+            coverage: ?Coverage = null,
+            chained_seq_rule_set_count: ?u16 = null,
+            chained_seq_rule_sets: ?[]ChainedSequenceRuleSet = null,
+            backtrack_class_def_offset: ?u16 = null,
+            backtrack_class_def: ?ClassDefFormat = null,
+            input_class_def_offset: ?u16 = null,
+            input_class_def: ?ClassDefFormat = null,
+            lookahead_class_def_offset: ?u16 = null,
+            lookahead_class_def: ?ClassDefFormat = null,
+            backtrack_glyph_count: ?u16 = null,
+            backtrack_coverage_offsets: ?[]u16 = null,
+            backtrack_coverage: ?[]Coverage = null,
+            input_glyph_count: ?u16 = null,
+            input_coverage_offsets: ?[]u16 = null,
+            input_coverage: ?[]Coverage = null,
+            lookahead_glyph_count: ?u16 = null,
+            lookahead_coverage_offsets: ?[]u16 = null,
+            lookahead_coverage: ?[]Coverage = null,
+            seq_lookup_count: ?u16 = null,
+            seq_lookup_records: ?[]SequenceLookup = null,
+            pub const ChainedSequenceRuleSet = struct {
+                offset: u16 = undefined,
+                chained_seq_rule_count: u16 = undefined,
+                chained_seq_rules: []ChainedSequenceRule = undefined,
+                pub const ChainedSequenceRule = struct {
+                    offset: u16 = undefined,
+                    backtrack_glyph_count: u16 = undefined,
+                    backtrack_sequence: []u16 = undefined,
+                    input_glyph_count: u16 = undefined,
+                    input_sequence: []u16 = undefined,
+                    lookahead_glyph_count: u16 = undefined,
+                    lookahead_sequence: []u16 = undefined,
+                    seq_lookup_count: u16 = undefined,
+                    seq_lookup_records: []SequenceLookup = undefined,
+                    pub fn read(self: *ChainedSequenceRule, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                        bit_reader.setPos(offset + self.offset);
+                        self.backtrack_glyph_count = try bit_reader.read(u16);
+                        self.backtrack_sequence = try allocator.alloc(u16, self.backtrack_glyph_count);
+                        for (0..self.backtrack_sequence.len) |i| {
+                            self.backtrack_sequence[i] = try bit_reader.read(u16);
+                        }
+                        self.input_glyph_count = try bit_reader.read(u16);
+                        self.input_sequence = try allocator.alloc(u16, self.input_glyph_count - 1);
+                        for (0..self.input_sequence.len) |i| {
+                            self.input_sequence[i] = try bit_reader.read(u16);
+                        }
+                        self.lookahead_glyph_count = try bit_reader.read(u16);
+                        self.lookahead_sequence = try allocator.alloc(u16, self.lookahead_glyph_count);
+                        for (0..self.lookahead_sequence.len) |i| {
+                            self.lookahead_sequence[i] = try bit_reader.read(u16);
+                        }
+                        self.seq_lookup_count = try bit_reader.read(u16);
+                        self.seq_lookup_records = try allocator.alloc(SequenceLookup, self.seq_lookup_count);
+                        for (0..self.seq_lookup_records.len) |i| {
+                            self.seq_lookup_records[i].sequence_index = try bit_reader.read(u16);
+                            self.seq_lookup_records[i].lookup_list_index = try bit_reader.read(u16);
+                        }
+                    }
+                    pub fn print(self: *ChainedSequenceRule) void {
+                        std.debug.print("ChainedSequenceRule backtrack_glyph_count = {d}, backtrack_sequence = {any}, input_glyph_count = {d}, input_seqeuence = {any}, lookahead_glyph_count = {d}, lookahead_sequence = {any}\n", .{ self.backtrack_glyph_count, self.backtrack_sequence, self.input_glyph_count, self.input_sequence, self.lookahead_glyph_count, self.lookahead_sequence });
+                        std.debug.print("seq_lookup_count = {d}\n", .{self.seq_lookup_count});
+                        for (0..self.seq_lookup_records.len) |i| {
+                            self.seq_lookup_records[i].print();
+                        }
+                    }
+                    pub fn deinit(self: *ChainedSequenceRule, allocator: std.mem.Allocator) void {
+                        allocator.free(self.backtrack_sequence);
+                        allocator.free(self.input_sequence);
+                        allocator.free(self.lookahead_sequence);
+                        allocator.free(self.seq_lookup_records);
+                    }
+                };
+            };
+            pub fn init() ChainedSequenceContextFormat {
+                return ChainedSequenceContextFormat{};
+            }
+            pub fn read(self: *ChainedSequenceContextFormat, bit_reader: *BitReader, offset: u32, allocator: std.mem.Allocator) Error!void {
+                bit_reader.setPos(offset);
+                self.format = try bit_reader.read(u16);
+                switch (self.format) {
+                    1 => {
+                        self.coverage_offset = try bit_reader.read(u16);
+                        self.chained_seq_rule_set_count = try bit_reader.read(u16);
+                        self.chained_seq_rule_sets = try allocator.alloc(ChainedSequenceRuleSet, self.chained_seq_rule_set_count.?);
+                        for (0..self.chained_seq_rule_sets.?.len) |i| {
+                            self.chained_seq_rule_sets.?[i].offset = try bit_reader.read(u16);
+                        }
+                        for (0..self.chained_seq_rule_sets.?.len) |i| {
+                            bit_reader.setPos(offset + self.chained_seq_rule_sets.?[i].offset);
+                            self.chained_seq_rule_sets.?[i].chained_seq_rule_count = try bit_reader.read(u16);
+                            self.chained_seq_rule_sets.?[i].chained_seq_rules = try allocator.alloc(ChainedSequenceRuleSet.ChainedSequenceRule, self.chained_seq_rule_sets.?[i].chained_seq_rule_count);
+                            for (0..self.chained_seq_rule_sets.?[i].chained_seq_rules.len) |j| {
+                                self.chained_seq_rule_sets.?[i].chained_seq_rules[j].offset = try bit_reader.read(u16);
+                            }
+                            for (0..self.chained_seq_rule_sets.?[i].chained_seq_rules.len) |j| {
+                                try self.chained_seq_rule_sets.?[i].chained_seq_rules[j].read(bit_reader, offset + self.chained_seq_rule_sets.?[i].offset, allocator);
+                            }
+                        }
+
+                        self.coverage = Coverage{};
+                        try self.coverage.?.read(bit_reader, offset + self.coverage_offset.?, allocator);
+                    },
+                    2 => {
+                        //TODO
+                    },
+                    3 => {
+                        self.backtrack_glyph_count = try bit_reader.read(u16);
+                        self.backtrack_coverage_offsets = try allocator.alloc(u16, self.backtrack_glyph_count.?);
+                        self.backtrack_coverage = try allocator.alloc(Coverage, self.backtrack_glyph_count.?);
+                        for (0..self.backtrack_coverage_offsets.?.len) |i| {
+                            self.backtrack_coverage_offsets.?[i] = try bit_reader.read(u16);
+                        }
+                        self.input_glyph_count = try bit_reader.read(u16);
+                        self.input_coverage_offsets = try allocator.alloc(u16, self.input_glyph_count.?);
+                        self.input_coverage = try allocator.alloc(Coverage, self.input_glyph_count.?);
+                        for (0..self.input_coverage_offsets.?.len) |i| {
+                            self.input_coverage_offsets.?[i] = try bit_reader.read(u16);
+                        }
+                        self.lookahead_glyph_count = try bit_reader.read(u16);
+                        self.lookahead_coverage_offsets = try allocator.alloc(u16, self.lookahead_glyph_count.?);
+                        self.lookahead_coverage = try allocator.alloc(Coverage, self.lookahead_glyph_count.?);
+                        for (0..self.lookahead_coverage_offsets.?.len) |i| {
+                            self.lookahead_coverage_offsets.?[i] = try bit_reader.read(u16);
+                        }
+                        self.seq_lookup_count = try bit_reader.read(u16);
+                        self.seq_lookup_records = try allocator.alloc(SequenceLookup, self.seq_lookup_count.?);
+                        for (0..self.seq_lookup_records.?.len) |i| {
+                            self.seq_lookup_records.?[i].sequence_index = try bit_reader.read(u16);
+                            self.seq_lookup_records.?[i].lookup_list_index = try bit_reader.read(u16);
+                        }
+                        for (0..self.backtrack_coverage_offsets.?.len) |i| {
+                            try self.backtrack_coverage.?[i].read(bit_reader, offset + self.backtrack_coverage_offsets.?[i], allocator);
+                        }
+
+                        for (0..self.input_coverage_offsets.?.len) |i| {
+                            try self.input_coverage.?[i].read(bit_reader, offset + self.input_coverage_offsets.?[i], allocator);
+                        }
+
+                        for (0..self.lookahead_coverage_offsets.?.len) |i| {
+                            try self.lookahead_coverage.?[i].read(bit_reader, offset + self.lookahead_coverage_offsets.?[i], allocator);
+                        }
+                    },
+                    else => unreachable,
+                }
+            }
+            pub fn print(self: *ChainedSequenceContextFormat) void {
+                std.debug.print("ChainedSequenceContextFormat format = {d}\n", .{self.format});
+                switch (self.format) {
+                    1 => {
+                        std.debug.print("chained_seq_rule_set_count = {d}\n", .{self.chained_seq_rule_set_count.?});
+                        for (0..self.chained_seq_rule_sets.?.len) |i| {
+                            std.debug.print("ChainedSequenceRuleSet chained_seq_rule_count = {d}", .{self.chained_seq_rule_sets.?[i].chained_seq_rule_count});
+                            for (0..self.chained_seq_rule_sets.?[i].chained_seq_rules.len) |j| {
+                                self.chained_seq_rule_sets.?[i].chained_seq_rules[j].print();
+                            }
+                        }
+                        std.debug.print("Coverage\n", .{});
+                        self.coverage.?.print();
+                    },
+                    2 => {
+                        //TODO
+                    },
+                    3 => {
+                        std.debug.print("seq_lookup_count = {d}\n", .{self.seq_lookup_count.?});
+                        for (0..self.seq_lookup_records.?.len) |i| {
+                            self.seq_lookup_records.?[i].print();
+                        }
+                        std.debug.print("BacktrackCoverage count = {d}\n", .{self.backtrack_glyph_count.?});
+                        for (0..self.backtrack_coverage_offsets.?.len) |i| {
+                            std.debug.print("Table {d}: ", .{i});
+                            self.backtrack_coverage.?[i].print();
+                        }
+                        std.debug.print("InputCoverage count = {d}\n", .{self.input_glyph_count.?});
+                        for (0..self.input_coverage_offsets.?.len) |i| {
+                            std.debug.print("Table {d}: ", .{i});
+                            self.input_coverage.?[i].print();
+                        }
+                        std.debug.print("LookaheadCoverage count = {d}\n", .{self.lookahead_glyph_count.?});
+                        for (0..self.lookahead_coverage_offsets.?.len) |i| {
+                            std.debug.print("Table {d}: ", .{i});
+                            self.lookahead_coverage.?[i].print();
+                        }
+                    },
+                    else => unreachable,
+                }
+            }
+            pub fn deinit(self: *ChainedSequenceContextFormat, allocator: std.mem.Allocator) void {
+                switch (self.format) {
+                    1 => {
+                        for (0..self.chained_seq_rule_sets.?.len) |i| {
+                            for (0..self.chained_seq_rule_sets.?[i].chained_seq_rules.len) |j| {
+                                self.chained_seq_rule_sets.?[i].chained_seq_rules[j].deinit(allocator);
+                            }
+                            allocator.free(self.chained_seq_rule_sets.?[i].chained_seq_rules);
+                        }
+                        allocator.free(self.chained_seq_rule_sets.?);
+                        self.coverage.?.deinit(allocator);
+                    },
+                    2 => {
+                        //TODO
+                    },
+                    3 => {
+                        allocator.free(self.backtrack_coverage_offsets.?);
+                        allocator.free(self.input_coverage_offsets.?);
+                        allocator.free(self.lookahead_coverage_offsets.?);
+                        allocator.free(self.seq_lookup_records.?);
+                        for (0..self.backtrack_coverage.?.len) |i| {
+                            self.backtrack_coverage.?[i].deinit(allocator);
+                        }
+
+                        for (0..self.input_coverage.?.len) |i| {
+                            self.input_coverage.?[i].deinit(allocator);
+                        }
+
+                        for (0..self.lookahead_coverage.?.len) |i| {
+                            self.lookahead_coverage.?[i].deinit(allocator);
+                        }
+                        allocator.free(self.backtrack_coverage.?);
+                        allocator.free(self.input_coverage.?);
+                        allocator.free(self.lookahead_coverage.?);
+                    },
+                    else => unreachable,
+                }
+            }
+        };
         pub const PosExtensionFormat = struct {
             format: u16 = undefined,
             extension_lookup_type: u16 = undefined,
@@ -807,6 +1056,13 @@ pub const TTF = struct {
             }
             pub fn print(self: *PosExtensionFormat) void {
                 std.debug.print("PosExtensionFormat format = {d}, extensionLookupType = {d}, extensionOffset = {d}\n", .{ self.format, self.extension_lookup_type, self.extension_offset });
+            }
+        };
+        pub const SequenceLookup = struct {
+            sequence_index: u16 = undefined,
+            lookup_list_index: u16 = undefined,
+            pub fn print(self: *SequenceLookup) void {
+                std.debug.print("SequenceLookup sequence_index = {d}, lookup_list_index = {d}\n", .{ self.sequence_index, self.lookup_list_index });
             }
         };
         pub const ValueRecord = struct {
@@ -1114,8 +1370,12 @@ pub const TTF = struct {
             6 => {
                 subtable.mark_mark_pos_format.?.deinit(self.allocator);
             },
-            7 => {},
-            8 => {},
+            7 => {
+                subtable.sequence_context_format.?.deinit(self.allocator);
+            },
+            8 => {
+                subtable.chained_sequence_context_format.?.deinit(self.allocator);
+            },
             else => unreachable,
         }
     }
@@ -1367,14 +1627,14 @@ pub const TTF = struct {
                 subtable.mark_mark_pos_format.?.print();
             },
             7 => {
-                // subtable.single_pos_format = GPOS.SinglePosFormat.init();
-                // try subtable.single_pos_format.?.read(&self.bit_reader, offset, self.allocator);
-                // subtable.single_pos_format.?.print();
+                subtable.sequence_context_format = GPOS.SequenceContextFormat.init();
+                try subtable.sequence_context_format.?.read(&self.bit_reader, offset, self.allocator);
+                subtable.sequence_context_format.?.print();
             },
             8 => {
-                // subtable.single_pos_format = GPOS.SinglePosFormat.init();
-                // try subtable.single_pos_format.?.read(&self.bit_reader, offset, self.allocator);
-                // subtable.single_pos_format.?.print();
+                subtable.chained_sequence_context_format = GPOS.ChainedSequenceContextFormat.init();
+                try subtable.chained_sequence_context_format.?.read(&self.bit_reader, offset, self.allocator);
+                subtable.chained_sequence_context_format.?.print();
             },
             9 => {
                 subtable.pos_extension_format = GPOS.PosExtensionFormat.init();
@@ -1382,6 +1642,38 @@ pub const TTF = struct {
                 subtable.pos_extension_format.?.print();
             },
             else => unreachable,
+        }
+    }
+
+    fn coverage_index_codepoint(self: *Self, coverage: *GPOS.Coverage, code_point: u16) ?usize {
+        const index = self.get_glyph_index(code_point);
+        if (coverage.format == 1) {
+            var low: usize = 0;
+            var high: usize = coverage.glyph_array.?.len - 1;
+            while (low <= high) {
+                const mid = low + (high - low) / 2;
+                if (coverage.glyph_array.?[mid] == index) return mid;
+                if (coverage.glyph_array.?[mid] < index) {
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            return null;
+        } else {
+            var low: usize = 0;
+            var high: usize = coverage.range_records.?.len - 1;
+            while (low <= high) {
+                const mid = low + (high - low) / 2;
+                if (coverage.range_records.?[mid].end_glyph_id < index) {
+                    low = mid + 1;
+                } else if (coverage.range_records.?[mid].start_gylph_id > index) {
+                    high = mid - 1;
+                } else {
+                    return coverage.range_records.?[mid].start_coverage_index + index - coverage.range_records.?[mid].start_gylph_id;
+                }
+            }
+            return null;
         }
     }
 
@@ -1492,11 +1784,13 @@ pub const TTF = struct {
     }
 
     //TODO fix linear scan to be binary search
-    pub fn kerning_adj(self: *Self, lhs_index: u16, rhs_index: u16) Point {
-        var ret: Point = Point{};
+    pub fn kerning_adj(self: *Self, lhs_codepoint: u16, rhs_codepoint: u16) ?Point {
+        var ret: ?Point = null;
+        const lhs_index = self.get_glyph_index(lhs_codepoint);
+        const rhs_index = self.get_glyph_index(rhs_codepoint);
         for (0..self.font_directory.kern.?.sub_tables.len) |i| {
             for (0..self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs.len) |j| {
-                std.debug.print("kerning left index {d}, right index {d}, looking for {d}\n", .{ self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left, self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].right, lhs_index });
+                //std.debug.print("kerning left index {d}, right index {d}, looking for {d}\n", .{ self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left, self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].right, lhs_index });
                 if (self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != lhs_index) continue;
                 if (self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != rhs_index) continue;
                 std.debug.print("found kerning data\n", .{});
@@ -1504,17 +1798,29 @@ pub const TTF = struct {
                 //vertical
                 if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.horizontal)) == 0) {
                     if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.override)) != 0) {
-                        ret.y = self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
+                        if (ret == null) {
+                            ret = Point{};
+                        }
+                        ret.?.y = self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
                     } else if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.minimum)) != 0) {
-                        ret.y = @min(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.y);
+                        if (ret == null) {
+                            ret = Point{};
+                        }
+                        ret.?.y = @min(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.?.y);
                     }
                 }
                 // horizontal
                 else {
                     if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.override)) != 0) {
-                        ret.x = self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
+                        if (ret == null) {
+                            ret = Point{};
+                        }
+                        ret.?.x = self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
                     } else if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.minimum)) != 0) {
-                        ret.x = @min(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.x);
+                        if (ret == null) {
+                            ret = Point{};
+                        }
+                        ret.?.x = @min(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.?.x);
                     }
                 }
             }
