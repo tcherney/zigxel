@@ -156,6 +156,38 @@ pub const TTF = struct {
                     sequence_context_format: ?SequenceContextFormat = null,
                     chained_sequence_context_format: ?ChainedSequenceContextFormat = null,
                     pos_extension_format: ?PosExtensionFormat = null,
+                    pub fn adjustment(self: *SubTable, lhs_index: usize, rhs_index: usize, lookup_type: u16) ?Point {
+                        switch (lookup_type) {
+                            1 => {
+                                return self.single_pos_format.?.adjustment(lhs_index, rhs_index);
+                            },
+                            2 => {
+                                return self.pair_pos_format.?.adjustment(lhs_index, rhs_index);
+                            },
+                            3 => {
+                                return self.cursive_pos_format.?.adjustment(lhs_index, rhs_index);
+                            },
+                            4 => {
+                                return self.mark_base_pos_format.?.adjustment(lhs_index, rhs_index);
+                            },
+                            5 => {
+                                return self.mark_lig_pos_format.?.adjustment(lhs_index, rhs_index);
+                            },
+                            6 => {
+                                return self.mark_mark_pos_format.?.adjustment(lhs_index, rhs_index);
+                            },
+                            7 => {
+                                return self.sequence_context_format.?.adjustment(lhs_index, rhs_index);
+                            },
+                            8 => {
+                                return self.chained_sequence_context_format.?.adjustment(lhs_index, rhs_index);
+                            },
+                            9 => {
+                                return self.adjustment(lhs_index, rhs_index, self.pos_extension_format.?.extension_lookup_type);
+                            },
+                            else => return null,
+                        }
+                    }
                 };
             };
         };
@@ -166,7 +198,7 @@ pub const TTF = struct {
             glyph_array: ?[]u16 = null,
             range_count: ?u16 = null,
             range_records: ?[]RangeRecord = null,
-            pub const RangeRecord = struct { start_gylph_id: u16, end_glyph_id: u16, start_coverage_index: u16 };
+            pub const RangeRecord = struct { start_glyph_id: u16, end_glyph_id: u16, start_coverage_index: u16 };
             pub fn deinit(self: *Coverage, allocator: std.mem.Allocator) void {
                 if (self.format == 1) {
                     allocator.free(self.glyph_array.?);
@@ -187,7 +219,7 @@ pub const TTF = struct {
                     self.range_count = try bit_reader.read(u16);
                     self.range_records = try allocator.alloc(GPOS.Coverage.RangeRecord, self.range_count.?);
                     for (0..self.range_records.?.len) |k| {
-                        self.range_records.?[k].start_gylph_id = try bit_reader.read(u16);
+                        self.range_records.?[k].start_glyph_id = try bit_reader.read(u16);
                         self.range_records.?[k].end_glyph_id = try bit_reader.read(u16);
                         self.range_records.?[k].start_coverage_index = try bit_reader.read(u16);
                     }
@@ -199,8 +231,40 @@ pub const TTF = struct {
                 } else if (self.format == 2) {
                     std.debug.print("Coverage Table format = {d}, range_count = {d}\n", .{ self.format, self.range_count.? });
                     for (0..self.range_records.?.len) |k| {
-                        std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.range_records.?[k].start_gylph_id, self.range_records.?[k].end_glyph_id, self.range_records.?[k].start_coverage_index });
+                        std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.range_records.?[k].start_glyph_id, self.range_records.?[k].end_glyph_id, self.range_records.?[k].start_coverage_index });
                     }
+                }
+            }
+            fn search_index(self: *Coverage, index: usize) ?usize {
+                if (self.format == 1) {
+                    var low: usize = 0;
+                    var high: usize = self.glyph_array.?.len - 1;
+                    while (low <= high) {
+                        const mid = low + (high - low) / 2;
+                        if (self.glyph_array.?[mid] == index) return mid;
+                        if (self.glyph_array.?[mid] < index) {
+                            low = mid + 1;
+                        } else {
+                            if (mid == 0) break;
+                            high = mid - 1;
+                        }
+                    }
+                    return null;
+                } else {
+                    var low: usize = 0;
+                    var high: usize = self.range_records.?.len - 1;
+                    while (low <= high) {
+                        const mid = low + (high - low) / 2;
+                        if (self.range_records.?[mid].end_glyph_id < index) {
+                            low = mid + 1;
+                        } else if (self.range_records.?[mid].start_glyph_id > index) {
+                            if (mid == 0) break;
+                            high = mid - 1;
+                        } else {
+                            return self.range_records.?[mid].start_coverage_index + index - self.range_records.?[mid].start_glyph_id;
+                        }
+                    }
+                    return null;
                 }
             }
         };
@@ -258,6 +322,26 @@ pub const TTF = struct {
                 }
                 self.coverage.deinit(allocator);
             }
+            pub fn adjustment(self: *SinglePosFormat, _: usize, rhs_index: usize) ?Point {
+                if (self.coverage.search_index(rhs_index)) |coverage_index| {
+                    var ret: ?Point = null;
+                    if (self.format == 1) {
+                        std.debug.print("record {any}\n", .{self.value_record});
+                        if (self.value_record) |record| {
+                            ret = Point{};
+                            ret.?.x += record.x_placement + record.x_advance;
+                            ret.?.y += record.y_placement + record.y_advance;
+                        }
+                    } else {
+                        std.debug.print("coverage_index {d} record {any}\n", .{ coverage_index, self.value_records.?[coverage_index] });
+                        const record = self.value_records.?[coverage_index];
+                        ret = Point{};
+                        ret.?.x += record.x_placement + record.x_advance;
+                        ret.?.y += record.y_placement + record.y_advance;
+                    }
+                    return ret;
+                } else return null;
+            }
         };
         pub const PairPosFormat = struct {
             format: u16 = undefined,
@@ -290,6 +374,21 @@ pub const TTF = struct {
                     value_record1: ?ValueRecord = undefined,
                     value_record2: ?ValueRecord = undefined,
                 };
+                pub fn search(self: *PairSet, index: usize) ?usize {
+                    var low: usize = 0;
+                    var high: usize = self.pair_value_records.len - 1;
+                    while (low <= high) {
+                        const mid = low + (high - low) / 2;
+                        if (self.pair_value_records[mid].second_glyph == index) return mid;
+                        if (self.pair_value_records[mid].second_glyph < index) {
+                            low = mid + 1;
+                        } else {
+                            if (mid == 0) break;
+                            high = mid - 1;
+                        }
+                    }
+                    return null;
+                }
             };
             pub fn init() PairPosFormat {
                 return PairPosFormat{};
@@ -460,6 +559,32 @@ pub const TTF = struct {
                     }
                 }
             }
+            pub fn adjustment(self: *PairPosFormat, lhs_index: usize, rhs_index: usize) ?Point {
+                //TODO need both values
+                if (self.coverage.search_index(lhs_index)) |coverage_index| {
+                    var ret: ?Point = null;
+                    if (self.format == 1) {
+                        const pair_value_index = self.pair_set_records.?[coverage_index].search(rhs_index) orelse return null;
+                        const pair_value = self.pair_set_records.?[coverage_index].pair_value_records[pair_value_index];
+                        std.debug.print("pair value found {any}\n", .{pair_value});
+                        if (pair_value.value_record2) |record| {
+                            ret = Point{};
+                            ret.?.x += record.x_placement + record.x_advance;
+                            ret.?.y += record.y_placement + record.y_advance;
+                        }
+                    } else {
+                        const lhs_class = self.class_def1.search_index(lhs_index) orelse return null;
+                        const rhs_class = self.class_def2.search_index(rhs_index) orelse return null;
+                        std.debug.print("lhs_class {d}, rhs_class {d}, record {any}\n", .{ lhs_class, rhs_class, self.class1_records.?[lhs_class].class2_records[rhs_class] });
+                        if (self.class1_records.?[lhs_class].class2_records[rhs_class].value_record2) |record| {
+                            ret = Point{};
+                            ret.?.x += record.x_placement + record.x_advance;
+                            ret.?.y += record.y_placement + record.y_advance;
+                        }
+                    }
+                    return ret;
+                } else return null;
+            }
         };
         pub const CursivePosFormat = struct {
             format: u16 = undefined,
@@ -498,6 +623,13 @@ pub const TTF = struct {
                 for (0..self.entry_exit_records.len) |i| {
                     std.debug.print("EntryExit {any}\n", .{self.entry_exit_records[i]});
                 }
+            }
+            pub fn adjustment(self: *CursivePosFormat, lhs_index: usize, rhs_index: usize) ?Point {
+                _ = self;
+                _ = lhs_index;
+                _ = rhs_index;
+                //TODO
+                return null;
             }
         };
         pub const MarkBasePosFormat = struct {
@@ -579,6 +711,13 @@ pub const TTF = struct {
                 }
 
                 self.mark_array.print();
+            }
+            pub fn adjustment(self: *MarkBasePosFormat, lhs_index: usize, rhs_index: usize) ?Point {
+                _ = self;
+                _ = lhs_index;
+                _ = rhs_index;
+                //TODO
+                return null;
             }
         };
         pub const MarkLigPosFormat = struct {
@@ -707,6 +846,13 @@ pub const TTF = struct {
                 self.lig_array.print();
                 self.mark_array.print();
             }
+            pub fn adjustment(self: *MarkLigPosFormat, lhs_index: usize, rhs_index: usize) ?Point {
+                _ = self;
+                _ = lhs_index;
+                _ = rhs_index;
+                //TODO
+                return null;
+            }
         };
         pub const MarkMarkPosFormat = struct {
             format: u16 = undefined,
@@ -793,6 +939,13 @@ pub const TTF = struct {
                 self.mark1_array.print();
                 self.mark2_array.print();
             }
+            pub fn adjustment(self: *MarkMarkPosFormat, lhs_index: usize, rhs_index: usize) ?Point {
+                _ = self;
+                _ = lhs_index;
+                _ = rhs_index;
+                //TODO
+                return null;
+            }
         };
         //TODO
         pub const SequenceContextFormat = struct {
@@ -811,6 +964,13 @@ pub const TTF = struct {
             pub fn deinit(self: *SequenceContextFormat, allocator: std.mem.Allocator) void {
                 _ = self;
                 _ = allocator;
+            }
+            pub fn adjustment(self: *SequenceContextFormat, lhs_index: usize, rhs_index: usize) ?Point {
+                _ = self;
+                _ = lhs_index;
+                _ = rhs_index;
+                //TODO
+                return null;
             }
         };
         pub const ChainedSequenceContextFormat = struct {
@@ -1040,6 +1200,13 @@ pub const TTF = struct {
                     else => unreachable,
                 }
             }
+            pub fn adjustment(self: *ChainedSequenceContextFormat, lhs_index: usize, rhs_index: usize) ?Point {
+                _ = self;
+                _ = lhs_index;
+                _ = rhs_index;
+                //TODO
+                return null;
+            }
         };
         pub const PosExtensionFormat = struct {
             format: u16 = undefined,
@@ -1197,6 +1364,29 @@ pub const TTF = struct {
                 end_glyph_id: u16,
                 class: u16,
             };
+            fn search_index(self: *ClassDefFormat, index: usize) ?usize {
+                if (self.format == 1) {
+                    if (index < self.start_glyph_id.? or (index - self.start_glyph_id.?) >= self.glyph_count.?) {
+                        return null;
+                    }
+                    return self.class_values.?[index - self.start_glyph_id.?];
+                } else {
+                    var low: usize = 0;
+                    var high: usize = self.class_range_records.?.len - 1;
+                    while (low <= high) {
+                        const mid = low + (high - low) / 2;
+                        if (self.class_range_records.?[mid].end_glyph_id < index) {
+                            low = mid + 1;
+                        } else if (self.class_range_records.?[mid].start_glyph_id > index) {
+                            if (mid == 0) break;
+                            high = mid - 1;
+                        } else {
+                            return self.class_range_records.?[mid].class;
+                        }
+                    }
+                    return null;
+                }
+            }
         };
     };
     const OffsetSubtable = struct {
@@ -1645,38 +1835,6 @@ pub const TTF = struct {
         }
     }
 
-    fn coverage_index_codepoint(self: *Self, coverage: *GPOS.Coverage, code_point: u16) ?usize {
-        const index = self.get_glyph_index(code_point);
-        if (coverage.format == 1) {
-            var low: usize = 0;
-            var high: usize = coverage.glyph_array.?.len - 1;
-            while (low <= high) {
-                const mid = low + (high - low) / 2;
-                if (coverage.glyph_array.?[mid] == index) return mid;
-                if (coverage.glyph_array.?[mid] < index) {
-                    low = mid + 1;
-                } else {
-                    high = mid - 1;
-                }
-            }
-            return null;
-        } else {
-            var low: usize = 0;
-            var high: usize = coverage.range_records.?.len - 1;
-            while (low <= high) {
-                const mid = low + (high - low) / 2;
-                if (coverage.range_records.?[mid].end_glyph_id < index) {
-                    low = mid + 1;
-                } else if (coverage.range_records.?[mid].start_gylph_id > index) {
-                    high = mid - 1;
-                } else {
-                    return coverage.range_records.?[mid].start_coverage_index + index - coverage.range_records.?[mid].start_gylph_id;
-                }
-            }
-            return null;
-        }
-    }
-
     //https://learn.microsoft.com/en-us/typography/opentype/spec/gpos
     //TODO store GPOS data to be used in glyph rendering
     fn read_gpos(self: *Self, offset: u32) Error!void {
@@ -1788,39 +1946,55 @@ pub const TTF = struct {
         var ret: ?Point = null;
         const lhs_index = self.get_glyph_index(lhs_codepoint);
         const rhs_index = self.get_glyph_index(rhs_codepoint);
-        for (0..self.font_directory.kern.?.sub_tables.len) |i| {
-            for (0..self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs.len) |j| {
-                //std.debug.print("kerning left index {d}, right index {d}, looking for {d}\n", .{ self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left, self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].right, lhs_index });
-                if (self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != lhs_index) continue;
-                if (self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != rhs_index) continue;
-                std.debug.print("found kerning data\n", .{});
-                // found kerning value for these indicies
-                //vertical
-                if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.horizontal)) == 0) {
-                    if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.override)) != 0) {
-                        if (ret == null) {
-                            ret = Point{};
+        if (self.font_directory.kern) |kern| {
+            for (0..kern.sub_tables.len) |i| {
+                for (0..kern.sub_tables[i].kern_subtable_format0.kern_pairs.len) |j| {
+                    //std.debug.print("kerning left index {d}, right index {d}, looking for {d}\n", .{ self.kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].left, kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].right, lhs_index });
+                    if (kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != lhs_index) continue;
+                    if (kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != rhs_index) continue;
+                    std.debug.print("found kerning data\n", .{});
+                    // found kerning value for these indicies
+                    //vertical
+                    if (kern.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.horizontal)) == 0) {
+                        if (kern.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.override)) != 0) {
+                            if (ret == null) {
+                                ret = Point{};
+                            }
+                            ret.?.y = kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
+                        } else if (kern.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.minimum)) != 0) {
+                            if (ret == null) {
+                                ret = Point{};
+                            }
+                            ret.?.y = @min(kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.?.y);
                         }
-                        ret.?.y = self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
-                    } else if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.minimum)) != 0) {
-                        if (ret == null) {
-                            ret = Point{};
+                    }
+                    // horizontal
+                    else {
+                        if (kern.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.override)) != 0) {
+                            if (ret == null) {
+                                ret = Point{};
+                            }
+                            ret.?.x = kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
+                        } else if (kern.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.minimum)) != 0) {
+                            if (ret == null) {
+                                ret = Point{};
+                            }
+                            ret.?.x = @min(kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.?.x);
                         }
-                        ret.?.y = @min(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.?.y);
                     }
                 }
-                // horizontal
-                else {
-                    if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.override)) != 0) {
-                        if (ret == null) {
-                            ret = Point{};
-                        }
-                        ret.?.x = self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value;
-                    } else if (self.font_directory.kern.?.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.minimum)) != 0) {
-                        if (ret == null) {
-                            ret = Point{};
-                        }
-                        ret.?.x = @min(self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value, ret.?.x);
+            }
+        }
+        //TODO adjust x y based on gpos data
+        if (self.font_directory.gpos) |gpos| {
+            for (0..gpos.lookup_list.lookups.len) |i| {
+                for (0..gpos.lookup_list.lookups[i].subtables.len) |j| {
+                    const point = gpos.lookup_list.lookups[i].subtables[j].adjustment(lhs_index, rhs_index, gpos.lookup_list.lookups[i].lookup_type);
+                    if (point) |p| {
+                        std.debug.print("found subtable data\n", .{});
+                        if (ret == null) ret = Point{};
+                        ret.?.x += p.x;
+                        ret.?.y += p.y;
                     }
                 }
             }
