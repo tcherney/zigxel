@@ -233,7 +233,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             }
         }
 
-        fn draw_pixel_buffer(self: *Self, pixel_buffer: []texture.Pixel, width: u32, height: u32, src: utils.Rectangle, dest_rect: utils.Rectangle, dest: ?texture.Texture) Error!void {
+        pub fn draw_pixel_buffer(self: *Self, pixel_buffer: []texture.Pixel, width: u32, height: u32, src: utils.Rectangle, dest_rect: utils.Rectangle, dest: ?texture.Texture) Error!void {
             var tex_indx: usize = (@as(u32, @bitCast(src.y)) * width + @as(u32, @bitCast(src.x)));
             if (src.height > height or src.width > width) {
                 return Error.TextureError;

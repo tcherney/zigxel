@@ -10,6 +10,7 @@ pub const std_options = .{
         .{ .scope = .event_manager, .level = .err },
         .{ .scope = .engine, .level = .err },
         .{ .scope = .texture, .level = .err },
+        .{ .scope = .graphics, .level = .err },
         .{ .scope = .ttf, .level = .info },
         .{ .scope = .game, .level = .err },
         .{ .scope = .font, .level = .info },
