@@ -10,6 +10,8 @@ const BitReader = @import("image").BitReader;
 //https://learn.microsoft.com/en-us/typography/opentype/spec/
 //https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6cmap.html
 
+const TTF_LOG = std.log.scoped(.ttf);
+
 pub const TTF = struct {
     bit_reader: BitReader = undefined,
     allocator: std.mem.Allocator,
@@ -227,11 +229,11 @@ pub const TTF = struct {
             }
             pub fn print(self: *Coverage) void {
                 if (self.format == 1) {
-                    std.debug.print("Coverage Table format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ self.format, self.glyph_count.?, self.glyph_array.? });
+                    TTF_LOG.info("Coverage Table format = {d}, glyph_count = {d}, glyph_array = {any}\n", .{ self.format, self.glyph_count.?, self.glyph_array.? });
                 } else if (self.format == 2) {
-                    std.debug.print("Coverage Table format = {d}, range_count = {d}\n", .{ self.format, self.range_count.? });
+                    TTF_LOG.info("Coverage Table format = {d}, range_count = {d}\n", .{ self.format, self.range_count.? });
                     for (0..self.range_records.?.len) |k| {
-                        std.debug.print("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.range_records.?[k].start_glyph_id, self.range_records.?[k].end_glyph_id, self.range_records.?[k].start_coverage_index });
+                        TTF_LOG.info("RangeRecord start_glyph_id = {d}, end_glyph_id = {d}, start_coverage_index = {d}\n", .{ self.range_records.?[k].start_glyph_id, self.range_records.?[k].end_glyph_id, self.range_records.?[k].start_coverage_index });
                     }
                 }
             }
@@ -284,35 +286,35 @@ pub const TTF = struct {
                 self.format = try bit_reader.read(u16);
                 self.coverage_offset = try bit_reader.read(u16);
                 self.value_format = try bit_reader.read(u16);
-                std.debug.print("SinglePosFormat format = {d}, coverage_offset = {d}, value_format = {d}\n", .{ self.format, self.coverage_offset, self.value_format });
+                TTF_LOG.info("SinglePosFormat format = {d}, coverage_offset = {d}, value_format = {d}\n", .{ self.format, self.coverage_offset, self.value_format });
                 if (self.format == 1) {
                     self.value_records = null;
                     self.value_count = null;
                     self.value_record = GPOS.ValueRecord.init();
                     try self.value_record.?.read(bit_reader, self.value_format);
-                    std.debug.print("ValueRecord = {any}\n", .{self.value_record});
+                    TTF_LOG.info("ValueRecord = {any}\n", .{self.value_record});
                 } else if (self.format == 2) {
                     self.value_record = null;
                     self.value_count = try bit_reader.read(u16);
                     self.value_records = try allocator.alloc(GPOS.ValueRecord, self.value_count.?);
-                    std.debug.print("ValueRecords count = {any}\n", .{self.value_count});
+                    TTF_LOG.info("ValueRecords count = {any}\n", .{self.value_count});
                     for (0..self.value_records.?.len) |i| {
                         self.value_records.?[i] = GPOS.ValueRecord.init();
                         try self.value_records.?[i].read(bit_reader, self.value_format);
-                        std.debug.print("ValueRecord = {any}\n", .{self.value_records.?[i]});
+                        TTF_LOG.info("ValueRecord = {any}\n", .{self.value_records.?[i]});
                     }
                 }
                 try self.coverage.read(bit_reader, offset + self.coverage_offset, allocator);
             }
             pub fn print(self: *SinglePosFormat) void {
-                std.debug.print("SinglePosFormat format = {d}, coverage_offset = {d}, value_format = {d}\n", .{ self.format, self.coverage_offset, self.value_format });
+                TTF_LOG.info("SinglePosFormat format = {d}, coverage_offset = {d}, value_format = {d}\n", .{ self.format, self.coverage_offset, self.value_format });
                 self.coverage.print();
                 if (self.format == 1) {
-                    std.debug.print("ValueRecord = {any}\n", .{self.value_record});
+                    TTF_LOG.info("ValueRecord = {any}\n", .{self.value_record});
                 } else if (self.format == 2) {
-                    std.debug.print("ValueRecords count = {any}\n", .{self.value_count});
+                    TTF_LOG.info("ValueRecords count = {any}\n", .{self.value_count});
                     for (0..self.value_records.?.len) |i| {
-                        std.debug.print("ValueRecord = {any}\n", .{self.value_records.?[i]});
+                        TTF_LOG.info("ValueRecord = {any}\n", .{self.value_records.?[i]});
                     }
                 }
             }
@@ -326,14 +328,14 @@ pub const TTF = struct {
                 if (self.coverage.search_index(rhs_index)) |coverage_index| {
                     var ret: ?Point = null;
                     if (self.format == 1) {
-                        std.debug.print("record {any}\n", .{self.value_record});
+                        TTF_LOG.info("record {any}\n", .{self.value_record});
                         if (self.value_record) |record| {
                             ret = Point{};
                             ret.?.x += record.x_placement + record.x_advance;
                             ret.?.y += record.y_placement + record.y_advance;
                         }
                     } else {
-                        std.debug.print("coverage_index {d} record {any}\n", .{ coverage_index, self.value_records.?[coverage_index] });
+                        TTF_LOG.info("coverage_index {d} record {any}\n", .{ coverage_index, self.value_records.?[coverage_index] });
                         const record = self.value_records.?[coverage_index];
                         ret = Point{};
                         ret.?.x += record.x_placement + record.x_advance;
@@ -527,34 +529,34 @@ pub const TTF = struct {
             }
             pub fn print(self: *PairPosFormat) void {
                 if (self.format == 1) {
-                    std.debug.print("PairPosFormat format = {d}, coverage_offset = {d}, value_format1 = {d}, value_format2 = {d}, pairset_count = {d}\n", .{ self.format, self.coverage_offset, self.value_format1, self.value_format2, self.pair_set_count.? });
+                    TTF_LOG.info("PairPosFormat format = {d}, coverage_offset = {d}, value_format1 = {d}, value_format2 = {d}, pairset_count = {d}\n", .{ self.format, self.coverage_offset, self.value_format1, self.value_format2, self.pair_set_count.? });
                     self.coverage.print();
                     for (0..self.pair_set_records.?.len) |i| {
-                        std.debug.print("Pairset offset = {d}, count = {d}\n", .{ self.pair_set_records.?[i].pair_set_offset, self.pair_set_records.?[i].pair_value_count });
-                        std.debug.print("PairValue records\n", .{});
+                        TTF_LOG.info("Pairset offset = {d}, count = {d}\n", .{ self.pair_set_records.?[i].pair_set_offset, self.pair_set_records.?[i].pair_value_count });
+                        TTF_LOG.info("PairValue records\n", .{});
                         for (0..self.pair_set_records.?[i].pair_value_records.len) |j| {
-                            std.debug.print("value_record1 = {any}, value_record2 = {any}\n", .{ self.class1_records.?[i].class2_records[j].value_record1, self.class1_records.?[i].class2_records[j].value_record2 });
+                            TTF_LOG.info("value_record1 = {any}, value_record2 = {any}\n", .{ self.class1_records.?[i].class2_records[j].value_record1, self.class1_records.?[i].class2_records[j].value_record2 });
                         }
                     }
                 } else {
-                    std.debug.print("PairPosFormat format = {d}, coverage_offset = {d}, value_format1 = {d}, value_format2 = {d}, class_def1_offset = {d}, class_def2_offset = {d}, class1_count = {d}, class2_count = {d}\n", .{ self.format, self.coverage_offset, self.value_format1, self.value_format2, self.class_def1_offset.?, self.class_def2_offset.?, self.class1_count.?, self.class2_count.? });
+                    TTF_LOG.info("PairPosFormat format = {d}, coverage_offset = {d}, value_format1 = {d}, value_format2 = {d}, class_def1_offset = {d}, class_def2_offset = {d}, class1_count = {d}, class2_count = {d}\n", .{ self.format, self.coverage_offset, self.value_format1, self.value_format2, self.class_def1_offset.?, self.class_def2_offset.?, self.class1_count.?, self.class2_count.? });
                     self.coverage.print();
                     for (0..self.class1_records.?.len) |i| {
-                        std.debug.print("Class Records\n", .{});
+                        TTF_LOG.info("Class Records\n", .{});
                         for (0..self.class1_records.?[i].class2_records.len) |j| {
-                            std.debug.print("value_record1 = {any}, value_record2 = {any}\n", .{ self.class1_records.?[i].class2_records[j].value_record1, self.class1_records.?[i].class2_records[j].value_record2 });
+                            TTF_LOG.info("value_record1 = {any}, value_record2 = {any}\n", .{ self.class1_records.?[i].class2_records[j].value_record1, self.class1_records.?[i].class2_records[j].value_record2 });
                         }
                     }
-                    std.debug.print("ClassDef1 format = {d}, start_glyph_id = {any}, glyph_count = {any}, class_values = {any}, class_range_count = {any}\n", .{ self.class_def1.format, self.class_def1.start_glyph_id, self.class_def1.glyph_count, self.class_def1.class_values, self.class_def1.class_range_count });
+                    TTF_LOG.info("ClassDef1 format = {d}, start_glyph_id = {any}, glyph_count = {any}, class_values = {any}, class_range_count = {any}\n", .{ self.class_def1.format, self.class_def1.start_glyph_id, self.class_def1.glyph_count, self.class_def1.class_values, self.class_def1.class_range_count });
                     if (self.class_def1.class_range_records != null) {
                         for (0..self.class_def1.class_range_records.?.len) |i| {
-                            std.debug.print("ClassRange start_glyph_id = {d}, end_glyph_id = {d}, class = {d}\n", .{ self.class_def1.class_range_records.?[i].start_glyph_id, self.class_def1.class_range_records.?[i].end_glyph_id, self.class_def1.class_range_records.?[i].class });
+                            TTF_LOG.info("ClassRange start_glyph_id = {d}, end_glyph_id = {d}, class = {d}\n", .{ self.class_def1.class_range_records.?[i].start_glyph_id, self.class_def1.class_range_records.?[i].end_glyph_id, self.class_def1.class_range_records.?[i].class });
                         }
                     }
-                    std.debug.print("ClassDef2 format = {d}, start_glyph_id = {any}, glyph_count = {any}, class_values = {any}, class_range_count = {any}\n", .{ self.class_def2.format, self.class_def2.start_glyph_id, self.class_def2.glyph_count, self.class_def2.class_values, self.class_def2.class_range_count });
+                    TTF_LOG.info("ClassDef2 format = {d}, start_glyph_id = {any}, glyph_count = {any}, class_values = {any}, class_range_count = {any}\n", .{ self.class_def2.format, self.class_def2.start_glyph_id, self.class_def2.glyph_count, self.class_def2.class_values, self.class_def2.class_range_count });
                     if (self.class_def2.class_range_records != null) {
                         for (0..self.class_def2.class_range_records.?.len) |i| {
-                            std.debug.print("ClassRange start_glyph_id = {d}, end_glyph_id = {d}, class = {d}\n", .{ self.class_def2.class_range_records.?[i].start_glyph_id, self.class_def2.class_range_records.?[i].end_glyph_id, self.class_def2.class_range_records.?[i].class });
+                            TTF_LOG.info("ClassRange start_glyph_id = {d}, end_glyph_id = {d}, class = {d}\n", .{ self.class_def2.class_range_records.?[i].start_glyph_id, self.class_def2.class_range_records.?[i].end_glyph_id, self.class_def2.class_range_records.?[i].class });
                         }
                     }
                 }
@@ -566,7 +568,7 @@ pub const TTF = struct {
                     if (self.format == 1) {
                         const pair_value_index = self.pair_set_records.?[coverage_index].search(rhs_index) orelse return null;
                         const pair_value = self.pair_set_records.?[coverage_index].pair_value_records[pair_value_index];
-                        std.debug.print("pair value found {any}\n", .{pair_value});
+                        TTF_LOG.info("pair value found {any}\n", .{pair_value});
                         if (pair_value.value_record2) |record| {
                             ret = Point{};
                             ret.?.x += record.x_placement + record.x_advance;
@@ -575,7 +577,7 @@ pub const TTF = struct {
                     } else {
                         const lhs_class = self.class_def1.search_index(lhs_index) orelse return null;
                         const rhs_class = self.class_def2.search_index(rhs_index) orelse return null;
-                        std.debug.print("lhs_class {d}, rhs_class {d}, record {any}\n", .{ lhs_class, rhs_class, self.class1_records.?[lhs_class].class2_records[rhs_class] });
+                        TTF_LOG.info("lhs_class {d}, rhs_class {d}, record {any}\n", .{ lhs_class, rhs_class, self.class1_records.?[lhs_class].class2_records[rhs_class] });
                         if (self.class1_records.?[lhs_class].class2_records[rhs_class].value_record2) |record| {
                             ret = Point{};
                             ret.?.x += record.x_placement + record.x_advance;
@@ -618,10 +620,10 @@ pub const TTF = struct {
                 self.coverage.deinit(allocator);
             }
             pub fn print(self: *CursivePosFormat) void {
-                std.debug.print("CursivePosFormat format = {d}, coverage_offset = {d}, entry_exit_count = {d}\n", .{ self.format, self.coverage_offset, self.entry_exit_count });
+                TTF_LOG.info("CursivePosFormat format = {d}, coverage_offset = {d}, entry_exit_count = {d}\n", .{ self.format, self.coverage_offset, self.entry_exit_count });
                 self.coverage.print();
                 for (0..self.entry_exit_records.len) |i| {
-                    std.debug.print("EntryExit {any}\n", .{self.entry_exit_records[i]});
+                    TTF_LOG.info("EntryExit {any}\n", .{self.entry_exit_records[i]});
                 }
             }
             pub fn adjustment(self: *CursivePosFormat, lhs_index: usize, rhs_index: usize) ?Point {
@@ -698,15 +700,15 @@ pub const TTF = struct {
                 self.mark_array.deinit(allocator);
             }
             pub fn print(self: *MarkBasePosFormat) void {
-                std.debug.print("MarkBasePosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
-                std.debug.print("BaseCoverage\n", .{});
+                TTF_LOG.info("MarkBasePosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
+                TTF_LOG.info("BaseCoverage\n", .{});
                 self.base_coverage.print();
-                std.debug.print("MarkCoverage\n", .{});
+                TTF_LOG.info("MarkCoverage\n", .{});
                 self.mark_coverage.print();
-                std.debug.print("BaseArray base_count = {d}\n", .{self.base_array.base_count});
+                TTF_LOG.info("BaseArray base_count = {d}\n", .{self.base_array.base_count});
                 for (0..self.base_array.base_anchor_offsets.len) |i| {
                     for (0..self.base_array.base_records.len) |j| {
-                        std.debug.print("BaseAnchor = {any}\n", .{self.base_array.base_records[j].base_anchors[i]});
+                        TTF_LOG.info("BaseAnchor = {any}\n", .{self.base_array.base_records[j].base_anchors[i]});
                     }
                 }
 
@@ -752,7 +754,7 @@ pub const TTF = struct {
                     allocator.free(self.ligature_attach);
                 }
                 pub fn print(self: *LigatureArray) void {
-                    std.debug.print("LigatureArray count = {d}\n", .{self.ligature_count});
+                    TTF_LOG.info("LigatureArray count = {d}\n", .{self.ligature_count});
                     for (0..self.ligature_attach.len) |i| {
                         self.ligature_attach[i].print();
                     }
@@ -776,9 +778,9 @@ pub const TTF = struct {
                         }
                     }
                     pub fn print(self: *ComponentRecord) void {
-                        std.debug.print("ComponentRecord\n", .{});
+                        TTF_LOG.info("ComponentRecord\n", .{});
                         for (0..self.anchors.len) |i| {
-                            std.debug.print("offset = {d}, anchor = {any}\n", .{ self.anchor_offsets[i].?, self.anchors[i] });
+                            TTF_LOG.info("offset = {d}, anchor = {any}\n", .{ self.anchor_offsets[i].?, self.anchors[i] });
                         }
                     }
                 };
@@ -807,7 +809,7 @@ pub const TTF = struct {
                     allocator.free(self.component_records);
                 }
                 pub fn print(self: *LigatureAttach) void {
-                    std.debug.print("LigatureAttach offset = {d}, component_count = {d}\n", .{ self.offset, self.component_count });
+                    TTF_LOG.info("LigatureAttach offset = {d}, component_count = {d}\n", .{ self.offset, self.component_count });
                     for (0..self.component_records.len) |i| {
                         self.component_records[i].print();
                     }
@@ -838,10 +840,10 @@ pub const TTF = struct {
             }
 
             pub fn print(self: *MarkLigPosFormat) void {
-                std.debug.print("MarkLigPosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
-                std.debug.print("LigCoverage\n", .{});
+                TTF_LOG.info("MarkLigPosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
+                TTF_LOG.info("LigCoverage\n", .{});
                 self.lig_coverage.print();
-                std.debug.print("MarkCoverage\n", .{});
+                TTF_LOG.info("MarkCoverage\n", .{});
                 self.mark_coverage.print();
                 self.lig_array.print();
                 self.mark_array.print();
@@ -899,9 +901,9 @@ pub const TTF = struct {
                 }
 
                 pub fn print(self: *Mark2Array) void {
-                    std.debug.print("Mark2Array count = {d}\n", .{self.mark2_count});
+                    TTF_LOG.info("Mark2Array count = {d}\n", .{self.mark2_count});
                     for (0..self.mark2_records.len) |i| {
-                        std.debug.print("Mark2Array offset = {any}, anchor = {any}\n", .{ self.mark2_records[i].mark2_anchor_offsets, self.mark2_records[i].anchors });
+                        TTF_LOG.info("Mark2Array offset = {any}, anchor = {any}\n", .{ self.mark2_records[i].mark2_anchor_offsets, self.mark2_records[i].anchors });
                     }
                 }
             };
@@ -931,10 +933,10 @@ pub const TTF = struct {
             }
 
             pub fn print(self: *MarkMarkPosFormat) void {
-                std.debug.print("MarkMarkPosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
-                std.debug.print("Mark1Coverage\n", .{});
+                TTF_LOG.info("MarkMarkPosFormat format = {d}, class_count = {d}\n", .{ self.format, self.mark_class_count });
+                TTF_LOG.info("Mark1Coverage\n", .{});
                 self.mark1_coverage.print();
-                std.debug.print("Mark2Coverage\n", .{});
+                TTF_LOG.info("Mark2Coverage\n", .{});
                 self.mark2_coverage.print();
                 self.mark1_array.print();
                 self.mark2_array.print();
@@ -959,7 +961,7 @@ pub const TTF = struct {
             }
             pub fn print(self: *SequenceContextFormat) void {
                 _ = self;
-                std.debug.print("SequenceContextFormat\n", .{});
+                TTF_LOG.info("SequenceContextFormat\n", .{});
             }
             pub fn deinit(self: *SequenceContextFormat, allocator: std.mem.Allocator) void {
                 _ = self;
@@ -1035,8 +1037,8 @@ pub const TTF = struct {
                         }
                     }
                     pub fn print(self: *ChainedSequenceRule) void {
-                        std.debug.print("ChainedSequenceRule backtrack_glyph_count = {d}, backtrack_sequence = {any}, input_glyph_count = {d}, input_seqeuence = {any}, lookahead_glyph_count = {d}, lookahead_sequence = {any}\n", .{ self.backtrack_glyph_count, self.backtrack_sequence, self.input_glyph_count, self.input_sequence, self.lookahead_glyph_count, self.lookahead_sequence });
-                        std.debug.print("seq_lookup_count = {d}\n", .{self.seq_lookup_count});
+                        TTF_LOG.info("ChainedSequenceRule backtrack_glyph_count = {d}, backtrack_sequence = {any}, input_glyph_count = {d}, input_seqeuence = {any}, lookahead_glyph_count = {d}, lookahead_sequence = {any}\n", .{ self.backtrack_glyph_count, self.backtrack_sequence, self.input_glyph_count, self.input_sequence, self.lookahead_glyph_count, self.lookahead_sequence });
+                        TTF_LOG.info("seq_lookup_count = {d}\n", .{self.seq_lookup_count});
                         for (0..self.seq_lookup_records.len) |i| {
                             self.seq_lookup_records[i].print();
                         }
@@ -1122,40 +1124,40 @@ pub const TTF = struct {
                 }
             }
             pub fn print(self: *ChainedSequenceContextFormat) void {
-                std.debug.print("ChainedSequenceContextFormat format = {d}\n", .{self.format});
+                TTF_LOG.info("ChainedSequenceContextFormat format = {d}\n", .{self.format});
                 switch (self.format) {
                     1 => {
-                        std.debug.print("chained_seq_rule_set_count = {d}\n", .{self.chained_seq_rule_set_count.?});
+                        TTF_LOG.info("chained_seq_rule_set_count = {d}\n", .{self.chained_seq_rule_set_count.?});
                         for (0..self.chained_seq_rule_sets.?.len) |i| {
-                            std.debug.print("ChainedSequenceRuleSet chained_seq_rule_count = {d}", .{self.chained_seq_rule_sets.?[i].chained_seq_rule_count});
+                            TTF_LOG.info("ChainedSequenceRuleSet chained_seq_rule_count = {d}", .{self.chained_seq_rule_sets.?[i].chained_seq_rule_count});
                             for (0..self.chained_seq_rule_sets.?[i].chained_seq_rules.len) |j| {
                                 self.chained_seq_rule_sets.?[i].chained_seq_rules[j].print();
                             }
                         }
-                        std.debug.print("Coverage\n", .{});
+                        TTF_LOG.info("Coverage\n", .{});
                         self.coverage.?.print();
                     },
                     2 => {
                         //TODO
                     },
                     3 => {
-                        std.debug.print("seq_lookup_count = {d}\n", .{self.seq_lookup_count.?});
+                        TTF_LOG.info("seq_lookup_count = {d}\n", .{self.seq_lookup_count.?});
                         for (0..self.seq_lookup_records.?.len) |i| {
                             self.seq_lookup_records.?[i].print();
                         }
-                        std.debug.print("BacktrackCoverage count = {d}\n", .{self.backtrack_glyph_count.?});
+                        TTF_LOG.info("BacktrackCoverage count = {d}\n", .{self.backtrack_glyph_count.?});
                         for (0..self.backtrack_coverage_offsets.?.len) |i| {
-                            std.debug.print("Table {d}: ", .{i});
+                            TTF_LOG.info("Table {d}: ", .{i});
                             self.backtrack_coverage.?[i].print();
                         }
-                        std.debug.print("InputCoverage count = {d}\n", .{self.input_glyph_count.?});
+                        TTF_LOG.info("InputCoverage count = {d}\n", .{self.input_glyph_count.?});
                         for (0..self.input_coverage_offsets.?.len) |i| {
-                            std.debug.print("Table {d}: ", .{i});
+                            TTF_LOG.info("Table {d}: ", .{i});
                             self.input_coverage.?[i].print();
                         }
-                        std.debug.print("LookaheadCoverage count = {d}\n", .{self.lookahead_glyph_count.?});
+                        TTF_LOG.info("LookaheadCoverage count = {d}\n", .{self.lookahead_glyph_count.?});
                         for (0..self.lookahead_coverage_offsets.?.len) |i| {
-                            std.debug.print("Table {d}: ", .{i});
+                            TTF_LOG.info("Table {d}: ", .{i});
                             self.lookahead_coverage.?[i].print();
                         }
                     },
@@ -1222,14 +1224,14 @@ pub const TTF = struct {
                 self.extension_offset = try bit_reader.read(u32);
             }
             pub fn print(self: *PosExtensionFormat) void {
-                std.debug.print("PosExtensionFormat format = {d}, extensionLookupType = {d}, extensionOffset = {d}\n", .{ self.format, self.extension_lookup_type, self.extension_offset });
+                TTF_LOG.info("PosExtensionFormat format = {d}, extensionLookupType = {d}, extensionOffset = {d}\n", .{ self.format, self.extension_lookup_type, self.extension_offset });
             }
         };
         pub const SequenceLookup = struct {
             sequence_index: u16 = undefined,
             lookup_list_index: u16 = undefined,
             pub fn print(self: *SequenceLookup) void {
-                std.debug.print("SequenceLookup sequence_index = {d}, lookup_list_index = {d}\n", .{ self.sequence_index, self.lookup_list_index });
+                TTF_LOG.info("SequenceLookup sequence_index = {d}, lookup_list_index = {d}\n", .{ self.sequence_index, self.lookup_list_index });
             }
         };
         pub const ValueRecord = struct {
@@ -1346,9 +1348,9 @@ pub const TTF = struct {
             }
 
             pub fn print(self: *MarkArray) void {
-                std.debug.print("MarkArray count = {d}\n", .{self.mark_count});
+                TTF_LOG.info("MarkArray count = {d}\n", .{self.mark_count});
                 for (0..self.mark_records.len) |i| {
-                    std.debug.print("MarkRecord class = {d}, offset = {d}, anchor = {any}\n", .{ self.mark_records[i].mark_class, self.mark_records[i].mark_anchor_offset, self.mark_records[i].anchor });
+                    TTF_LOG.info("MarkRecord class = {d}, offset = {d}, anchor = {any}\n", .{ self.mark_records[i].mark_class, self.mark_records[i].mark_anchor_offset, self.mark_records[i].anchor });
                 }
             }
         };
@@ -1628,38 +1630,37 @@ pub const TTF = struct {
     }
 
     fn print_cmap(self: *Self) void {
-        std.debug.print("#)\tpId\tpsID\toffset\ttype\n", .{});
+        TTF_LOG.info("#)\tpId\tpsID\toffset\ttype\n", .{});
         for (0..self.font_directory.cmap.num_subtables) |i| {
             const subtable: CMAP.CMAPEncodingSubtable = self.font_directory.cmap.cmap_encoding_subtables[i];
-            std.debug.print("{d})\t{d}\t{d}\t{d}\t", .{ i + 1, subtable.platform_id, subtable.platrform_specific_id, subtable.offset });
-            switch (subtable.platform_id) {
-                0 => std.debug.print("Unicode", .{}),
-                1 => std.debug.print("Mac", .{}),
-                2 => std.debug.print("Not Supported", .{}),
-                3 => std.debug.print("Microsoft", .{}),
+            const platform = switch (subtable.platform_id) {
+                0 => "Unicode",
+                1 => "Mac",
+                2 => "Not Supported",
+                3 => "Microsoft",
                 else => unreachable,
-            }
-            std.debug.print("\n", .{});
+            };
+            TTF_LOG.info("{d})\t{d}\t{d}\t{d}\t{s}\n", .{ i + 1, subtable.platform_id, subtable.platrform_specific_id, subtable.offset, platform });
         }
     }
 
     fn print_format4(self: *Self) void {
-        std.debug.print("Format: {d}, Length: {d}, Language: {d}, Segment Count: {d}\n", .{ self.font_directory.format4.format, self.font_directory.format4.length, self.font_directory.format4.language, self.font_directory.format4.seg_count_x2 / 2 });
-        std.debug.print("Search Params: (searchRange: {d}, entrySelector: {d}, rangeShift: {d})\n", .{ self.font_directory.format4.search_range, self.font_directory.format4.entry_selector, self.font_directory.format4.range_shift });
-        std.debug.print("Segment Ranges:\tstartCode\tendCode\tidDelta\tidRangeOffset\n", .{});
+        TTF_LOG.info("Format: {d}, Length: {d}, Language: {d}, Segment Count: {d}\n", .{ self.font_directory.format4.format, self.font_directory.format4.length, self.font_directory.format4.language, self.font_directory.format4.seg_count_x2 / 2 });
+        TTF_LOG.info("Search Params: (searchRange: {d}, entrySelector: {d}, rangeShift: {d})\n", .{ self.font_directory.format4.search_range, self.font_directory.format4.entry_selector, self.font_directory.format4.range_shift });
+        TTF_LOG.info("Segment Ranges:\tstartCode\tendCode\tidDelta\tidRangeOffset\n", .{});
         for (0..self.font_directory.format4.seg_count_x2 / 2) |i| {
-            std.debug.print("--------------:\t {d:9}\t {d:7}\t {d:7}\t {d:12}\n", .{ self.font_directory.format4.start_code[i], self.font_directory.format4.end_code[i], self.font_directory.format4.id_delta[i], self.font_directory.format4.id_range_offset[i] });
+            TTF_LOG.info("--------------:\t {d:9}\t {d:7}\t {d:7}\t {d:12}\n", .{ self.font_directory.format4.start_code[i], self.font_directory.format4.end_code[i], self.font_directory.format4.id_delta[i], self.font_directory.format4.id_range_offset[i] });
         }
     }
 
     fn print_glyph_outline(glyph_outline: *const GlyphOutline) void {
-        std.debug.print("#contours\t(xMin,yMin)\t(xMax,yMax)\tinst_length\n", .{});
-        std.debug.print("%{d:9}\t({d},{d})\t\t({d},{d})\t{d}\n", .{ glyph_outline.num_contours, glyph_outline.x_min, glyph_outline.y_min, glyph_outline.x_max, glyph_outline.y_max, glyph_outline.instruction_length });
+        TTF_LOG.info("#contours\t(xMin,yMin)\t(xMax,yMax)\tinst_length\n", .{});
+        TTF_LOG.info("%{d:9}\t({d},{d})\t\t({d},{d})\t{d}\n", .{ glyph_outline.num_contours, glyph_outline.x_min, glyph_outline.y_min, glyph_outline.x_max, glyph_outline.y_max, glyph_outline.instruction_length });
 
-        std.debug.print("#)\t(  x  ,  y  )\n", .{});
+        TTF_LOG.info("#)\t(  x  ,  y  )\n", .{});
         const last_index = glyph_outline.end_contours[glyph_outline.end_contours.len - 1];
         for (0..last_index + 1) |i| {
-            std.debug.print("{d})\t({d:5},{d:5})\n", .{ i, glyph_outline.x_coord[i], glyph_outline.y_coord[i] });
+            TTF_LOG.info("{d})\t({d:5},{d:5})\n", .{ i, glyph_outline.x_coord[i], glyph_outline.y_coord[i] });
         }
     }
 
@@ -1674,7 +1675,7 @@ pub const TTF = struct {
         glyph_outline.x_max = try self.bit_reader.read(i16);
         glyph_outline.y_max = try self.bit_reader.read(i16);
 
-        std.debug.print("num contours {d}\n", .{glyph_outline.num_contours});
+        TTF_LOG.info("num contours {d}\n", .{glyph_outline.num_contours});
         if (glyph_outline.num_contours == -1) {
             return Error.CompoundNotImplemented;
         }
@@ -1881,12 +1882,12 @@ pub const TTF = struct {
                 }
             }
         }
-        std.debug.print("GPOS header {any}\n", .{self.font_directory.gpos.?.header});
-        std.debug.print("ScriptList Count = {d}\n", .{self.font_directory.gpos.?.script_list.script_count});
+        TTF_LOG.info("-----GPOS table-----\n{any}\n", .{self.font_directory.gpos.?.header});
+        TTF_LOG.info("ScriptList Count = {d}\n", .{self.font_directory.gpos.?.script_list.script_count});
         for (0..self.font_directory.gpos.?.script_list.script_records.len) |i| {
-            std.debug.print("ScriptRecords tag = {s}, offset = {d}, default_lang_sys_offset = {d}, lang_sys_count = {d}\n", .{ self.font_directory.gpos.?.script_list.script_records[i].script_tag, self.font_directory.gpos.?.script_list.script_records[i].script_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.default_lang_sys_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_count });
+            TTF_LOG.info("ScriptRecords tag = {s}, offset = {d}, default_lang_sys_offset = {d}, lang_sys_count = {d}\n", .{ self.font_directory.gpos.?.script_list.script_records[i].script_tag, self.font_directory.gpos.?.script_list.script_records[i].script_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.default_lang_sys_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_count });
             for (0..self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records.len) |j| {
-                std.debug.print("LangSysRecords tag = {s}, lang_sys_offset = {d}, lookup_order_offset = {d}, required_feature_index = {d}, feature_index_count = {d}, feature_indicies = {any} \n", .{ self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.lookup_order_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.required_feature_index, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies });
+                TTF_LOG.info("LangSysRecords tag = {s}, lang_sys_offset = {d}, lookup_order_offset = {d}, required_feature_index = {d}, feature_index_count = {d}, feature_indicies = {any} \n", .{ self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_tag, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.lookup_order_offset, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.required_feature_index, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_index_count, self.font_directory.gpos.?.script_list.script_records[i].script_table.lang_sys_records[j].lang_sys.feature_indicies });
             }
         }
         //lookup
@@ -1896,7 +1897,7 @@ pub const TTF = struct {
         for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
             self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset = try self.bit_reader.read(u16);
         }
-        std.debug.print("LookupList Count = {d}\n", .{self.font_directory.gpos.?.lookup_list.lookup_count});
+        TTF_LOG.info("LookupList Count = {d}\n", .{self.font_directory.gpos.?.lookup_list.lookup_count});
         for (0..self.font_directory.gpos.?.lookup_list.lookups.len) |i| {
             self.bit_reader.setPos(offset + self.font_directory.gpos.?.header.lookup_list_offset + self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset);
             self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type = try self.bit_reader.read(u16);
@@ -1906,7 +1907,7 @@ pub const TTF = struct {
             for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
                 self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].offset = try self.bit_reader.read(u16);
             }
-            std.debug.print("Lookups offset = {d}, lookup_type = {d}, lookup_flag = {d}, subtable_count = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_flag, self.font_directory.gpos.?.lookup_list.lookups[i].subtable_count });
+            TTF_LOG.info("Lookups offset = {d}, lookup_type = {d}, lookup_flag = {d}, subtable_count = {d}\n", .{ self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type, self.font_directory.gpos.?.lookup_list.lookups[i].lookup_flag, self.font_directory.gpos.?.lookup_list.lookups[i].subtable_count });
             for (0..self.font_directory.gpos.?.lookup_list.lookups[i].subtables.len) |j| {
                 try self.process_lookup_format(self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type, &self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j], offset + self.font_directory.gpos.?.header.lookup_list_offset + self.font_directory.gpos.?.lookup_list.lookups[i].lookup_offset + self.font_directory.gpos.?.lookup_list.lookups[i].subtables[j].offset);
                 if (self.font_directory.gpos.?.lookup_list.lookups[i].lookup_type == 9) {
@@ -1935,9 +1936,9 @@ pub const TTF = struct {
                 self.font_directory.gpos.?.feature_list.feature_records[i].lookup_list_indicies[j] = try self.bit_reader.read(u16);
             }
         }
-        std.debug.print("FeatureList Count = {d}\n", .{self.font_directory.gpos.?.feature_list.feature_count});
+        TTF_LOG.info("FeatureList Count = {d}\n", .{self.font_directory.gpos.?.feature_list.feature_count});
         for (0..self.font_directory.gpos.?.feature_list.feature_records.len) |i| {
-            std.debug.print("FeatureRecord tag = {s}, offset = {d}, feature_params_offset = {d}, lookup_index_count = {d}, lookup_list_indicies = {any}\n", .{ self.font_directory.gpos.?.feature_list.feature_records[i].feature_tag, self.font_directory.gpos.?.feature_list.feature_records[i].feature_offset, self.font_directory.gpos.?.feature_list.feature_records[i].feature_params_offset, self.font_directory.gpos.?.feature_list.feature_records[i].lookup_index_count, self.font_directory.gpos.?.feature_list.feature_records[i].lookup_list_indicies });
+            TTF_LOG.info("FeatureRecord tag = {s}, offset = {d}, feature_params_offset = {d}, lookup_index_count = {d}, lookup_list_indicies = {any}\n", .{ self.font_directory.gpos.?.feature_list.feature_records[i].feature_tag, self.font_directory.gpos.?.feature_list.feature_records[i].feature_offset, self.font_directory.gpos.?.feature_list.feature_records[i].feature_params_offset, self.font_directory.gpos.?.feature_list.feature_records[i].lookup_index_count, self.font_directory.gpos.?.feature_list.feature_records[i].lookup_list_indicies });
         }
     }
 
@@ -1949,10 +1950,10 @@ pub const TTF = struct {
         if (self.font_directory.kern) |kern| {
             for (0..kern.sub_tables.len) |i| {
                 for (0..kern.sub_tables[i].kern_subtable_format0.kern_pairs.len) |j| {
-                    //std.debug.print("kerning left index {d}, right index {d}, looking for {d}\n", .{ self.kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].left, kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].right, lhs_index });
+                    //TTF_LOG.info("kerning left index {d}, right index {d}, looking for {d}\n", .{ self.kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].left, kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].right, lhs_index });
                     if (kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != lhs_index) continue;
                     if (kern.sub_tables[i].kern_subtable_format0.kern_pairs[j].left != rhs_index) continue;
-                    std.debug.print("found kerning data\n", .{});
+                    TTF_LOG.info("found kerning data\n", .{});
                     // found kerning value for these indicies
                     //vertical
                     if (kern.sub_tables[i].coverage & @as(u16, @intFromEnum(Kern.SubTable.Coverage.horizontal)) == 0) {
@@ -1991,7 +1992,7 @@ pub const TTF = struct {
                 for (0..gpos.lookup_list.lookups[i].subtables.len) |j| {
                     const point = gpos.lookup_list.lookups[i].subtables[j].adjustment(lhs_index, rhs_index, gpos.lookup_list.lookups[i].lookup_type);
                     if (point) |p| {
-                        std.debug.print("found subtable data\n", .{});
+                        TTF_LOG.info("found subtable data\n", .{});
                         if (ret == null) ret = Point{};
                         ret.?.x += p.x;
                         ret.?.y += p.y;
@@ -2019,7 +2020,7 @@ pub const TTF = struct {
             self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.search_range = try self.bit_reader.read(u16);
             self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.entry_selector = try self.bit_reader.read(u16);
             self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.range_shift = try self.bit_reader.read(u16);
-            std.debug.print("num pairs {d}\n", .{self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.n_pairs});
+            TTF_LOG.info("num pairs {d}\n", .{self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.n_pairs});
             self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs = try self.allocator.alloc(Kern.SubTable.KernSubtableFormat0.KernPair, self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.n_pairs);
             for (0..self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs.len) |j| {
                 self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].left = try self.bit_reader.read(u16);
@@ -2027,7 +2028,7 @@ pub const TTF = struct {
                 self.font_directory.kern.?.sub_tables[i].kern_subtable_format0.kern_pairs[j].value = try self.bit_reader.read(i16);
             }
         }
-        std.debug.print("kern table {any}\n", .{self.font_directory.kern.?});
+        TTF_LOG.info("-----kern table-----\n{any}\n", .{self.font_directory.kern.?});
     }
 
     //TODO grab more metrics from maxp
@@ -2035,7 +2036,9 @@ pub const TTF = struct {
         self.bit_reader.setPos(offset);
         self.font_directory.maxp.version = try self.bit_reader.read(u32);
         self.font_directory.maxp.num_glyphs = try self.bit_reader.read(u16);
-        std.debug.print("maxp data {any}\n", .{self.font_directory.maxp});
+        TTF_LOG.info("-----maxp table-----\n", .{});
+        TTF_LOG.info("version = {d}\n", .{self.font_directory.maxp.version});
+        TTF_LOG.info("num_glyphs = {d}\n", .{self.font_directory.maxp.num_glyphs});
     }
 
     fn read_hhea(self: *Self, offset: u32) Error!void {
@@ -2055,7 +2058,22 @@ pub const TTF = struct {
         self.font_directory.hhea.reserved = try self.bit_reader.read(i64);
         self.font_directory.hhea.metric_data_format = try self.bit_reader.read(i16);
         self.font_directory.hhea.number_of_h_metrics = try self.bit_reader.read(u16);
-        std.debug.print("hhea data {any}\n", .{self.font_directory.hhea});
+        TTF_LOG.info("-----hhea table-----\n", .{});
+        TTF_LOG.info("major_version = {d}\n", .{self.font_directory.hhea.major_version});
+        TTF_LOG.info("minor_version = {d}\n", .{self.font_directory.hhea.minor_version});
+        TTF_LOG.info("ascender = {d}\n", .{self.font_directory.hhea.ascender});
+        TTF_LOG.info("descender = {d}\n", .{self.font_directory.hhea.descender});
+        TTF_LOG.info("line_gap = {d}\n", .{self.font_directory.hhea.line_gap});
+        TTF_LOG.info("advance_width_max = {d}\n", .{self.font_directory.hhea.advance_width_max});
+        TTF_LOG.info("min_left_side_bearing = {d}\n", .{self.font_directory.hhea.min_left_side_bearing});
+        TTF_LOG.info("min_right_side_bearing = {d}\n", .{self.font_directory.hhea.min_right_side_bearing});
+        TTF_LOG.info("x_max_extent = {d}\n", .{self.font_directory.hhea.x_max_extent});
+        TTF_LOG.info("caret_slope_rise = {d}\n", .{self.font_directory.hhea.caret_slope_rise});
+        TTF_LOG.info("caret_slope_run = {d}\n", .{self.font_directory.hhea.caret_slope_run});
+        TTF_LOG.info("caret_offset = {d}\n", .{self.font_directory.hhea.caret_offset});
+        TTF_LOG.info("reserved = {d}\n", .{self.font_directory.hhea.reserved});
+        TTF_LOG.info("metric_data_format = {d}\n", .{self.font_directory.hhea.metric_data_format});
+        TTF_LOG.info("number_of_h_metrics = {d}\n", .{self.font_directory.hhea.number_of_h_metrics});
     }
 
     pub fn get_horizontal_metrics(self: *Self, glyph_index: u16) struct { advance_width: u16, lsb: i16 } {
@@ -2086,7 +2104,17 @@ pub const TTF = struct {
             }
         }
 
-        std.debug.print("hmtx data {any}\n", .{self.font_directory.hmtx});
+        TTF_LOG.info("-----hmtx table-----\n", .{});
+        TTF_LOG.info("index) advance_width lsb\n", .{});
+        for (0..self.font_directory.hmtx.h_metrics.len) |i| {
+            TTF_LOG.info(" {d:4}) {d:<13} {d}\n", .{ i, self.font_directory.hmtx.h_metrics[i].advance_width, self.font_directory.hmtx.h_metrics[i].lsb });
+        }
+        if (self.font_directory.maxp.num_glyphs > self.font_directory.hmtx.h_metrics.len) {
+            TTF_LOG.info("i) left_side_bearings\n", .{});
+            for (0..self.font_directory.hmtx.left_side_bearings.?.len) |i| {
+                TTF_LOG.info("{d}) {d}\n", .{ i, self.font_directory.hmtx.left_side_bearings.?[i] });
+            }
+        }
     }
 
     fn read_head(self: *Self, offset: u32) Error!void {
@@ -2111,6 +2139,25 @@ pub const TTF = struct {
         self.font_directory.head.font_direction_hint = try self.bit_reader.read(i16);
         self.font_directory.head.index_to_loc_format = try self.bit_reader.read(i16);
         self.font_directory.head.glyph_data_format = try self.bit_reader.read(i16);
+        TTF_LOG.info("-----head table-----\n", .{});
+        TTF_LOG.info("major_version = {d}\n", .{self.font_directory.head.major_version});
+        TTF_LOG.info("minor_version = {d}\n", .{self.font_directory.head.minor_version});
+        TTF_LOG.info("font_revision = {d}\n", .{self.font_directory.head.font_revision});
+        TTF_LOG.info("check_sum = {d}\n", .{self.font_directory.head.check_sum});
+        TTF_LOG.info("magic_number = {d}\n", .{self.font_directory.head.magic_number});
+        TTF_LOG.info("flags = {d}\n", .{self.font_directory.head.flags});
+        TTF_LOG.info("units_per_em = {d}\n", .{self.font_directory.head.units_per_em});
+        TTF_LOG.info("created = {d}\n", .{self.font_directory.head.created});
+        TTF_LOG.info("modified = {d}\n", .{self.font_directory.head.modified});
+        TTF_LOG.info("x_min = {d}\n", .{self.font_directory.head.x_min});
+        TTF_LOG.info("y_min = {d}\n", .{self.font_directory.head.y_min});
+        TTF_LOG.info("x_max = {d}\n", .{self.font_directory.head.x_max});
+        TTF_LOG.info("y_max = {d}\n", .{self.font_directory.head.y_max});
+        TTF_LOG.info("mac_style = {d}\n", .{self.font_directory.head.mac_style});
+        TTF_LOG.info("lowest_rec_PPEM = {d}\n", .{self.font_directory.head.lowest_rec_PPEM});
+        TTF_LOG.info("font_direction_hint = {d}\n", .{self.font_directory.head.font_direction_hint});
+        TTF_LOG.info("index_to_loc_format = {d}\n", .{self.font_directory.head.index_to_loc_format});
+        TTF_LOG.info("glyph_data_format = {d}\n", .{self.font_directory.head.glyph_data_format});
     }
 
     fn parse_file(self: *Self) !void {
@@ -2146,16 +2193,16 @@ pub const TTF = struct {
         if (self.find_table("GPOS")) |table| {
             try self.read_gpos(table.offset);
         } else {
-            std.debug.print("no gpos table found\n", .{});
+            TTF_LOG.warn("no gpos table found\n", .{});
             self.font_directory.gpos = null;
         }
         if (self.find_table("kern")) |table| {
             self.read_kern(table.offset) catch {
-                std.debug.print("Unsupported kern format\n", .{});
+                TTF_LOG.warn("Unsupported kern format\n", .{});
                 self.font_directory.kern = null;
             };
         } else {
-            std.debug.print("no kern table found\n", .{});
+            TTF_LOG.warn("no kern table found\n", .{});
             self.font_directory.kern = null;
         }
         const maxp_table = self.find_table("maxp") orelse return Error.MissingRequiredTable;
@@ -2168,18 +2215,18 @@ pub const TTF = struct {
         self.print_cmap();
         self.print_format4();
         for (65..91) |i| {
-            std.debug.print("{c} = {d}, {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))), try self.get_glyph_offset(self.get_glyph_index(@as(u16, @intCast(i)))) });
+            TTF_LOG.info("{c} = {d}, {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))), try self.get_glyph_offset(self.get_glyph_index(@as(u16, @intCast(i)))) });
         }
         for (97..123) |i| {
-            std.debug.print("{c} = {d}, {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))), try self.get_glyph_offset(self.get_glyph_index(@as(u16, @intCast(i)))) });
+            TTF_LOG.info("{c} = {d}, {d}\n", .{ @as(u8, @intCast(i)), self.get_glyph_index(@as(u16, @intCast(i))), try self.get_glyph_offset(self.get_glyph_index(@as(u16, @intCast(i)))) });
         }
     }
 
     fn print_table(self: *Self) void {
-        std.debug.print("#)\ttag\tlen\toffset\n", .{});
+        TTF_LOG.info("#)\ttag\tlen\toffset\n", .{});
         for (0..self.font_directory.table_directory.len) |i| {
             const dir = self.font_directory.table_directory[i];
-            std.debug.print("{d})\t{c}{c}{c}{c}\t{d}\t{d}\n", .{ i + 1, dir.tag[0], dir.tag[1], dir.tag[2], dir.tag[3], dir.length, dir.offset });
+            TTF_LOG.info("{d})\t{c}{c}{c}{c}\t{d}\t{d}\n", .{ i + 1, dir.tag[0], dir.tag[1], dir.tag[2], dir.tag[3], dir.length, dir.offset });
         }
     }
 
@@ -2189,7 +2236,7 @@ pub const TTF = struct {
         var cur_point: Point = undefined;
         var previous_flag: bool = false;
         var cur_flag: bool = false;
-        std.debug.print("num contours {d} {any}\n", .{ glyph_outline.num_contours, glyph_outline.end_contours });
+        TTF_LOG.info("num contours {d} {any}\n", .{ glyph_outline.num_contours, glyph_outline.end_contours });
         glyph_outline.end_curves = try self.allocator.alloc(u16, glyph_outline.end_contours.len);
         var num_curves: u16 = 0;
         var contour_index: usize = 0;
@@ -2198,7 +2245,7 @@ pub const TTF = struct {
             cur_point.x = glyph_outline.x_coord[i];
             cur_point.y = glyph_outline.y_coord[i];
             cur_flag = (glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.on_curve)) == @intFromEnum(GlyphOutline.Flag.on_curve);
-            std.debug.print("{any} {any} {any} {any} {any}\n", .{ previous_point, glyph_outline.flags[i], glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.on_curve), cur_flag, previous_flag });
+            TTF_LOG.debug("{any} {any} {any} {any} {any}\n", .{ previous_point, glyph_outline.flags[i], glyph_outline.flags[i] & @intFromEnum(GlyphOutline.Flag.on_curve), cur_flag, previous_flag });
             if (previous_point != null and !cur_flag and !previous_flag) {
                 var midpoint: Point = undefined;
                 midpoint.x = @divFloor(cur_point.x + previous_point.?.x, 2);
@@ -2241,7 +2288,7 @@ pub const TTF = struct {
                         .y = glyph_outline.y_coord[0],
                     });
                 } else {
-                    std.debug.print("adding point at index {d}\n", .{glyph_outline.end_contours[contour_index - 1] + 1});
+                    TTF_LOG.debug("adding point at index {d}\n", .{glyph_outline.end_contours[contour_index - 1] + 1});
                     if (curve_points == 1) {
                         var midpoint: Point = undefined;
                         midpoint.x = @divFloor(cur_point.x + glyph_outline.x_coord[glyph_outline.end_contours[contour_index - 1] + 1], 2);
@@ -2267,22 +2314,19 @@ pub const TTF = struct {
         }
         var curves: std.ArrayList(BezierCurve) = std.ArrayList(BezierCurve).init(self.allocator);
         var i: usize = 0;
-        std.debug.print("flags\n", .{});
+        TTF_LOG.debug("flags\n", .{});
         for (glyph_outline.flags) |flag| {
-            std.debug.print("{d}\n", .{flag & @intFromEnum(GlyphOutline.Flag.on_curve)});
+            TTF_LOG.debug("{d}\n", .{flag & @intFromEnum(GlyphOutline.Flag.on_curve)});
         }
         var counter: usize = 0;
         while (i < points.items.len) : (i += 3) {
             if (i + 2 >= points.items.len or i + 1 >= points.items.len) break;
-            std.debug.print("{d} {any} {any} {any}\n", .{ counter, points.items[i], points.items[i + 1], points.items[i + 2] });
+            TTF_LOG.debug("{d} {any} {any} {any}\n", .{ counter, points.items[i], points.items[i + 1], points.items[i + 2] });
             counter += 1;
         }
         i = 0;
-        std.debug.print("len {d}\n", .{points.items.len});
-
         const height = glyph_outline.y_max - glyph_outline.y_min;
         while (i < points.items.len) : (i += 3) {
-            std.debug.print("i {d}\n", .{i});
             if (i + 2 >= points.items.len or i + 1 >= points.items.len) break;
             try curves.append(BezierCurve{
                 .p0 = .{ .x = points.items[i].x - glyph_outline.x_min, .y = height - (points.items[i].y - glyph_outline.y_min) },
@@ -2305,13 +2349,13 @@ pub const TTF = struct {
         for (alphabet) |a| {
             var glyph_outline: ?GlyphOutline = self.get_glyph_outline(self.get_glyph_index(@as(u16, @intCast(a)))) catch null;
             if (glyph_outline != null) {
-                std.debug.print("simple {c}\n", .{a});
+                TTF_LOG.info("simple {c}\n", .{a});
                 print_glyph_outline(&glyph_outline.?);
-                std.debug.print("{any}\n", .{glyph_outline.?.x_coord});
+                TTF_LOG.info("{any}\n", .{glyph_outline.?.x_coord});
                 try self.gen_curves(&glyph_outline.?);
                 try self.char_map.put(a, glyph_outline.?);
             } else {
-                std.debug.print("compound {c}\n", .{a});
+                TTF_LOG.info("compound {c}\n", .{a});
             }
         }
         self.bit_reader.deinit();

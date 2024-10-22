@@ -16,6 +16,8 @@ pub const WindowSize = event_manager.WindowSize;
 pub const RenderCallback = utils.CallbackError(u64, Error);
 pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Timer.Error || std.posix.GetRandomError;
 
+pub const ENGINE_LOG = std.log.scoped(.engine);
+
 //TODO remove generic just make it a variable
 pub fn Engine(comptime color_type: utils.ColorMode) type {
     return struct {
@@ -76,15 +78,15 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
                 delta = timer.read();
                 elapsed += @as(f64, @floatFromInt(delta)) / 1_000_000_000.0;
                 frames += 1;
-                //std.debug.print("elapsed {d}\n", .{elapsed});
+                //ENGINE_LOG.info("elapsed {d}\n", .{elapsed});
                 if (elapsed >= 1.0) {
                     self.fps = @as(f64, @floatFromInt(frames)) / elapsed;
-                    //std.debug.print("fps {d}\n", .{self.fps});
+                    //ENGINE_LOG.info("fps {d}\n", .{self.fps});
                     frames = 0;
                     elapsed = 0.0;
                 }
                 const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));
-                //std.debug.print("time to sleep {d}\n", .{time_to_sleep});
+                //ENGINE_LOG.info("time to sleep {d}\n", .{time_to_sleep});
                 if (time_to_sleep > 0) {
                     std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
                 }
@@ -93,7 +95,7 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
 
         pub fn set_fps(self: *Self, fps: u64) void {
             self.frame_limit = 1_000_000_000 / fps;
-            std.debug.print("{d}\n", .{self.frame_limit});
+            ENGINE_LOG.info("{d}\n", .{self.frame_limit});
         }
 
         pub fn stop(self: *Self) void {
@@ -101,7 +103,7 @@ pub fn Engine(comptime color_type: utils.ColorMode) type {
         }
 
         pub fn start(self: *Self) Error!void {
-            std.debug.print("Window size {d}x{d}\n", .{ self.renderer.terminal.size.width, self.renderer.terminal.size.height });
+            ENGINE_LOG.info("Window size {d}x{d}\n", .{ self.renderer.terminal.size.width, self.renderer.terminal.size.height });
             if (builtin.os.tag == .windows) {
                 self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
             }

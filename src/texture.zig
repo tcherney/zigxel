@@ -4,6 +4,8 @@ const image = @import("image");
 
 pub const Pixel = image.Pixel;
 
+const TEXTURE_LOG = std.log.scoped(.texture);
+
 pub const Texture = struct {
     allocator: std.mem.Allocator,
     height: u32 = undefined,
@@ -46,7 +48,7 @@ pub const Texture = struct {
 
     // resize without adjusting where pixels lie
     pub fn resize(self: *Self, width: u32, height: u32) Error!void {
-        std.debug.print("resizing from {d}x{d} to {d}x{d}\n", .{ self.width, self.height, width, height });
+        TEXTURE_LOG.info("resizing from {d}x{d} to {d}x{d}\n", .{ self.width, self.height, width, height });
         var pixel_buffer = try self.allocator.alloc(Pixel, width * height);
         for (0..height) |i| {
             for (0..width) |j| {
@@ -120,23 +122,4 @@ pub const Texture = struct {
         }
         self.loaded = true;
     }
-    //https://handmade.network/forums/articles/t/7330-implementing_a_font_reader_and_rasterizer_from_scratch%252C_part_1__ttf_font_reader.
-    pub fn load_ttf(self: *Self, file_name: []const u8) void {
-        _ = self;
-        _ = file_name;
-    }
 };
-
-// test "cat" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     const allocator = gpa.allocator();
-//     var img = image.Image(image.JPEGImage){};
-//     try img.load("../img2ascii/tests/jpeg/cat.jpg", allocator);
-//     var texture = Texture(ColorMode.color_256).init(allocator);
-//     try texture.load_image(5, 5, img);
-//     img.deinit();
-//     texture.deinit();
-//     if (gpa.deinit() == .leak) {
-//         std.debug.print("Leaked!\n", .{});
-//     }
-// }

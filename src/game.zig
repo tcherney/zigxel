@@ -17,6 +17,7 @@ pub const GameObject = game_object.GameObject;
 pub const Texture = game_object.Texture;
 pub const AssetManager = asset_manager.AssetManager;
 pub const Engine = engine.Engine;
+const GAME_LOG = std.log.scoped(.game);
 
 pub const Game = struct {
     running: bool = true,
@@ -119,7 +120,7 @@ pub const Game = struct {
     }
 
     pub fn on_mouse_change(self: *Self, mouse_event: engine.MouseEvent) void {
-        std.debug.print("{any}\n", .{mouse_event});
+        GAME_LOG.info("{any}\n", .{mouse_event});
         if (self.old_mouse_x == -1 or self.old_mouse_y == -1) {
             self.old_mouse_x = @as(i32, @intCast(mouse_event.x)) + self.current_world.viewport.x;
             self.old_mouse_y = @as(i32, @intCast(mouse_event.y)) * 2 + self.current_world.viewport.y;
@@ -131,10 +132,10 @@ pub const Game = struct {
         self.old_mouse_x = self.placement_pixel[self.placement_index].x;
         self.old_mouse_y = self.placement_pixel[self.placement_index].y;
         if (mouse_event.clicked) {
-            std.debug.print("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
+            GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
             self.lock.lock();
             self.place_pixel() catch |err| {
-                std.debug.print("{any}\n", .{err});
+                GAME_LOG.info("{any}\n", .{err});
                 self.running = false;
                 return;
             };
@@ -156,7 +157,7 @@ pub const Game = struct {
             }
         }
         if (mouse_event.ctrl_pressed) {
-            std.debug.print("{any} mouse {d} {d}\n", .{ mouse_event, mouse_diff_x, mouse_diff_y });
+            GAME_LOG.info("{any} mouse {d} {d}\n", .{ mouse_event, mouse_diff_x, mouse_diff_y });
             self.current_world.viewport.x += if (mouse_diff_x > 0) 1 else if (mouse_diff_x < 0) -1 else 0;
             self.current_world.viewport.y += if (mouse_diff_y > 0) 1 else if (mouse_diff_y < 0) -1 else 0;
             if (self.current_world.viewport.x < 0) {
@@ -175,10 +176,10 @@ pub const Game = struct {
     }
     pub fn on_window_change(self: *Self, win_size: engine.WindowSize) void {
         self.lock.lock();
-        std.debug.print("changed height {d}\n", .{win_size.height});
+        GAME_LOG.info("changed height {d}\n", .{win_size.height});
         const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;
         var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator) catch |err| {
-            std.debug.print("{any}\n", .{err});
+            GAME_LOG.info("{any}\n", .{err});
             self.running = false;
             return;
         };
@@ -186,13 +187,13 @@ pub const Game = struct {
         for (0..new_world.tex.width * new_world.tex.height) |i| {
             if (i < self.pixels.items.len) {
                 new_pixels.append(self.pixels.items[i]) catch |err| {
-                    std.debug.print("{any}\n", .{err});
+                    GAME_LOG.info("{any}\n", .{err});
                     self.running = false;
                     return;
                 };
             } else {
                 new_pixels.append(null) catch |err| {
-                    std.debug.print("{any}\n", .{err});
+                    GAME_LOG.info("{any}\n", .{err});
                     self.running = false;
                     return;
                 };
@@ -216,7 +217,7 @@ pub const Game = struct {
     }
 
     pub fn on_key_down(self: *Self, key: engine.KEYS) void {
-        std.debug.print("{}\n", .{key});
+        GAME_LOG.info("{}\n", .{key});
         if (key == engine.KEYS.KEY_q) {
             self.running = false;
         } else if (key == engine.KEYS.KEY_a) {
@@ -240,10 +241,10 @@ pub const Game = struct {
                 self.placement_pixel[self.placement_index].y += 1;
             }
         } else if (key == engine.KEYS.KEY_SPACE) {
-            std.debug.print("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
+            GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
             self.lock.lock();
             self.place_pixel() catch |err| {
-                std.debug.print("{any}\n", .{err});
+                GAME_LOG.info("{any}\n", .{err});
                 self.running = false;
                 return;
             };
@@ -270,7 +271,7 @@ pub const Game = struct {
             self.placement_index = (self.placement_index + 1) % self.placement_pixel.len;
         } else if (key == engine.KEYS.KEY_p) {
             self.current_world.print() catch |err| {
-                std.debug.print("{any}\n", .{err});
+                GAME_LOG.info("{any}\n", .{err});
                 self.running = false;
             };
         }
@@ -298,12 +299,12 @@ pub const Game = struct {
                 if (self.player_mode) {
                     if (self.player == null) {
                         const tex = self.assets.get("basic") catch |err| {
-                            std.debug.print("{any}\n", .{err});
+                            GAME_LOG.info("{any}\n", .{err});
                             self.running = false;
                             return;
                         };
                         self.player = Player.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, tex, self.allocator) catch |err| {
-                            std.debug.print("{any}\n", .{err});
+                            GAME_LOG.info("{any}\n", .{err});
                             self.running = false;
                             return;
                         };
@@ -334,7 +335,7 @@ pub const Game = struct {
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
         self.e = try Engine(utils.ColorMode.color_true).init(self.allocator);
-        std.debug.print("starting height {d}\n", .{self.e.renderer.terminal.size.height});
+        GAME_LOG.info("starting height {d}\n", .{self.e.renderer.terminal.size.height});
         self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
         for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
@@ -346,7 +347,7 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
-        try font.load("arial.ttf", 32, &self.e.renderer);
+        try font.load("envy.ttf", 24, &self.e.renderer);
         self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
@@ -381,7 +382,7 @@ pub const Game = struct {
                 while (x >= 0) : (x -= 1) {
                     var p = self.pixels.items[y * self.current_world.tex.width + x];
                     if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.pixel_type != .Object) {
-                        //std.debug.print("updating {any}\n", .{p.?});
+                        //GAME_LOG.info("updating {any}\n", .{p.?});
                         p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
                         active_pixels = if (p.?.active) active_pixels + 1 else active_pixels;
                     }
@@ -393,7 +394,7 @@ pub const Game = struct {
             delta = timer.read();
             timer.reset();
             const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));
-            //std.debug.print("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
+            //GAME_LOG.info("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
             if (time_to_sleep > 0) {
                 std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
             }

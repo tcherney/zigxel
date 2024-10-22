@@ -10,6 +10,8 @@ pub const Pixel = _texture.Pixel;
 
 var num_chars: usize = 0;
 
+const FONT_LOG = std.log.scoped(.font);
+
 pub const Font = struct {
     ttf: TTF = undefined,
     allocator: std.mem.Allocator,
@@ -48,7 +50,7 @@ pub const Font = struct {
 
     pub fn set_size(self: *Self, font_size: u16) void {
         self.font_size = font_size;
-        std.debug.print("units per em {any}, font_size {any}, lowest rec {any}\n", .{ self.ttf.font_directory.head.units_per_em, font_size, self.ttf.font_directory.head.lowest_rec_PPEM });
+        FONT_LOG.info("units per em {any}, font_size {any}, lowest rec {any}\n", .{ self.ttf.font_directory.head.units_per_em, font_size, self.ttf.font_directory.head.lowest_rec_PPEM });
         self.scale = (1.0 / @as(f32, @floatFromInt(self.ttf.font_directory.head.units_per_em))) * @as(f32, @floatFromInt(font_size));
     }
 
@@ -100,7 +102,7 @@ pub const Font = struct {
     fn gen_edges(self: *Self, outline: *TTF.GlyphOutline) Error!std.ArrayList(Edge) {
         var edges: std.ArrayList(Edge) = std.ArrayList(Edge).init(self.allocator);
         var bezier_indx: usize = 0;
-        std.debug.print("scale {any}\n", .{self.scale});
+        FONT_LOG.info("scale {any}\n", .{self.scale});
         for (0..outline.end_contours.len) |i| {
             //var extra_pt: ?TTF.Point = null;
             var j: usize = bezier_indx;
@@ -161,9 +163,9 @@ pub const Font = struct {
         for (0..str.len) |i| {
             const character = str[i];
             const char_tex = self.chars.get(character);
-            std.debug.print("rendering {c}\n", .{character});
+            FONT_LOG.info("rendering {c}\n", .{character});
             if (tex == null) {
-                std.debug.print("grabbing copy\n", .{});
+                FONT_LOG.info("grabbing copy\n", .{});
                 if (char_tex == null) continue;
                 if (character == ' ') {
                     tex = try self.allocator.create(Texture);
@@ -173,7 +175,7 @@ pub const Font = struct {
                     tex = try char_tex.?.*.copy();
                     const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(character);
                     const y_from_base = @as(u32, @intFromFloat(@abs(@as(f32, @floatFromInt(glyph_outline.?.y_min)) * self.scale)));
-                    std.debug.print("y_from_base {d}, baseline_y {d}\n", .{ y_from_base, baseline_y });
+                    FONT_LOG.info("y_from_base {d}, baseline_y {d}\n", .{ y_from_base, baseline_y });
                     if (y_from_base > baseline_y) {
                         baseline_y = y_from_base;
                         try tex.?.resize(tex.?.width, baseline_y + tex.?.height);
@@ -188,7 +190,7 @@ pub const Font = struct {
                     }
                 }
             } else {
-                std.debug.print("resizing\n", .{});
+                FONT_LOG.info("resizing\n", .{});
                 if (character == ' ' or char_tex == null) {
                     if (char_tex == null) {
                         const default_width = @as(u32, @intFromFloat(@as(f32, @floatFromInt(self.ttf.font_directory.hhea.advance_width_max)) * self.scale));
@@ -199,18 +201,18 @@ pub const Font = struct {
                 } else {
                     const glyph_outline: ?TTF.GlyphOutline = self.ttf.char_map.get(character);
                     const y_from_base = @as(u32, @intFromFloat(@abs(@as(f32, @floatFromInt(glyph_outline.?.y_min)) * self.scale)));
-                    std.debug.print("y_from_base {d}, baseline_y {d}\n", .{ y_from_base, baseline_y });
+                    FONT_LOG.info("y_from_base {d}, baseline_y {d}\n", .{ y_from_base, baseline_y });
                     if (y_from_base > baseline_y) {
                         baseline_y = y_from_base;
                     }
                     const larger_height: u32 = @max(char_tex.?.height + baseline_y, tex.?.height);
                     const height_diff: i32 = @as(i32, @bitCast(larger_height)) - @as(i32, @bitCast(tex.?.height));
                     const horizontal_metrics = self.ttf.get_horizontal_metrics(@as(u16, @intCast(str[i - 1])));
-                    std.debug.print("kerning adjust {any}\n", .{self.ttf.kerning_adj(@as(u16, @intCast(str[i - 1])), @as(u16, @intCast(str[i])))});
-                    std.debug.print("x_max {d}, metrics {any}\n", .{ glyph_outline.?.x_max, horizontal_metrics });
+                    FONT_LOG.info("kerning adjust {any}\n", .{self.ttf.kerning_adj(@as(u16, @intCast(str[i - 1])), @as(u16, @intCast(str[i])))});
+                    FONT_LOG.info("x_max {d}, metrics {any}\n", .{ glyph_outline.?.x_max, horizontal_metrics });
                     var width_adjust = @as(i32, @intFromFloat(@as(f32, @floatFromInt(@as(i16, @bitCast(horizontal_metrics.advance_width)) - horizontal_metrics.lsb - (glyph_outline.?.x_max))) * self.scale));
                     //const x_adj = width_adjust;
-                    std.debug.print("width adjust {d}\n", .{width_adjust});
+                    FONT_LOG.info("width adjust {d}\n", .{width_adjust});
                     if (width_adjust < 0) width_adjust = 1;
                     try tex.?.resize(tex.?.width + char_tex.?.*.width + @as(u32, @bitCast(width_adjust)), larger_height);
                     if (height_diff > 0) {
@@ -226,8 +228,8 @@ pub const Font = struct {
                     //const y_adj = if (char_tex.?.*.height < tex.?.height) tex.?.height - char_tex.?.*.height else 0;
                     for (0..char_tex.?.*.height) |y| {
                         for (0..char_tex.?.*.width) |x| {
-                            //std.debug.print("y {d} - baseline_y {d} + tex.?.height {d} - char_tex.?.*.height {d}\n", .{ y, baseline_y, tex.?.height, char_tex.?.*.height });
-                            //std.debug.print("final {d}\n", .{(y + tex.?.height - baseline_y - char_tex.?.*.height) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))});
+                            //FONT_LOG.info("y {d} - baseline_y {d} + tex.?.height {d} - char_tex.?.*.height {d}\n", .{ y, baseline_y, tex.?.height, char_tex.?.*.height });
+                            //FONT_LOG.info("final {d}\n", .{(y + tex.?.height - baseline_y - char_tex.?.*.height) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))});
                             tex.?.pixel_buffer[(y + y_from_base + tex.?.height - baseline_y - char_tex.?.*.height) * tex.?.width + (x + (tex.?.width - char_tex.?.*.width))] = char_tex.?.*.pixel_buffer[y * char_tex.?.*.width + x];
                         }
                     }
@@ -254,13 +256,13 @@ pub const Font = struct {
             tex.* = Texture.init(self.allocator);
             try tex.rect(width, height, 0, 0, 0, 0);
 
-            std.debug.print("width {d}, height {d}\n", .{ width, height });
-            std.debug.print("contour starts {any}\n", .{outline.end_curves});
-            std.debug.print("curves {any}\n", .{outline.curves});
+            FONT_LOG.debug("width {d}, height {d}\n", .{ width, height });
+            FONT_LOG.debug("contour starts {any}\n", .{outline.end_curves});
+            FONT_LOG.debug("curves {any}\n", .{outline.curves});
             var edges: std.ArrayList(Edge) = try self.gen_edges(&outline);
-            std.debug.print("before sort {any}\n", .{edges.items});
+            FONT_LOG.debug("before sort {any}\n", .{edges.items});
             std.mem.sort(Edge, edges.items, {}, Edge.sort_y);
-            std.debug.print("after sort {any}\n", .{edges.items});
+            FONT_LOG.debug("after sort {any}\n", .{edges.items});
             var active_edges: std.ArrayList(Edge) = std.ArrayList(Edge).init(self.allocator);
             var first_edge: usize = 0;
             for (0..height) |i| {
@@ -349,7 +351,7 @@ pub const Font = struct {
         key_iter = self.ttf.char_map.keyIterator();
         key = key_iter.next();
         while (key != null) : (key = key_iter.next()) {
-            std.debug.print("generating char {any} {d}\n", .{ key.?.*, num_chars });
+            FONT_LOG.info("generating char {any} {d}\n", .{ key.?.*, num_chars });
             try self.chars.put(key.?.*, try self.gen_char(graphics, key.?.*));
         }
     }

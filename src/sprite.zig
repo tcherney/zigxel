@@ -69,7 +69,6 @@ pub const Sprite = struct {
         if (free_mem) {
             self.allocator.free(src_buffer);
         }
-        std.debug.print("{any}\n", .{self.scaled_buffer});
     }
     pub fn set_src(self: *Self, src: utils.Rectangle) Error!void {
         self.src.x = src.x;

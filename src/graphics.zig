@@ -10,6 +10,7 @@ const UPPER_PX = "▀";
 const LOWER_PX = "▄";
 //▀█▄
 
+const GRAPHICS_LOG = std.log.scoped(.graphics);
 pub const Point = utils.Point(i32);
 pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError;
 pub fn Graphics(comptime color_type: utils.ColorMode) type {
@@ -226,7 +227,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             if (s.scaled_buffer == null) {
                 try self.draw_pixel_buffer(s.tex.pixel_buffer, s.tex.width, s.tex.height, s.src, s.dest, dest);
             } else {
-                std.debug.print("rendering scaled\n", .{});
+                GRAPHICS_LOG.debug("rendering scaled\n", .{});
                 const src_rect = utils.Rectangle{ .x = 0, .y = 0, .width = s.dest.width, .height = s.dest.height };
                 try self.draw_pixel_buffer(s.scaled_buffer.?, s.dest.width, s.dest.height, src_rect, s.dest, dest);
             }
@@ -241,7 +242,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             const width_i: i32 = @as(i32, @bitCast(width));
             const src_height_i: i32 = @as(i32, @bitCast(src.height));
             const src_width_i: i32 = @as(i32, @bitCast(src.width));
-            std.debug.print("{d} {d}\n", .{ width_i, src_width_i });
+            GRAPHICS_LOG.debug("{d} {d}\n", .{ width_i, src_width_i });
             var j: i32 = dest_rect.y;
             if (dest == null) {
                 while (j < (dest_rect.y + src_height_i)) : (j += 1) {
@@ -392,7 +393,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         }
 
         pub fn draw_text(self: *Self, value: []const u8, x: i32, y: i32, r: u8, g: u8, b: u8) Error!void {
-            //std.debug.print("{s} with len {d}\n", .{ value, value.len });
+            //GRAPHICS_LOG.debug("{s} with len {d}\n", .{ value, value.len });
             try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
         }
 
@@ -453,10 +454,10 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             }
 
             if (self.first_render) {
-                std.debug.print("first render\n", .{});
+                GRAPHICS_LOG.debug("first render\n", .{});
                 try self.terminal.out(term.CURSOR_HOME);
             }
-            //std.debug.print("width height {d} {d}\n", .{ width, height });
+            //GRAPHICS_LOG.debug("width height {d} {d}\n", .{ width, height });
             // each pixel is an index into the possible 256 colors
             while (j < height) : (j += 2) {
                 i = 0;
