@@ -36,7 +36,7 @@ pub const GameObject = struct {
         var x_pix: i32 = x;
         var y_pix: i32 = y;
         for (0..tex.pixel_buffer.len) |i| {
-            if (tex.pixel_buffer[i].a != null and tex.pixel_buffer[i].a.? > 0) {
+            if (tex.pixel_buffer[i].a != 255) {
                 try pixel_list.append(try allocator.create(PhysicsPixel));
                 const indx = pixel_list.items.len - 1;
                 pixel_list.items[indx].* = PhysicsPixel.init(physics_pixel.PixelType.Object, x_pix, y_pix);

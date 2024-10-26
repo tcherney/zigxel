@@ -43,7 +43,7 @@ pub const Font = struct {
         return Self{
             .ttf = TTF.init(allocator),
             .allocator = allocator,
-            .color = .{ .r = 255, .g = 255, .b = 255, .a = 255 },
+            .color = .{ .r = 255, .g = 255, .b = 255 },
             .chars = std.AutoHashMap(u8, *Texture).init(allocator),
         };
     }
@@ -236,7 +236,7 @@ pub const Font = struct {
                     // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].r = 0;
                     // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].g = 255;
                     // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].b = 0;
-                    // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].a = null;
+                    // tex.?.pixel_buffer[(tex.?.height - baseline_y) * tex.?.width].a = 255;
                 }
             }
         }

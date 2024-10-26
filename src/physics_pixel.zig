@@ -268,7 +268,7 @@ pub const PhysicsPixel = struct {
         return Self{ .x = x, .y = y, .pixel = Pixel{ .r = color.r, .g = color.g, .b = color.b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .properties = properties };
     }
 
-    pub fn set_color(self: *Self, r: u8, g: u8, b: u8, a: ?u8) void {
+    pub fn set_color(self: *Self, r: u8, g: u8, b: u8, a: u8) void {
         self.pixel = .{ .r = r, .g = g, .b = b, .a = a };
     }
 

@@ -23,7 +23,7 @@ pub const Texture = struct {
         self.allocator.free(self.pixel_buffer);
     }
 
-    pub fn rect(self: *Self, width: u32, height: u32, r: u8, g: u8, b: u8, a: ?u8) Error!void {
+    pub fn rect(self: *Self, width: u32, height: u32, r: u8, g: u8, b: u8, a: u8) Error!void {
         self.height = height;
         self.width = width;
         if (self.loaded) {
