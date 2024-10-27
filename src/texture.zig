@@ -31,7 +31,7 @@ pub const Texture = struct {
         }
         self.pixel_buffer = try self.allocator.alloc(Pixel, height * width);
         for (0..self.pixel_buffer.len) |i| {
-            self.pixel_buffer[i] = .{ .r = r, .g = g, .b = b, .a = a };
+            self.pixel_buffer[i] = Pixel.init(r, g, b, a);
         }
         self.loaded = true;
     }
@@ -52,7 +52,7 @@ pub const Texture = struct {
         var pixel_buffer = try self.allocator.alloc(Pixel, width * height);
         for (0..height) |i| {
             for (0..width) |j| {
-                pixel_buffer[i * width + j] = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
+                pixel_buffer[i * width + j] = Pixel.init(0, 0, 0, 0);
             }
         }
         for (0..self.height) |i| {
@@ -118,7 +118,7 @@ pub const Texture = struct {
         }
         self.pixel_buffer = try self.allocator.alloc(Pixel, self.width * self.height);
         for (0..self.pixel_buffer.len) |i| {
-            self.pixel_buffer[i] = .{ .r = img.data.items[i].r, .g = img.data.items[i].g, .b = img.data.items[i].b, .a = img.data.items[i].a };
+            self.pixel_buffer[i].v = img.data.items[i].v;
         }
         self.loaded = true;
     }

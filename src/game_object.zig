@@ -36,11 +36,11 @@ pub const GameObject = struct {
         var x_pix: i32 = x;
         var y_pix: i32 = y;
         for (0..tex.pixel_buffer.len) |i| {
-            if (tex.pixel_buffer[i].a != 255) {
+            if (tex.pixel_buffer[i].get_a() != 255) {
                 try pixel_list.append(try allocator.create(PhysicsPixel));
                 const indx = pixel_list.items.len - 1;
                 pixel_list.items[indx].* = PhysicsPixel.init(physics_pixel.PixelType.Object, x_pix, y_pix);
-                pixel_list.items[indx].set_color(tex.pixel_buffer[i].r, tex.pixel_buffer[i].g, tex.pixel_buffer[i].b, tex.pixel_buffer[i].a);
+                pixel_list.items[indx].set_color(tex.pixel_buffer[i].get_r(), tex.pixel_buffer[i].get_g(), tex.pixel_buffer[i].get_b(), tex.pixel_buffer[i].get_a());
                 pixel_list.items[indx].managed = true;
             }
 
@@ -161,15 +161,15 @@ pub const GameObject = struct {
                     var water_properties = physics_pixel.WATER_PROPERTIES;
                     for (0..self.background_buffer.a.len) |i| {
                         const w_color = water_properties.vary_color(10);
-                        self.background_buffer.a[i] = .{ .r = w_color.r, .g = w_color.g, .b = w_color.b };
+                        self.background_buffer.a[i].v = w_color.v;
                     }
                 }
 
                 for (self.pixels, 0..self.pixels.len) |p, i| {
-                    const temp = p.pixel.a;
-                    p.pixel.a = 128;
-                    graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].r, self.background_buffer.a[i].g, self.background_buffer.a[i].b, true);
-                    p.pixel.a = temp;
+                    const temp = p.pixel.get_a();
+                    p.pixel.set_a(128);
+                    graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
+                    p.pixel.set_a(temp);
                 }
             },
             .Hot => {
@@ -178,15 +178,15 @@ pub const GameObject = struct {
                     var fire_properties = physics_pixel.FIRE_PROPERTIES;
                     for (0..self.background_buffer.a.len) |i| {
                         const f_color = fire_properties.vary_color(10);
-                        self.background_buffer.a[i] = .{ .r = f_color.r, .g = f_color.g, .b = f_color.b };
+                        self.background_buffer.a[i].v = f_color.v;
                     }
                 }
 
                 for (self.pixels, 0..self.pixels.len) |p, i| {
-                    const temp = p.pixel.a;
-                    p.pixel.a = 128;
-                    graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].r, self.background_buffer.a[i].g, self.background_buffer.a[i].b, true);
-                    p.pixel.a = temp;
+                    const temp = p.pixel.get_a();
+                    p.pixel.set_a(128);
+                    graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
+                    p.pixel.set_a(temp);
                 }
             },
             .None => {

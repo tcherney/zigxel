@@ -14,6 +14,7 @@ pub const std_options = .{
         .{ .scope = .ttf, .level = .info },
         .{ .scope = .game, .level = .err },
         .{ .scope = .font, .level = .info },
+        .{ .scope = .physics_pixel, .level = .err },
     },
 };
 

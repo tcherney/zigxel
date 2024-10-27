@@ -103,9 +103,9 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 const bg_color_indx = term.rgb_256(r, g, b);
                 for (0..dest.?.pixel_buffer.len) |i| {
                     if (color_type == .color_256) {
-                        dest.?.pixel_buffer[i].r = bg_color_indx;
+                        dest.?.pixel_buffer[i].set_r(bg_color_indx);
                     } else {
-                        dest.?.pixel_buffer[i] = .{ .r = r, .g = g, .b = b };
+                        dest.?.pixel_buffer[i] = texture.Pixel.init(r, g, b, null);
                     }
                 }
             }
@@ -161,30 +161,25 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 }
                 const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));
                 const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
-                if (p.a != 255) {
+                if (p.get_a() != 255) {
                     const max_pixel = 255.0;
-
-                    var rf: f32 = if (p.a == 0) 0 else (@as(f32, @floatFromInt(p.a)) / max_pixel) * @as(f32, @floatFromInt(p.r));
-                    var gf: f32 = if (p.a == 0) 0 else (@as(f32, @floatFromInt(p.a)) / max_pixel) * @as(f32, @floatFromInt(p.g));
-                    var bf: f32 = if (p.a == 0) 0 else (@as(f32, @floatFromInt(p.a)) / max_pixel) * @as(f32, @floatFromInt(p.b));
+                    var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(p.get_r())), @as(f32, @floatFromInt(p.get_g())), @as(f32, @floatFromInt(p.get_b())), @as(f32, @floatFromInt(p.get_a())) };
+                    end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(p.get_a())) / max_pixel)));
                     if (custom_bg) {
-                        rf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bgr));
-                        gf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bgg));
-                        bf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bgb));
+                        const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bgr)), @as(f32, @floatFromInt(bgg)), @as(f32, @floatFromInt(bgb)), @as(f32, @floatFromInt(p.get_a())) };
+                        end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
                     } else {
                         const bkgd = self.pixel_buffer[y_indx * self.terminal.size.width + x_indx];
-                        rf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                        gf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                        bf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                        const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.r)), @as(f32, @floatFromInt(bkgd.g)), @as(f32, @floatFromInt(bkgd.b)), 255.0 };
+                        end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
                     }
-
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = @as(u8, @intFromFloat(rf));
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = @as(u8, @intFromFloat(gf));
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = @as(u8, @intFromFloat(bf));
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = @as(u8, @intFromFloat(end_color[0]));
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = @as(u8, @intFromFloat(end_color[1]));
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = @as(u8, @intFromFloat(end_color[2]));
                 } else {
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = p.r;
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = p.g;
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.b;
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = p.get_r();
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = p.get_g();
+                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.get_b();
                 }
             } else {
                 if (x < 0 or x >= dest.?.width or y >= dest.?.height or y < 0) {
@@ -192,30 +187,24 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 }
                 const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));
                 const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
-                if (p.a != 255) {
+                if (p.get_a() != 255) {
                     const max_pixel = 255.0;
-                    var rf: f32 = if (p.a == 0) 0 else (@as(f32, @floatFromInt(p.a)) / max_pixel) * @as(f32, @floatFromInt(p.r));
-                    var gf: f32 = if (p.a == 0) 0 else (@as(f32, @floatFromInt(p.a)) / max_pixel) * @as(f32, @floatFromInt(p.g));
-                    var bf: f32 = if (p.a == 0) 0 else (@as(f32, @floatFromInt(p.a)) / max_pixel) * @as(f32, @floatFromInt(p.b));
+                    var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(p.get_r())), @as(f32, @floatFromInt(p.get_g())), @as(f32, @floatFromInt(p.get_b())), @as(f32, @floatFromInt(p.get_a())) };
+                    end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(p.get_a())) / max_pixel)));
                     if (custom_bg) {
-                        rf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bgr));
-                        gf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bgg));
-                        bf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bgb));
+                        const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bgr)), @as(f32, @floatFromInt(bgg)), @as(f32, @floatFromInt(bgb)), @as(f32, @floatFromInt(p.get_a())) };
+                        end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
                     } else {
                         const bkgd = dest.?.pixel_buffer[y_indx * dest.?.width + x_indx];
-                        rf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                        gf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                        bf += (1 - (@as(f32, @floatFromInt(p.a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
+                        const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.get_r())), @as(f32, @floatFromInt(bkgd.get_g())), @as(f32, @floatFromInt(bkgd.get_b())), @as(f32, @floatFromInt(bkgd.get_a())) };
+                        end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
                     }
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].r = @as(u8, @intFromFloat(rf));
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].g = @as(u8, @intFromFloat(gf));
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].b = @as(u8, @intFromFloat(bf));
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].a = p.a;
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_r(@as(u8, @intFromFloat(end_color[0])));
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_g(@as(u8, @intFromFloat(end_color[1])));
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_b(@as(u8, @intFromFloat(end_color[2])));
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_a(p.get_a());
                 } else {
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].r = p.r;
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].g = p.g;
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].b = p.b;
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].a = p.a;
+                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].v = p.v;
                 }
             }
         }
@@ -265,21 +254,19 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                             break;
                         }
                         // have alpha channel
-                        var r: u8 = pixel_buffer[tex_indx].r;
-                        var g: u8 = pixel_buffer[tex_indx].g;
-                        var b: u8 = pixel_buffer[tex_indx].b;
-                        if (pixel_buffer[tex_indx].a != 255) {
+                        var r: u8 = pixel_buffer[tex_indx].get_r();
+                        var g: u8 = pixel_buffer[tex_indx].get_g();
+                        var b: u8 = pixel_buffer[tex_indx].get_b();
+                        if (pixel_buffer[tex_indx].get_a() != 255) {
                             const max_pixel = 255.0;
                             const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
-                            var rf: f32 = if (pixel_buffer[tex_indx].a == 0) 0 else (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel) * @as(f32, @floatFromInt(r));
-                            var gf: f32 = if (pixel_buffer[tex_indx].a == 0) 0 else (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel) * @as(f32, @floatFromInt(g));
-                            var bf: f32 = if (pixel_buffer[tex_indx].a == 0) 0 else (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel) * @as(f32, @floatFromInt(b));
-                            rf += (1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                            gf += (1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                            bf += (1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
-                            r = @as(u8, @intFromFloat(rf));
-                            g = @as(u8, @intFromFloat(gf));
-                            b = @as(u8, @intFromFloat(bf));
+                            var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(r)), @as(f32, @floatFromInt(g)), @as(f32, @floatFromInt(b)), @as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) };
+                            end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)));
+                            const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.r)), @as(f32, @floatFromInt(bkgd.g)), @as(f32, @floatFromInt(bkgd.b)), 255.0 };
+                            end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)))) * bkgd_vec;
+                            r = @as(u8, @intFromFloat(end_color[0]));
+                            g = @as(u8, @intFromFloat(end_color[1]));
+                            b = @as(u8, @intFromFloat(end_color[2]));
                         }
 
                         switch (color_type) {
@@ -317,32 +304,30 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                             break;
                         }
                         // have alpha channel
-                        var r: u8 = pixel_buffer[tex_indx].r;
-                        var g: u8 = pixel_buffer[tex_indx].g;
-                        var b: u8 = pixel_buffer[tex_indx].b;
-                        if (pixel_buffer[tex_indx].a != 255) {
+                        var r: u8 = pixel_buffer[tex_indx].get_r();
+                        var g: u8 = pixel_buffer[tex_indx].get_g();
+                        var b: u8 = pixel_buffer[tex_indx].get_b();
+                        if (pixel_buffer[tex_indx].get_a() != 255) {
                             const max_pixel = 255.0;
                             const bkgd = dest.?.pixel_buffer[j_usize * dest.?.width + i_usize];
-                            var rf: f32 = if (pixel_buffer[tex_indx].a == 0) 0 else (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel) * @as(f32, @floatFromInt(r));
-                            var gf: f32 = if (pixel_buffer[tex_indx].a == 0) 0 else (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel) * @as(f32, @floatFromInt(g));
-                            var bf: f32 = if (pixel_buffer[tex_indx].a == 0) 0 else (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel) * @as(f32, @floatFromInt(b));
-                            rf += (1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.r));
-                            gf += (1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.g));
-                            bf += (1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].a)) / max_pixel)) * @as(f32, @floatFromInt(bkgd.b));
-                            r = @as(u8, @intFromFloat(rf));
-                            g = @as(u8, @intFromFloat(gf));
-                            b = @as(u8, @intFromFloat(bf));
+                            var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(r)), @as(f32, @floatFromInt(g)), @as(f32, @floatFromInt(b)), @as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) };
+                            end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)));
+                            const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.get_r())), @as(f32, @floatFromInt(bkgd.get_g())), @as(f32, @floatFromInt(bkgd.get_b())), @as(f32, @floatFromInt(bkgd.get_a())) };
+                            end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)))) * bkgd_vec;
+                            r = @as(u8, @intFromFloat(end_color[0]));
+                            g = @as(u8, @intFromFloat(end_color[1]));
+                            b = @as(u8, @intFromFloat(end_color[2]));
                         }
 
                         switch (color_type) {
                             .color_256 => {
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize] = term.rgb_256(r, g, b);
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_r(term.rgb_256(r, g, b));
                             },
                             .color_true => {
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].r = r;
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].g = g;
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].b = b;
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].a = pixel_buffer[tex_indx].a;
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_r(r);
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_g(g);
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_b(b);
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_a(pixel_buffer[tex_indx].get_a());
                             },
                         }
 
@@ -380,12 +365,12 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                     for (x..x + w) |i| {
                         switch (color_type) {
                             .color_256 => {
-                                dest.?.pixel_buffer[j * dest.?.width + i].r = color_indx;
+                                dest.?.pixel_buffer[j * dest.?.width + i].set_r(color_indx);
                             },
                             .color_true => {
-                                dest.?.pixel_buffer[j * dest.?.width + i].r = r;
-                                dest.?.pixel_buffer[j * dest.?.width + i].g = g;
-                                dest.?.pixel_buffer[j * dest.?.width + i].b = b;
+                                dest.?.pixel_buffer[j * dest.?.width + i].set_r(r);
+                                dest.?.pixel_buffer[j * dest.?.width + i].set_g(g);
+                                dest.?.pixel_buffer[j * dest.?.width + i].set_b(b);
                             },
                         }
                     }
@@ -413,11 +398,11 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                         x = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
                         while (x < x_bound) : (x += 1) {
                             if (color_type == .color_256) {
-                                self.pixel_buffer[buffer_indx] = dest.?.pixel_buffer[y * dest.?.width + x].r;
+                                self.pixel_buffer[buffer_indx] = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
                             } else {
-                                self.pixel_buffer[buffer_indx].r = dest.?.pixel_buffer[y * dest.?.width + x].r;
-                                self.pixel_buffer[buffer_indx].g = dest.?.pixel_buffer[y * dest.?.width + x].g;
-                                self.pixel_buffer[buffer_indx].b = dest.?.pixel_buffer[y * dest.?.width + x].b;
+                                self.pixel_buffer[buffer_indx].r = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
+                                self.pixel_buffer[buffer_indx].g = dest.?.pixel_buffer[y * dest.?.width + x].get_g();
+                                self.pixel_buffer[buffer_indx].b = dest.?.pixel_buffer[y * dest.?.width + x].get_b();
                             }
                             buffer_indx += 1;
                         }

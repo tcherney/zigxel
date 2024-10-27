@@ -10,6 +10,7 @@ pub inline fn to_seconds(nano: u64) f64 {
     return @as(f64, @floatFromInt(nano)) / 1_000_000_000.0;
 }
 
+const PHYSICS_PIXEL_LOG = std.log.scoped(.physics_pixel);
 pub const ObjectReactionCallback = utils.Callback(PixelType);
 pub const PixelType = enum {
     Sand,
@@ -32,19 +33,19 @@ pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32,
     return if (x < 0 or x >= width or y < 0 or y >= height) false else if (pixels[@as(u32, @bitCast(y)) * width + @as(u32, @bitCast(x))] == null) false else pixels[@as(u32, @bitCast(y)) * width + @as(u32, @bitCast(x))].?.pixel_type != .Empty;
 }
 
-pub const SAND_COLOR = Pixel{ .r = 210, .g = 180, .b = 125 };
-pub const WATER_COLOR = Pixel{ .r = 50, .g = 133, .b = 168 };
-pub const EMPTY_COLOR = Pixel{ .r = 252, .g = 3, .b = 190 };
-pub const WALL_COLOR = Pixel{ .r = 46, .g = 7, .b = 0 };
-pub const OIL_COLOR = Pixel{ .r = 65, .g = 35, .b = 10 };
-pub const ROCK_COLOR = Pixel{ .r = 50, .g = 50, .b = 50 };
-pub const STEAM_COLOR = Pixel{ .r = 190, .g = 230, .b = 229 };
-pub const FIRE_COLOR = Pixel{ .r = 245, .g = 57, .b = 36 };
-pub const LAVA_COLOR = Pixel{ .r = 133, .g = 34, .b = 32 };
-pub const WOOD_COLOR = Pixel{ .r = 97, .g = 69, .b = 47 };
-pub const ICE_COLOR = Pixel{ .r = 160, .g = 205, .b = 230 };
-pub const PLANT_COLOR = Pixel{ .r = 45, .g = 160, .b = 45 };
-pub const EXPLOSIVE_COLOR = Pixel{ .r = 235, .g = 200, .b = 60 };
+pub const SAND_COLOR = Pixel.init(210, 180, 125, null);
+pub const WATER_COLOR = Pixel.init(50, 133, 168, null);
+pub const EMPTY_COLOR = Pixel.init(252, 3, 190, null);
+pub const WALL_COLOR = Pixel.init(46, 7, 0, null);
+pub const OIL_COLOR = Pixel.init(65, 35, 10, null);
+pub const ROCK_COLOR = Pixel.init(50, 50, 50, null);
+pub const STEAM_COLOR = Pixel.init(190, 230, 229, null);
+pub const FIRE_COLOR = Pixel.init(245, 57, 36, null);
+pub const LAVA_COLOR = Pixel.init(133, 34, 32, null);
+pub const WOOD_COLOR = Pixel.init(97, 69, 47, null);
+pub const ICE_COLOR = Pixel.init(160, 205, 230, null);
+pub const PLANT_COLOR = Pixel.init(45, 160, 45, null);
+pub const EXPLOSIVE_COLOR = Pixel.init(235, 200, 60, null);
 
 const Properties = struct {
     color: Pixel,
@@ -55,16 +56,17 @@ const Properties = struct {
     piercing: bool,
     pub fn vary_color(self: *Properties, variance: i16) Pixel {
         const variation = utils.rand.intRangeAtMost(i16, -variance, variance);
-        return Pixel{
-            .r = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.r)))) + variation)))),
-            .g = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.g)))) + variation)))),
-            .b = @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.b)))) + variation)))),
-        };
+        return Pixel.init(
+            @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.get_r())))) + variation)))),
+            @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.get_g())))) + variation)))),
+            @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.get_b())))) + variation)))),
+            null,
+        );
     }
 };
 
 pub const SAND_PROPERTIES: Properties = Properties{
-    .color = .{ .r = SAND_COLOR.r, .g = SAND_COLOR.g, .b = SAND_COLOR.b },
+    .color = Pixel.init(SAND_COLOR.get_r(), SAND_COLOR.get_g(), SAND_COLOR.get_b(), null),
     .solid = true,
     .max_duration = 0,
     .density = 3.0,
@@ -73,7 +75,7 @@ pub const SAND_PROPERTIES: Properties = Properties{
 };
 
 pub const WATER_PROPERTIES: Properties = Properties{
-    .color = .{ .r = WATER_COLOR.r, .g = WATER_COLOR.g, .b = WATER_COLOR.b },
+    .color = Pixel.init(WATER_COLOR.get_r(), WATER_COLOR.get_g(), WATER_COLOR.get_b(), null),
     .solid = false,
     .max_duration = 0,
     .density = 1.0,
@@ -82,7 +84,7 @@ pub const WATER_PROPERTIES: Properties = Properties{
 };
 
 pub const EMPTY_PROPERTIES: Properties = Properties{
-    .color = .{ .r = EMPTY_COLOR.r, .g = EMPTY_COLOR.g, .b = EMPTY_COLOR.b },
+    .color = Pixel.init(EMPTY_COLOR.get_r(), EMPTY_COLOR.get_g(), EMPTY_COLOR.get_b(), null),
     .solid = false,
     .max_duration = 0,
     .density = 0,
@@ -91,7 +93,7 @@ pub const EMPTY_PROPERTIES: Properties = Properties{
 };
 
 pub const WALL_PROPERTIES: Properties = Properties{
-    .color = .{ .r = WALL_COLOR.r, .g = WALL_COLOR.g, .b = WALL_COLOR.b },
+    .color = Pixel.init(WALL_COLOR.get_r(), WALL_COLOR.get_g(), WALL_COLOR.get_b(), null),
     .solid = true,
     .max_duration = 0,
     .density = 10.0,
@@ -100,7 +102,7 @@ pub const WALL_PROPERTIES: Properties = Properties{
 };
 
 pub const OIL_PROPERTIES: Properties = Properties{
-    .color = .{ .r = OIL_COLOR.r, .g = OIL_COLOR.g, .b = OIL_COLOR.b },
+    .color = Pixel.init(OIL_COLOR.get_r(), OIL_COLOR.get_g(), OIL_COLOR.get_b(), null),
     .solid = false,
     .max_duration = 0,
     .density = 0.5,
@@ -109,7 +111,7 @@ pub const OIL_PROPERTIES: Properties = Properties{
 };
 
 pub const ROCK_PROPERTIES: Properties = Properties{
-    .color = .{ .r = ROCK_COLOR.r, .g = ROCK_COLOR.g, .b = ROCK_COLOR.b },
+    .color = Pixel.init(ROCK_COLOR.get_r(), ROCK_COLOR.get_g(), ROCK_COLOR.get_b(), null),
     .solid = true,
     .max_duration = 0,
     .density = 5.0,
@@ -118,7 +120,7 @@ pub const ROCK_PROPERTIES: Properties = Properties{
 };
 
 pub const STEAM_PROPERTIES: Properties = Properties{
-    .color = .{ .r = STEAM_COLOR.r, .g = STEAM_COLOR.g, .b = STEAM_COLOR.b },
+    .color = Pixel.init(STEAM_COLOR.get_r(), STEAM_COLOR.get_g(), STEAM_COLOR.get_b(), null),
     .solid = false,
     .max_duration = 125,
     .density = 0.1,
@@ -127,7 +129,7 @@ pub const STEAM_PROPERTIES: Properties = Properties{
 };
 
 pub const FIRE_PROPERTIES: Properties = Properties{
-    .color = .{ .r = FIRE_COLOR.r, .g = FIRE_COLOR.g, .b = FIRE_COLOR.b },
+    .color = Pixel.init(FIRE_COLOR.get_r(), FIRE_COLOR.get_g(), FIRE_COLOR.get_b(), null),
     .solid = false,
     .max_duration = 100,
     .density = 0.1,
@@ -136,7 +138,7 @@ pub const FIRE_PROPERTIES: Properties = Properties{
 };
 
 pub const LAVA_PROPERTIES: Properties = Properties{
-    .color = .{ .r = LAVA_COLOR.r, .g = LAVA_COLOR.g, .b = LAVA_COLOR.b },
+    .color = Pixel.init(LAVA_COLOR.get_r(), LAVA_COLOR.get_g(), LAVA_COLOR.get_b(), null),
     .solid = false,
     .max_duration = 300,
     .density = 2.0,
@@ -145,7 +147,7 @@ pub const LAVA_PROPERTIES: Properties = Properties{
 };
 
 pub const WOOD_PROPERTIES: Properties = Properties{
-    .color = .{ .r = WOOD_COLOR.r, .g = WOOD_COLOR.g, .b = WOOD_COLOR.b },
+    .color = Pixel.init(WOOD_COLOR.get_r(), WOOD_COLOR.get_g(), WOOD_COLOR.get_b(), null),
     .solid = true,
     .max_duration = 0,
     .density = 8.0,
@@ -154,7 +156,7 @@ pub const WOOD_PROPERTIES: Properties = Properties{
 };
 
 pub const ICE_PROPERTIES: Properties = Properties{
-    .color = .{ .r = ICE_COLOR.r, .g = ICE_COLOR.g, .b = ICE_COLOR.b },
+    .color = Pixel.init(ICE_COLOR.get_r(), ICE_COLOR.get_g(), ICE_COLOR.get_b(), null),
     .solid = true,
     .max_duration = 300,
     .density = 0.4,
@@ -163,7 +165,7 @@ pub const ICE_PROPERTIES: Properties = Properties{
 };
 
 pub const PLANT_PROPERTIES: Properties = Properties{
-    .color = .{ .r = PLANT_COLOR.r, .g = PLANT_COLOR.g, .b = PLANT_COLOR.b },
+    .color = Pixel.init(PLANT_COLOR.get_r(), PLANT_COLOR.get_g(), PLANT_COLOR.get_b(), null),
     .solid = true,
     .max_duration = 0,
     .density = 5.0,
@@ -172,7 +174,7 @@ pub const PLANT_PROPERTIES: Properties = Properties{
 };
 
 pub const EXPLOSIVE_PROPERTIES: Properties = Properties{
-    .color = .{ .r = EXPLOSIVE_COLOR.r, .g = EXPLOSIVE_COLOR.g, .b = EXPLOSIVE_COLOR.b },
+    .color = Pixel.init(EXPLOSIVE_COLOR.get_r(), EXPLOSIVE_COLOR.get_g(), EXPLOSIVE_COLOR.get_b(), null),
     .solid = false,
     .max_duration = 30,
     .density = 0.1,
@@ -181,7 +183,7 @@ pub const EXPLOSIVE_PROPERTIES: Properties = Properties{
 };
 
 pub const OBJECT_PROPERTIES: Properties = Properties{
-    .color = .{ .r = 255, .g = 255, .b = 255 },
+    .color = Pixel.init(255, 255, 255, null),
     .solid = true,
     .max_duration = 0,
     .density = 10,
@@ -265,11 +267,11 @@ pub const PhysicsPixel = struct {
                 color = properties.color;
             },
         }
-        return Self{ .x = x, .y = y, .pixel = Pixel{ .r = color.r, .g = color.g, .b = color.b }, .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .properties = properties };
+        return Self{ .x = x, .y = y, .pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .properties = properties };
     }
 
     pub fn set_color(self: *Self, r: u8, g: u8, b: u8, a: u8) void {
-        self.pixel = .{ .r = r, .g = g, .b = b, .a = a };
+        self.pixel = Pixel.init(r, g, b, a);
     }
 
     inline fn swap_pixel(self: *Self, pixels: []?*PhysicsPixel, x: i32, y: i32, xlimit: u32, _: u32) void {
@@ -332,6 +334,8 @@ pub const PhysicsPixel = struct {
             self.pixel = self.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Wood) {
             pixel.properties = FIRE_PROPERTIES;
@@ -340,6 +344,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Oil) {
             pixel.properties = FIRE_PROPERTIES;
@@ -348,6 +354,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Water and pixel.pixel_type == .Steam) {
             pixel.properties = WATER_PROPERTIES;
@@ -356,6 +364,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Wood) {
             pixel.properties = FIRE_PROPERTIES;
@@ -364,6 +374,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = self.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Oil) {
             pixel.properties = FIRE_PROPERTIES;
@@ -372,6 +384,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Water and pixel.pixel_type == .Fire) {
             pixel.properties = STEAM_PROPERTIES;
@@ -380,6 +394,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Ice) {
             pixel.properties = WATER_PROPERTIES;
@@ -388,6 +404,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Ice) {
             pixel.properties = WATER_PROPERTIES;
@@ -396,6 +414,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Plant) {
             pixel.properties = FIRE_PROPERTIES;
@@ -404,6 +424,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Plant) {
             pixel.properties = FIRE_PROPERTIES;
@@ -412,6 +434,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Water and pixel.pixel_type == .Plant) {
             self.properties = PLANT_PROPERTIES;
@@ -420,6 +444,8 @@ pub const PhysicsPixel = struct {
             self.pixel = self.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Plant and pixel.pixel_type == .Water) {
             pixel.properties = PLANT_PROPERTIES;
@@ -428,6 +454,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Explosive and pixel.pixel_type != .Empty and pixel.pixel_type != .Explosive and pixel.pixel_type != .Steam) {
             pixel.properties = FIRE_PROPERTIES;
@@ -436,6 +464,8 @@ pub const PhysicsPixel = struct {
             pixel.pixel = pixel.properties.vary_color(10);
             self.updated = true;
             pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Object and pixel.pixel_type != .Object) {
             if (self.object_reaction_callback) |func| {
@@ -710,8 +740,9 @@ pub const PhysicsPixel = struct {
                 self.idle_turns = 0;
             }
         }
+        //TODO figure out better way to sleep pixels
         self.idle_turns += 1;
-        if (self.idle_turns >= 50) {
+        if (self.idle_turns >= 25) {
             self.idle_turns = 0;
             self.active = !self.active;
         }

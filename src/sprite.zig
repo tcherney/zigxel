@@ -55,10 +55,7 @@ pub const Sprite = struct {
             var buffer_indx: usize = 0;
             for (@as(u32, @bitCast(self.src.y))..@as(u32, @bitCast(self.src.y)) + self.src.height) |i| {
                 for (@as(u32, @bitCast(self.src.x))..@as(u32, @bitCast(self.src.x)) + self.src.width) |j| {
-                    src_buffer[buffer_indx].r = self.tex.pixel_buffer[i * self.tex.width + j].r;
-                    src_buffer[buffer_indx].g = self.tex.pixel_buffer[i * self.tex.width + j].g;
-                    src_buffer[buffer_indx].b = self.tex.pixel_buffer[i * self.tex.width + j].b;
-                    src_buffer[buffer_indx].a = self.tex.pixel_buffer[i * self.tex.width + j].a;
+                    src_buffer[buffer_indx].v = self.tex.pixel_buffer[i * self.tex.width + j].v;
                     buffer_indx += 1;
                 }
             }
