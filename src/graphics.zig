@@ -3,6 +3,7 @@ const term = @import("term");
 const texture = @import("texture.zig");
 const utils = @import("utils.zig");
 const sprite = @import("sprite.zig");
+const image = @import("image");
 
 //https://www.compart.com/en/unicode/U+2580
 const UPPER_PX = "▀";
@@ -10,9 +11,68 @@ const UPPER_PX = "▀";
 const LOWER_PX = "▄";
 //▀█▄
 
+//TODO build pipeline https://en.wikipedia.org/wiki/Graphics_pipeline
+pub const GraphicsType = enum { _2d, _2D, _3d, _3D };
+fn MatrixStack(comptime T: GraphicsType) type {
+    return struct {
+        stack: std.ArrayList(Mat),
+        allocator: std.mem.Allocator,
+        const Mat: type = switch (T) {
+            ._2d, ._2D => image.Mat(3, f64),
+            ._3d, ._3D => image.Mat(4, f64),
+        };
+        const MatPoint: type = switch (T) {
+            ._2d, ._2D => struct { x: f64, y: f64 },
+            ._3d, ._3D => struct { x: f64, y: f64, z: f64 },
+        };
+        pub const Self = @This();
+        pub fn init(allocator: std.mem.Allocator) Error!Self {
+            var ret = Self{
+                .stack = std.ArrayList(Mat).init(allocator),
+                .allocator = allocator,
+            };
+            try ret.stack.append(try Mat.identity());
+            return ret;
+        }
+        pub fn deinit(self: *Self) void {
+            self.stack.deinit();
+        }
+        // save matrix state
+        pub fn push(self: *Self) Error!void {
+            try self.stack.append(self.stack.getLast());
+        }
+        // revert to saved matrix
+        pub fn pop(self: *Self) void {
+            if (self.stack.items.len > 1) _ = self.stack.pop();
+        }
+        pub fn translate(self: *Self, p: MatPoint) Error!void {
+            switch (T) {
+                ._2D, ._2d => {
+                    self.stack.items[self.stack.items.len - 1] = self.stack.items[self.stack.items.len - 1].mul(try Mat.translate(p.x, p.y));
+                },
+                ._3D, ._3d => unreachable,
+            }
+        }
+        pub fn rotate(self: *Self, degrees: f64) Error!void {
+            switch (T) {
+                ._2D, ._2d => {
+                    self.stack.items[self.stack.items.len - 1] = self.stack.items[self.stack.items.len - 1].mul(try Mat.rotate(.z, degrees));
+                },
+                ._3D, ._3d => unreachable,
+            }
+        }
+        pub fn apply(self: *Self, p: MatPoint) Mat.Vec {
+            switch (T) {
+                ._2D, ._2d => return self.stack.getLast().mul_v(.{ p.x, p.y, 1.0 }),
+                ._3D, ._3d => return self.stack.getLast().mul_v(.{ p.x, p.y, p.z, 1.0 }),
+            }
+        }
+    };
+}
+
 const GRAPHICS_LOG = std.log.scoped(.graphics);
 pub const Point = utils.Point(i32);
-pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError;
+pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Error;
 pub fn Graphics(comptime color_type: utils.ColorMode) type {
     return struct {
         ascii_based: bool = false,
@@ -23,6 +83,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         text_to_render: std.ArrayList(Text) = undefined,
         allocator: std.mem.Allocator = undefined,
         first_render: bool = true,
+        stack: MatrixStack(._2D),
         pub const PixelType: type = switch (color_type) {
             .color_256 => u8,
             .color_true => struct { r: u8 = 0, g: u8 = 0, b: u8 = 0 },
@@ -56,6 +117,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 // need space for setting background and setting of foreground color for every pixel
                 .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width) + 200)),
                 .text_to_render = std.ArrayList(Text).init(allocator),
+                .stack = try MatrixStack(._2D).init(allocator),
             };
         }
 
@@ -87,6 +149,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
             try self.terminal.deinit();
             self.allocator.free(self.last_frame);
             self.text_to_render.deinit();
+            self.stack.deinit();
         }
 
         pub fn set_bg(self: *Self, r: u8, g: u8, b: u8, dest: ?texture.Texture) void {
