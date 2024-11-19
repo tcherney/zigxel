@@ -61,10 +61,16 @@ fn MatrixStack(comptime T: GraphicsType) type {
                 ._3D, ._3d => unreachable,
             }
         }
-        pub fn apply(self: *Self, p: MatPoint) Mat.Vec {
+        pub fn apply(self: *Self, p: MatPoint) MatPoint {
             switch (T) {
-                ._2D, ._2d => return self.stack.getLast().mul_v(.{ p.x, p.y, 1.0 }),
-                ._3D, ._3d => return self.stack.getLast().mul_v(.{ p.x, p.y, p.z, 1.0 }),
+                ._2D, ._2d => {
+                    const res = self.stack.getLast().mul_v(.{ p.x, p.y, 1.0 });
+                    return .{ .x = @round(res[0]), .y = @round(res[1]) };
+                },
+                ._3D, ._3d => {
+                    const res = self.stack.getLast().mul_v(.{ p.x, p.y, p.z, 1.0 });
+                    return .{ .x = @round(res[0]), .y = @round(res[1]), .z = @round(res[2]) };
+                },
             }
         }
     };
@@ -120,7 +126,18 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 .stack = try MatrixStack(._2D).init(allocator),
             };
         }
-
+        pub fn push(self: *Self) Error!void {
+            try self.stack.push();
+        }
+        pub fn pop(self: *Self) void {
+            self.stack.pop();
+        }
+        pub fn translate(self: *Self, p: MatrixStack(._2D).MatPoint) Error!void {
+            try self.stack.translate(p);
+        }
+        pub fn rotate(self: *Self, degrees: f64) Error!void {
+            try self.stack.rotate(degrees);
+        }
         pub fn size_change(self: *Self, size: term.Size) Error!void {
             self.allocator.free(self.terminal_buffer);
             self.allocator.free(self.last_frame);
@@ -219,11 +236,12 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
 
         pub fn draw_pixel_bg(self: *Self, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture, bgr: u8, bgg: u8, bgb: u8, custom_bg: bool) void {
             if (dest == null) {
-                if (x < 0 or x > self.terminal.size.width or y > self.terminal.size.height) {
+                const res_point = self.stack.apply(.{ .x = @floatFromInt(x), .y = @floatFromInt(y) });
+                if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(self.terminal.size.width)) or res_point.y >= @as(f64, @floatFromInt(self.terminal.size.height)) or res_point.y < 0) {
                     return;
                 }
-                const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));
-                const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
+                const x_indx: usize = @intFromFloat(res_point.x);
+                const y_indx: usize = @intFromFloat(res_point.y);
                 if (p.get_a() != 255) {
                     const max_pixel = 255.0;
                     var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(p.get_r())), @as(f32, @floatFromInt(p.get_g())), @as(f32, @floatFromInt(p.get_b())), @as(f32, @floatFromInt(p.get_a())) };
@@ -245,11 +263,12 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                     self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.get_b();
                 }
             } else {
-                if (x < 0 or x >= dest.?.width or y >= dest.?.height or y < 0) {
+                const res_point = self.stack.apply(.{ .x = @floatFromInt(x), .y = @floatFromInt(y) });
+                if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(dest.?.width)) or res_point.y >= @as(f64, @floatFromInt(dest.?.height)) or res_point.y < 0) {
                     return;
                 }
-                const x_indx = @as(usize, @intCast(@as(u32, @bitCast(x))));
-                const y_indx = @as(usize, @intCast(@as(u32, @bitCast(y))));
+                const x_indx: usize = @intFromFloat(res_point.x);
+                const y_indx: usize = @intFromFloat(res_point.y);
                 if (p.get_a() != 255) {
                     const max_pixel = 255.0;
                     var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(p.get_r())), @as(f32, @floatFromInt(p.get_g())), @as(f32, @floatFromInt(p.get_b())), @as(f32, @floatFromInt(p.get_a())) };
@@ -307,15 +326,16 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                     }
                     var i: i32 = dest_rect.x;
                     while (i < (dest_rect.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
-                        const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
-                        const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
-                        if (i < 0) {
+                        const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
+                        if (res_point.x < 0) {
                             tex_indx += 1;
                             continue;
-                        } else if (i >= self.terminal.size.width) {
+                        } else if (res_point.x >= self.terminal.size.width) {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
+                        const i_usize: usize = @intFromFloat(res_point.x);
+                        const j_usize: usize = @intFromFloat(res_point.y);
                         // have alpha channel
                         var r: u8 = pixel_buffer[tex_indx].get_r();
                         var g: u8 = pixel_buffer[tex_indx].get_g();
@@ -357,15 +377,16 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                     }
                     var i: i32 = dest_rect.x;
                     while (i < (dest_rect.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
-                        const i_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(i))));
-                        const j_usize: usize = @as(usize, @intCast(@as(u32, @bitCast(j))));
-                        if (i < 0) {
+                        const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
+                        if (res_point.x < 0) {
                             tex_indx += 1;
                             continue;
-                        } else if (i >= dest.?.width) {
+                        } else if (res_point.x >= dest.?.width) {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
+                        const i_usize: usize = @intFromFloat(res_point.x);
+                        const j_usize: usize = @intFromFloat(res_point.y);
                         // have alpha channel
                         var r: u8 = pixel_buffer[tex_indx].get_r();
                         var g: u8 = pixel_buffer[tex_indx].get_g();
@@ -410,14 +431,20 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 const color_indx = term.rgb_256(r, g, b);
                 for (y..y + h) |j| {
                     for (x..x + w) |i| {
+                        const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
+                        if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(self.terminal.size.width)) or res_point.y >= @as(f64, @floatFromInt(self.terminal.size.height)) or res_point.y < 0) {
+                            continue;
+                        }
+                        const x_indx: usize = @intFromFloat(res_point.x);
+                        const y_indx: usize = @intFromFloat(res_point.y);
                         switch (color_type) {
                             .color_256 => {
-                                self.pixel_buffer[j * self.terminal.size.width + i] = color_indx;
+                                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx] = color_indx;
                             },
                             .color_true => {
-                                self.pixel_buffer[j * self.terminal.size.width + i].r = r;
-                                self.pixel_buffer[j * self.terminal.size.width + i].g = g;
-                                self.pixel_buffer[j * self.terminal.size.width + i].b = b;
+                                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = r;
+                                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = g;
+                                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = b;
                             },
                         }
                     }
@@ -426,14 +453,20 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
                 const color_indx = term.rgb_256(r, g, b);
                 for (y..y + h) |j| {
                     for (x..x + w) |i| {
+                        const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
+                        if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(dest.?.width)) or res_point.y >= @as(f64, @floatFromInt(dest.?.height)) or res_point.y < 0) {
+                            continue;
+                        }
+                        const x_indx: usize = @intFromFloat(res_point.x);
+                        const y_indx: usize = @intFromFloat(res_point.y);
                         switch (color_type) {
                             .color_256 => {
-                                dest.?.pixel_buffer[j * dest.?.width + i].set_r(color_indx);
+                                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_r(color_indx);
                             },
                             .color_true => {
-                                dest.?.pixel_buffer[j * dest.?.width + i].set_r(r);
-                                dest.?.pixel_buffer[j * dest.?.width + i].set_g(g);
-                                dest.?.pixel_buffer[j * dest.?.width + i].set_b(b);
+                                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_r(r);
+                                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_g(g);
+                                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_b(b);
                             },
                         }
                     }

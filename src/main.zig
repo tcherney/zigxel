@@ -11,10 +11,10 @@ pub const std_options = .{
         .{ .scope = .engine, .level = .err },
         .{ .scope = .texture, .level = .err },
         .{ .scope = .graphics, .level = .err },
-        .{ .scope = .ttf, .level = .info },
-        .{ .scope = .game, .level = .err },
-        .{ .scope = .font, .level = .info },
-        .{ .scope = .physics_pixel, .level = .err },
+        .{ .scope = .ttf, .level = .err },
+        .{ .scope = .game, .level = .info },
+        .{ .scope = .font, .level = .err },
+        .{ .scope = .physics_pixel, .level = .info },
     },
 };
 

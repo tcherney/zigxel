@@ -282,6 +282,7 @@ pub const Game = struct {
             .KEY_w => {
                 if (self.player_mode) {
                     self.player.?.jump();
+                    flip = true;
                 }
             },
             .KEY_a => {
@@ -315,21 +316,40 @@ pub const Game = struct {
             else => {},
         }
     }
-
-    pub fn on_render(self: *Self, _: u64) !void {
+    var rotate_test: f64 = 0;
+    var elapsed: u64 = 0;
+    var flip: bool = false;
+    pub fn on_render(self: *Self, dt: u64) !void {
         self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
+
         for (self.pixels.items) |p| {
             if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
                 self.e.renderer.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
             }
         }
+
         if (self.player_mode) {
+            try self.e.renderer.push();
+            try self.e.renderer.translate(.{ .x = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x), .y = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y) });
+            try self.e.renderer.rotate(rotate_test);
+            if (elapsed > 12500000 and flip) {
+                rotate_test += 90;
+                if (rotate_test >= 360) {
+                    rotate_test = 0;
+                    flip = false;
+                }
+                elapsed = 0;
+            } else {
+                elapsed += dt;
+            }
+            try self.e.renderer.translate(.{ .x = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x)), .y = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y)) });
             self.player.?.draw(&self.e.renderer, self.current_world.tex);
+            self.e.renderer.pop();
         }
         self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
-        self.font_sprite.dest.x = self.current_world.viewport.x;
-        self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
-        try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
+        // self.font_sprite.dest.x = self.current_world.viewport.x;
+        // self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
+        // try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {

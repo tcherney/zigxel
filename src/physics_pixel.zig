@@ -11,6 +11,7 @@ pub inline fn to_seconds(nano: u64) f64 {
 }
 
 const PHYSICS_PIXEL_LOG = std.log.scoped(.physics_pixel);
+//TODO update callback with more information like xy to remove pixel from object
 pub const ObjectReactionCallback = utils.Callback(PixelType);
 pub const PixelType = enum {
     Sand,
@@ -457,6 +458,7 @@ pub const PhysicsPixel = struct {
             self.active = true;
             self.idle_turns = 0;
             pixel.idle_turns = 0;
+            //TODO use callback to remove ownership of object pixels
         } else if (self.pixel_type == .Explosive and pixel.pixel_type != .Empty and pixel.pixel_type != .Explosive and pixel.pixel_type != .Steam) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;

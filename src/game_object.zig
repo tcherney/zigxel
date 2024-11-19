@@ -36,7 +36,7 @@ pub const GameObject = struct {
         var x_pix: i32 = x;
         var y_pix: i32 = y;
         for (0..tex.pixel_buffer.len) |i| {
-            if (tex.pixel_buffer[i].get_a() != 255) {
+            if (tex.pixel_buffer[i].get_a() != 0) {
                 try pixel_list.append(try allocator.create(PhysicsPixel));
                 const indx = pixel_list.items.len - 1;
                 pixel_list.items[indx].* = PhysicsPixel.init(physics_pixel.PixelType.Object, x_pix, y_pix);
@@ -166,10 +166,12 @@ pub const GameObject = struct {
                 }
 
                 for (self.pixels, 0..self.pixels.len) |p, i| {
-                    const temp = p.pixel.get_a();
-                    p.pixel.set_a(128);
-                    graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
-                    p.pixel.set_a(temp);
+                    if (p.pixel_type == .Object) {
+                        const temp = p.pixel.get_a();
+                        p.pixel.set_a(128);
+                        graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
+                        p.pixel.set_a(temp);
+                    }
                 }
             },
             .Hot => {
@@ -183,15 +185,19 @@ pub const GameObject = struct {
                 }
 
                 for (self.pixels, 0..self.pixels.len) |p, i| {
-                    const temp = p.pixel.get_a();
-                    p.pixel.set_a(128);
-                    graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
-                    p.pixel.set_a(temp);
+                    if (p.pixel_type == .Object) {
+                        const temp = p.pixel.get_a();
+                        p.pixel.set_a(128);
+                        graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
+                        p.pixel.set_a(temp);
+                    }
                 }
             },
             .None => {
                 for (self.pixels) |p| {
-                    graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, 0, 0, 0, false);
+                    if (p.pixel_type == .Object) {
+                        graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, 0, 0, 0, false);
+                    }
                 }
             },
         }
