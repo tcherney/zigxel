@@ -18,8 +18,8 @@ pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Ti
 
 pub const ENGINE_LOG = std.log.scoped(.engine);
 
-//TODO remove generic just make it a variable
-pub fn Engine(comptime color_type: utils.ColorMode) type {
+//TODO augment to add 2d/3d
+pub fn Engine(comptime color_type: graphics.ColorMode) type {
     return struct {
         renderer: Graphics(color_type) = undefined,
         events: EventManager = undefined,

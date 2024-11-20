@@ -3,7 +3,7 @@ const _ttf = @import("ttf.zig");
 const _texture = @import("texture.zig");
 const utils = @import("utils.zig");
 
-pub const Point = utils.Point(i32);
+pub const Point = utils.Point(2, i32);
 pub const TTF = _ttf.TTF;
 pub const Texture = _texture.Texture;
 pub const Pixel = _texture.Pixel;

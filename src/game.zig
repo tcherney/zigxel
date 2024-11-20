@@ -21,7 +21,7 @@ const GAME_LOG = std.log.scoped(.game);
 
 pub const Game = struct {
     running: bool = true,
-    e: Engine(utils.ColorMode.color_true) = undefined,
+    e: Engine(.color_true) = undefined,
     fps_buffer: [64]u8 = undefined,
     world_width: u32 = 1920,
     starting_pos_x: i32 = 1920 / 2,
@@ -354,7 +354,7 @@ pub const Game = struct {
     }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
-        self.e = try Engine(utils.ColorMode.color_true).init(self.allocator);
+        self.e = try Engine(.color_true).init(self.allocator);
         GAME_LOG.info("starting height {d}\n", .{self.e.renderer.terminal.size.height});
         self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);

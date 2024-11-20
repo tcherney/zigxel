@@ -11,8 +11,11 @@ const UPPER_PX = "▀";
 const LOWER_PX = "▄";
 //▀█▄
 
-//TODO build pipeline https://en.wikipedia.org/wiki/Graphics_pipeline
 pub const GraphicsType = enum { _2d, _2D, _3d, _3D };
+pub const ColorMode = enum {
+    color_256,
+    color_true,
+};
 fn MatrixStack(comptime T: GraphicsType) type {
     return struct {
         stack: std.ArrayList(Mat),
@@ -77,9 +80,10 @@ fn MatrixStack(comptime T: GraphicsType) type {
 }
 
 const GRAPHICS_LOG = std.log.scoped(.graphics);
-pub const Point = utils.Point(i32);
+
 pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Error;
-pub fn Graphics(comptime color_type: utils.ColorMode) type {
+//TODO augment to add 2d/3d
+pub fn Graphics(comptime color_type: ColorMode) type {
     return struct {
         ascii_based: bool = false,
         terminal: term.Term = undefined,
@@ -90,6 +94,7 @@ pub fn Graphics(comptime color_type: utils.ColorMode) type {
         allocator: std.mem.Allocator = undefined,
         first_render: bool = true,
         stack: MatrixStack(._2D),
+        pub const Point = utils.Point(2, i32);
         pub const PixelType: type = switch (color_type) {
             .color_256 => u8,
             .color_true => struct { r: u8 = 0, g: u8 = 0, b: u8 = 0 },

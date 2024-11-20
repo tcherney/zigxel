@@ -1475,7 +1475,7 @@ pub const TTF = struct {
             self.allocator.free(self.end_curves);
         }
     };
-    pub const Point = utils.Point(i16);
+    pub const Point = utils.Point(2, i16);
     pub const BezierCurve = struct {
         p0: Point,
         p1: Point,

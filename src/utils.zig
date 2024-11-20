@@ -29,15 +29,31 @@ pub fn CallbackError(comptime DATA_TYPE: type, comptime Error: type) type {
         }
     };
 }
-pub fn Point(comptime T: type) type {
-    return struct {
-        x: T = 0,
-        y: T = 0,
-        const Self = @This();
-        pub fn eql(lhs: Self, rhs: Self) bool {
-            return lhs.x == rhs.x and lhs.y == rhs.y;
-        }
-    };
+pub fn Point(comptime size: comptime_int, comptime data_type: type) type {
+    switch (size) {
+        2 => {
+            return struct {
+                x: data_type = 0,
+                y: data_type = 0,
+                const Self = @This();
+                pub fn eql(lhs: Self, rhs: Self) bool {
+                    return lhs.x == rhs.x and lhs.y == rhs.y;
+                }
+            };
+        },
+        3 => {
+            return struct {
+                x: data_type = 0,
+                y: data_type = 0,
+                z: data_type = 0,
+                const Self = @This();
+                pub fn eql(lhs: Self, rhs: Self) bool {
+                    return lhs.x == rhs.x and lhs.y == rhs.y and lhs.z == rhs.z;
+                }
+            };
+        },
+        else => unreachable,
+    }
 }
 
 pub const Rectangle = struct {
@@ -45,11 +61,6 @@ pub const Rectangle = struct {
     y: i32 = 0,
     width: u32 = 0,
     height: u32 = 0,
-};
-
-pub const ColorMode = enum {
-    color_256,
-    color_true,
 };
 
 var prng: std.Random.Xoshiro256 = undefined;
