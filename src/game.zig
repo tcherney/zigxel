@@ -21,7 +21,7 @@ const GAME_LOG = std.log.scoped(.game);
 
 pub const Game = struct {
     running: bool = true,
-    e: Engine(.color_true) = undefined,
+    e: Engine(._2d, .color_true) = undefined,
     fps_buffer: [64]u8 = undefined,
     world_width: u32 = 1920,
     starting_pos_x: i32 = 1920 / 2,
@@ -319,6 +319,7 @@ pub const Game = struct {
     var rotate_test: f64 = 0;
     var elapsed: u64 = 0;
     var flip: bool = false;
+    var rect_rot: f64 = 0;
     pub fn on_render(self: *Self, dt: u64) !void {
         self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
 
@@ -347,6 +348,14 @@ pub const Game = struct {
             self.e.renderer.pop();
         }
         self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
+        try self.e.renderer.push();
+        try self.e.renderer.translate(.{ .x = @floatFromInt(self.placement_pixel[self.placement_index].x), .y = @floatFromInt(self.placement_pixel[self.placement_index].y) });
+        try self.e.renderer.rotate(rect_rot);
+        rect_rot += 1;
+        if (rect_rot >= 360) rect_rot = 0;
+        try self.e.renderer.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
+        self.e.renderer.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
+        self.e.renderer.pop();
         // self.font_sprite.dest.x = self.current_world.viewport.x;
         // self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
         // try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
@@ -354,7 +363,7 @@ pub const Game = struct {
     }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
-        self.e = try Engine(.color_true).init(self.allocator);
+        self.e = try Engine(._2d, .color_true).init(self.allocator);
         GAME_LOG.info("starting height {d}\n", .{self.e.renderer.terminal.size.height});
         self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);

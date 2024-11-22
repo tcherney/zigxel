@@ -55,6 +55,7 @@ const Properties = struct {
     density: f32,
     speed: u32,
     piercing: bool,
+    flammability: u32,
     pub fn vary_color(self: *Properties, variance: i16) Pixel {
         const variation = utils.rand.intRangeAtMost(i16, -variance, variance);
         return Pixel.init(
@@ -73,6 +74,7 @@ pub const SAND_PROPERTIES: Properties = Properties{
     .density = 3.0,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const WATER_PROPERTIES: Properties = Properties{
@@ -82,6 +84,7 @@ pub const WATER_PROPERTIES: Properties = Properties{
     .density = 1.0,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const EMPTY_PROPERTIES: Properties = Properties{
@@ -91,6 +94,7 @@ pub const EMPTY_PROPERTIES: Properties = Properties{
     .density = 0,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const WALL_PROPERTIES: Properties = Properties{
@@ -100,6 +104,7 @@ pub const WALL_PROPERTIES: Properties = Properties{
     .density = 10.0,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const OIL_PROPERTIES: Properties = Properties{
@@ -109,6 +114,7 @@ pub const OIL_PROPERTIES: Properties = Properties{
     .density = 0.5,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const ROCK_PROPERTIES: Properties = Properties{
@@ -118,6 +124,7 @@ pub const ROCK_PROPERTIES: Properties = Properties{
     .density = 5.0,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const STEAM_PROPERTIES: Properties = Properties{
@@ -127,6 +134,7 @@ pub const STEAM_PROPERTIES: Properties = Properties{
     .density = 0.1,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const FIRE_PROPERTIES: Properties = Properties{
@@ -136,6 +144,7 @@ pub const FIRE_PROPERTIES: Properties = Properties{
     .density = 0.1,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const LAVA_PROPERTIES: Properties = Properties{
@@ -145,6 +154,7 @@ pub const LAVA_PROPERTIES: Properties = Properties{
     .density = 2.0,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const WOOD_PROPERTIES: Properties = Properties{
@@ -154,6 +164,7 @@ pub const WOOD_PROPERTIES: Properties = Properties{
     .density = 8.0,
     .speed = 1,
     .piercing = false,
+    .flammability = 50,
 };
 
 pub const ICE_PROPERTIES: Properties = Properties{
@@ -163,6 +174,7 @@ pub const ICE_PROPERTIES: Properties = Properties{
     .density = 0.4,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const PLANT_PROPERTIES: Properties = Properties{
@@ -172,6 +184,7 @@ pub const PLANT_PROPERTIES: Properties = Properties{
     .density = 5.0,
     .speed = 1,
     .piercing = false,
+    .flammability = 25,
 };
 
 pub const EXPLOSIVE_PROPERTIES: Properties = Properties{
@@ -181,6 +194,7 @@ pub const EXPLOSIVE_PROPERTIES: Properties = Properties{
     .density = 0.1,
     .speed = 10,
     .piercing = true,
+    .flammability = 0,
 };
 
 pub const OBJECT_PROPERTIES: Properties = Properties{
@@ -190,6 +204,7 @@ pub const OBJECT_PROPERTIES: Properties = Properties{
     .density = 10,
     .speed = 1,
     .piercing = false,
+    .flammability = 0,
 };
 
 pub const PhysicsPixel = struct {
@@ -205,6 +220,7 @@ pub const PhysicsPixel = struct {
     idle_turns: u32 = 0,
     updated: bool = false,
     managed: bool = false,
+    fire_turns: u32 = 0,
     object_reaction_callback: ?ObjectReactionCallback = null,
     const Self = @This();
     pub fn init(pixel_type: PixelType, x: i32, y: i32) Self {
@@ -339,15 +355,20 @@ pub const PhysicsPixel = struct {
             self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Wood) {
-            pixel.properties = FIRE_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Fire;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
+            if (pixel.fire_turns >= pixel.properties.flammability) {
+                pixel.properties = FIRE_PROPERTIES;
+                pixel.duration = 0;
+                pixel.pixel_type = .Fire;
+                pixel.pixel = pixel.properties.vary_color(10);
+                self.updated = true;
+                pixel.active = true;
+                self.active = true;
+                self.idle_turns = 0;
+                pixel.idle_turns = 0;
+                pixel.fire_turns = 0;
+            } else {
+                pixel.fire_turns += 1;
+            }
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Oil) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
@@ -369,15 +390,20 @@ pub const PhysicsPixel = struct {
             self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Wood) {
-            pixel.properties = FIRE_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Fire;
-            pixel.pixel = self.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
+            if (pixel.fire_turns >= pixel.properties.flammability) {
+                pixel.properties = FIRE_PROPERTIES;
+                pixel.duration = 0;
+                pixel.pixel_type = .Fire;
+                pixel.pixel = self.properties.vary_color(10);
+                self.updated = true;
+                pixel.active = true;
+                self.active = true;
+                self.idle_turns = 0;
+                pixel.idle_turns = 0;
+                pixel.fire_turns = 0;
+            } else {
+                pixel.fire_turns += 1;
+            }
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Oil) {
             pixel.properties = FIRE_PROPERTIES;
             pixel.duration = 0;
@@ -419,25 +445,35 @@ pub const PhysicsPixel = struct {
             self.idle_turns = 0;
             pixel.idle_turns = 0;
         } else if (self.pixel_type == .Fire and pixel.pixel_type == .Plant) {
-            pixel.properties = FIRE_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Fire;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
+            if (pixel.fire_turns >= pixel.properties.flammability) {
+                pixel.properties = FIRE_PROPERTIES;
+                pixel.duration = 0;
+                pixel.pixel_type = .Fire;
+                pixel.pixel = pixel.properties.vary_color(10);
+                self.updated = true;
+                pixel.active = true;
+                self.active = true;
+                self.idle_turns = 0;
+                pixel.idle_turns = 0;
+                pixel.fire_turns = 0;
+            } else {
+                pixel.fire_turns += 1;
+            }
         } else if (self.pixel_type == .Lava and pixel.pixel_type == .Plant) {
-            pixel.properties = FIRE_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Fire;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
+            if (pixel.fire_turns >= pixel.properties.flammability) {
+                pixel.properties = FIRE_PROPERTIES;
+                pixel.duration = 0;
+                pixel.pixel_type = .Fire;
+                pixel.pixel = pixel.properties.vary_color(10);
+                self.updated = true;
+                pixel.active = true;
+                self.active = true;
+                self.idle_turns = 0;
+                pixel.idle_turns = 0;
+                pixel.fire_turns = 0;
+            } else {
+                pixel.fire_turns += 1;
+            }
         } else if (self.pixel_type == .Water and pixel.pixel_type == .Plant) {
             self.properties = PLANT_PROPERTIES;
             self.duration = 0;
@@ -469,6 +505,8 @@ pub const PhysicsPixel = struct {
             self.active = true;
             self.idle_turns = 0;
             pixel.idle_turns = 0;
+            self.fire_turns = 0;
+            pixel.fire_turns = 0;
         } else if (self.pixel_type == .Object and pixel.pixel_type != .Object) {
             if (self.object_reaction_callback) |func| {
                 func.call(pixel.pixel_type);

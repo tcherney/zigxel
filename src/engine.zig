@@ -18,10 +18,9 @@ pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Ti
 
 pub const ENGINE_LOG = std.log.scoped(.engine);
 
-//TODO augment to add 2d/3d
-pub fn Engine(comptime color_type: graphics.ColorMode) type {
+pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type: graphics.ColorMode) type {
     return struct {
-        renderer: Graphics(color_type) = undefined,
+        renderer: Graphics(graphics_type, color_type) = undefined,
         events: EventManager = undefined,
         render_callback: ?RenderCallback = null,
         render_thread: std.Thread = undefined,
@@ -34,7 +33,7 @@ pub fn Engine(comptime color_type: graphics.ColorMode) type {
 
         const Self = @This();
         pub fn init(allocator: std.mem.Allocator) Error!Self {
-            return Self{ .renderer = try Graphics(color_type).init(allocator), .events = EventManager.init() };
+            return Self{ .renderer = try Graphics(graphics_type, color_type).init(allocator), .events = EventManager.init() };
         }
 
         pub fn deinit(self: *Self) Error!void {

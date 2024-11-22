@@ -64,6 +64,7 @@ fn MatrixStack(comptime T: GraphicsType) type {
                 ._3D, ._3d => unreachable,
             }
         }
+        //TODO can probably improve this by splitting the result pixels instead of just rounding
         pub fn apply(self: *Self, p: MatPoint) MatPoint {
             switch (T) {
                 ._2D, ._2d => {
@@ -80,10 +81,9 @@ fn MatrixStack(comptime T: GraphicsType) type {
 }
 
 const GRAPHICS_LOG = std.log.scoped(.graphics);
-
+//TODO add camera matrix for basic 3d support
 pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Error;
-//TODO augment to add 2d/3d
-pub fn Graphics(comptime color_type: ColorMode) type {
+pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: ColorMode) type {
     return struct {
         ascii_based: bool = false,
         terminal: term.Term = undefined,
@@ -93,7 +93,7 @@ pub fn Graphics(comptime color_type: ColorMode) type {
         text_to_render: std.ArrayList(Text) = undefined,
         allocator: std.mem.Allocator = undefined,
         first_render: bool = true,
-        stack: MatrixStack(._2D),
+        stack: MatrixStack(graphics_type),
         pub const Point = utils.Point(2, i32);
         pub const PixelType: type = switch (color_type) {
             .color_256 => u8,
@@ -128,7 +128,7 @@ pub fn Graphics(comptime color_type: ColorMode) type {
                 // need space for setting background and setting of foreground color for every pixel
                 .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width) + 200)),
                 .text_to_render = std.ArrayList(Text).init(allocator),
-                .stack = try MatrixStack(._2D).init(allocator),
+                .stack = try MatrixStack(graphics_type).init(allocator),
             };
         }
         pub fn push(self: *Self) Error!void {
@@ -137,7 +137,7 @@ pub fn Graphics(comptime color_type: ColorMode) type {
         pub fn pop(self: *Self) void {
             self.stack.pop();
         }
-        pub fn translate(self: *Self, p: MatrixStack(._2D).MatPoint) Error!void {
+        pub fn translate(self: *Self, p: MatrixStack(graphics_type).MatPoint) Error!void {
             try self.stack.translate(p);
         }
         pub fn rotate(self: *Self, degrees: f64) Error!void {
