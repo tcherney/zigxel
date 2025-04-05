@@ -17,21 +17,17 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "zigxel",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{ // this line was added
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }), // this line was added
     });
 
-    const imglib = b.dependency("imglib", .{
-        .target = target,
-        .optimize = optimize,
-    });
+    const imglib = b.dependency("imglib", .{});
     exe.root_module.addImport("image", imglib.module("image"));
 
-    const termlib = b.dependency("terminal", .{
-        .target = target,
-        .optimize = optimize,
-    });
+    const termlib = b.dependency("terminal", .{});
     exe.root_module.addImport("term", termlib.module("term"));
 
     const engine_module = b.addModule("engine", .{

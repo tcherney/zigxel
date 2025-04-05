@@ -656,7 +656,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                 }
             }
             if (self.text_to_render.items.len > 0) {
-                var text = self.text_to_render.popOrNull();
+                var text = self.text_to_render.pop();
                 while (text) |t| {
                     if (t.y >= 0 and t.y < self.terminal.size.height) {
                         for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ @divFloor(t.y, 2) + 1, t.x + 1 })) |c| {
@@ -721,7 +721,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                             },
                         }
                     }
-                    text = self.text_to_render.popOrNull();
+                    text = self.text_to_render.pop();
                 }
             }
             self.first_render = false;

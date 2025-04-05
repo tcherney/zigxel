@@ -208,8 +208,9 @@ pub const EventManager = struct {
             const stdin: std.fs.File.Reader = self.stdin.reader();
             while (self.running) {
                 const byte = try stdin.readByte();
-                if (self.key_press_callback != null) {
-                    self.key_press_callback.?.call(@enumFromInt(byte));
+                std.debug.print("read {c}\n", .{byte});
+                if (self.key_down_callback != null) {
+                    self.key_down_callback.?.call(@enumFromInt(byte));
                 }
             }
         }

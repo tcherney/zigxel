@@ -1,13 +1,13 @@
 const std = @import("std");
 const game = @import("game.zig");
-pub const std_options = .{
+pub const std_options: std.Options = .{
     .log_level = .err,
     .logFn = myLogFn,
     .log_scope_levels = &[_]std.log.ScopeLevel{
         .{ .scope = .png_image, .level = .err },
         .{ .scope = .jpeg_image, .level = .err },
         .{ .scope = .bmp_image, .level = .err },
-        .{ .scope = .event_manager, .level = .err },
+        .{ .scope = .event_manager, .level = .info },
         .{ .scope = .engine, .level = .err },
         .{ .scope = .texture, .level = .err },
         .{ .scope = .graphics, .level = .err },

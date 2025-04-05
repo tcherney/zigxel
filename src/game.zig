@@ -75,9 +75,9 @@ pub const Game = struct {
         if (self.player != null) {
             self.player.?.deinit();
         }
-        self.font_tex.deinit();
-        self.font_sprite.deinit();
-        self.allocator.destroy(self.font_tex);
+        //self.font_tex.deinit();
+        //self.font_sprite.deinit();
+        //self.allocator.destroy(self.font_tex);
     }
 
     pub fn place_pixel(self: *Self) !void {
@@ -236,6 +236,10 @@ pub const Game = struct {
             if (!self.player_mode) {
                 self.placement_pixel[self.placement_index].y -= 1;
             }
+            if (self.player_mode) {
+                self.player.?.jump();
+                flip = true;
+            }
         } else if (key == engine.KEYS.KEY_s) {
             if (!self.player_mode) {
                 self.placement_pixel[self.placement_index].y += 1;
@@ -274,6 +278,27 @@ pub const Game = struct {
                 GAME_LOG.info("{any}\n", .{err});
                 self.running = false;
             };
+        } else if (key == engine.KEYS.KEY_c) {
+            self.toggle_player_mode();
+        }
+    }
+
+    fn toggle_player_mode(self: *Self) void {
+        self.player_mode = !self.player_mode;
+        if (self.player_mode) {
+            if (self.player == null) {
+                const tex = self.assets.get("basic") catch |err| {
+                    GAME_LOG.info("{any}\n", .{err});
+                    self.running = false;
+                    return;
+                };
+                self.player = Player.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, tex, self.allocator) catch |err| {
+                    GAME_LOG.info("{any}\n", .{err});
+                    self.running = false;
+                    return;
+                };
+                self.player.?.go.add_sim(self.pixels.items, self.current_world.tex.width);
+            }
         }
     }
 
@@ -296,22 +321,7 @@ pub const Game = struct {
                 }
             },
             .KEY_c => {
-                self.player_mode = !self.player_mode;
-                if (self.player_mode) {
-                    if (self.player == null) {
-                        const tex = self.assets.get("basic") catch |err| {
-                            GAME_LOG.info("{any}\n", .{err});
-                            self.running = false;
-                            return;
-                        };
-                        self.player = Player.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, tex, self.allocator) catch |err| {
-                            GAME_LOG.info("{any}\n", .{err});
-                            self.running = false;
-                            return;
-                        };
-                        self.player.?.go.add_sim(self.pixels.items, self.current_world.tex.width);
-                    }
-                }
+                self.toggle_player_mode();
             },
             else => {},
         }
@@ -348,14 +358,14 @@ pub const Game = struct {
             self.e.renderer.pop();
         }
         self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
-        try self.e.renderer.push();
-        try self.e.renderer.translate(.{ .x = @floatFromInt(self.placement_pixel[self.placement_index].x), .y = @floatFromInt(self.placement_pixel[self.placement_index].y) });
-        try self.e.renderer.rotate(rect_rot);
-        rect_rot += 1;
-        if (rect_rot >= 360) rect_rot = 0;
-        try self.e.renderer.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
-        self.e.renderer.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
-        self.e.renderer.pop();
+        // try self.e.renderer.push();
+        // try self.e.renderer.translate(.{ .x = @floatFromInt(self.placement_pixel[self.placement_index].x), .y = @floatFromInt(self.placement_pixel[self.placement_index].y) });
+        // try self.e.renderer.rotate(rect_rot);
+        // rect_rot += 1;
+        // if (rect_rot >= 360) rect_rot = 0;
+        // try self.e.renderer.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
+        // self.e.renderer.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
+        // self.e.renderer.pop();
         // self.font_sprite.dest.x = self.current_world.viewport.x;
         // self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
         // try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
@@ -375,11 +385,11 @@ pub const Game = struct {
 
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
-        var font: Font = Font.init(self.allocator);
-        try font.load("envy.ttf", 24, &self.e.renderer);
-        self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
-        self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
-        font.deinit();
+        // var font: Font = Font.init(self.allocator);
+        // try font.load("envy.ttf", 24, &self.e.renderer);
+        // self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
+        // self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
+        // font.deinit();
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);
         self.e.on_render(Self, on_render, self);
