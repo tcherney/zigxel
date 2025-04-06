@@ -2,6 +2,14 @@ const std = @import("std");
 const builtin = @import("builtin");
 const utils = @import("utils.zig");
 
+// const c = @cImport({
+//     @cInclude("stdlib.h");
+//     @cInclude("termios.h");
+//     @cInclude("unistd.h");
+// });
+
+// const MAX_EVENTS = 32;
+
 const EVENT_LOG = std.log.scoped(.event_manager);
 
 const win32 = struct {
@@ -72,9 +80,10 @@ pub const EventManager = struct {
     window_change_callback: ?WindowChangeCallback = null,
     mouse_event_callback: ?MouseChangeCallback = null,
     original_termios: termios = undefined,
+    mouse: ?std.fs.File = null,
     stdin: std.fs.File,
     const Self = @This();
-    pub const Error = error{ WindowsInit, WindowsRead, PosixInit } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError;
+    pub const Error = error{ WindowsInit, WindowsRead, PosixInit, FileLocksNotSupported, FileBusy } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError || std.posix.ReadError || std.posix.ReadLinkError || std.fs.SelfExePathError;
     pub const termios = switch (builtin.os.tag) {
         .windows => std.os.windows.DWORD,
         else => std.posix.termios,
@@ -148,6 +157,9 @@ pub const EventManager = struct {
 
     pub fn start(self: *Self) Error!void {
         try self.raw_mode();
+        if (builtin.os.tag == .linux) {
+            self.mouse = std.fs.openFileAbsolute("/dev/input/mice", .{}) catch null;
+        }
         self.running = true;
         self.main_thread = try std.Thread.spawn(.{}, event_loop, .{self});
     }
@@ -208,9 +220,31 @@ pub const EventManager = struct {
             const stdin: std.fs.File.Reader = self.stdin.reader();
             while (self.running) {
                 const byte = try stdin.readByte();
-                std.debug.print("read {c}\n", .{byte});
+                var mouse_events: [3]u8 = undefined;
+                std.debug.print("read {any}\n", .{byte});
                 if (self.key_down_callback != null) {
                     self.key_down_callback.?.call(@enumFromInt(byte));
+                }
+                if (self.mouse != null) {
+                    const num_bytes = try self.mouse.?.read(&mouse_events);
+                    if (num_bytes > 0) {
+                        const left = mouse_events[0] & 0x1;
+                        const right = mouse_events[0] & 0x2;
+                        const middle = mouse_events[0] & 0x4;
+                        const x: i8 = @bitCast(mouse_events[1]);
+                        const y: i8 = @bitCast(mouse_events[2]);
+                        if (self.mouse_event_callback != null) {
+                            EVENT_LOG.info("left {d}, right {d}, middle {d}, x {d}, y {d}\n", .{ left, right, middle, x, y });
+                            self.mouse_event_callback.?.call(.{
+                                .x = x,
+                                .y = y,
+                                .clicked = left == 1,
+                                .scroll_up = false,
+                                .scroll_down = false,
+                                .ctrl_pressed = false,
+                            });
+                        }
+                    }
                 }
             }
         }

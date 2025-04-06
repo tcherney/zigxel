@@ -335,7 +335,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                         if (res_point.x < 0) {
                             tex_indx += 1;
                             continue;
-                        } else if (res_point.x >= self.terminal.size.width) {
+                        } else if (res_point.x >= @as(f64, @floatFromInt(self.terminal.size.width))) {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
@@ -386,7 +386,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                         if (res_point.x < 0) {
                             tex_indx += 1;
                             continue;
-                        } else if (res_point.x >= dest.?.width) {
+                        } else if (res_point.x >= @as(f64, @floatFromInt(dest.?.width))) {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
