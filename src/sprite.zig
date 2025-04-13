@@ -1,5 +1,5 @@
 const std = @import("std");
-const utils = @import("utils.zig");
+const common = @import("common");
 const texture = @import("texture.zig");
 const image = @import("image");
 
@@ -7,22 +7,23 @@ pub const Texture = texture.Texture;
 
 pub const Sprite = struct {
     allocator: std.mem.Allocator,
-    src: utils.Rectangle,
-    dest: utils.Rectangle,
+    src: Rectangle,
+    dest: Rectangle,
     tex: *Texture,
     scaled_buffer: ?[]texture.Pixel = null,
     pub const Self = @This();
+    pub const Rectangle = common.Rectangle;
     pub const Error = error{OutOfBounds} || Texture.Error || std.mem.Allocator.Error;
-    pub fn init(allocator: std.mem.Allocator, src: ?utils.Rectangle, dest: ?utils.Rectangle, tex: *Texture) Error!Sprite {
-        var src_rect: utils.Rectangle = undefined;
-        var dest_rect: utils.Rectangle = undefined;
+    pub fn init(allocator: std.mem.Allocator, src: ?Rectangle, dest: ?Rectangle, tex: *Texture) Error!Sprite {
+        var src_rect: Rectangle = undefined;
+        var dest_rect: Rectangle = undefined;
         if (src == null) {
-            src_rect = utils.Rectangle{ .x = 0, .y = 0, .width = tex.width, .height = tex.height };
+            src_rect = Rectangle{ .x = 0, .y = 0, .width = tex.width, .height = tex.height };
         } else {
             src_rect = src.?;
         }
         if (dest == null) {
-            dest_rect = utils.Rectangle{ .x = 0, .y = 0, .width = tex.width, .height = tex.height };
+            dest_rect = Rectangle{ .x = 0, .y = 0, .width = tex.width, .height = tex.height };
         } else {
             dest_rect = dest.?;
         }
@@ -67,7 +68,7 @@ pub const Sprite = struct {
             self.allocator.free(src_buffer);
         }
     }
-    pub fn set_src(self: *Self, src: utils.Rectangle) Error!void {
+    pub fn set_src(self: *Self, src: Rectangle) Error!void {
         self.src.x = src.x;
         self.src.y = src.y;
         self.src.height = src.height;
@@ -76,7 +77,7 @@ pub const Sprite = struct {
             self.scale_buffer();
         }
     }
-    pub fn set_dest(self: *Self, dest: utils.Rectangle) Error!void {
+    pub fn set_dest(self: *Self, dest: Rectangle) Error!void {
         self.dest.x = dest.x;
         self.dest.y = dest.y;
         self.dest.height = dest.height;

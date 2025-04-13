@@ -1,13 +1,13 @@
 pub const texture = @import("texture.zig");
-pub const utils = @import("utils.zig");
+pub const common = @import("common");
 pub const std = @import("std");
 
 pub const Texture = texture.Texture;
 
 pub const World = struct {
     tex: Texture,
-    bounds: utils.Rectangle,
-    viewport: utils.Rectangle = undefined,
+    bounds: common.Rectangle,
+    viewport: common.Rectangle = undefined,
     allocator: std.mem.Allocator,
     const Self = @This();
     pub const Error = error{} || Texture.Error;
@@ -16,13 +16,13 @@ pub const World = struct {
         try world_tex.rect(w_width, w_height, 0, 0, 0, 255);
         return Self{
             .tex = world_tex,
-            .bounds = utils.Rectangle{
+            .bounds = common.Rectangle{
                 .x = 0,
                 .y = 0,
                 .height = world_tex.height,
                 .width = world_tex.width,
             },
-            .viewport = utils.Rectangle{
+            .viewport = common.Rectangle{
                 .x = 0,
                 .y = 0,
                 .width = v_width,

@@ -30,6 +30,9 @@ pub fn build(b: *std.Build) void {
     const termlib = b.dependency("terminal", .{});
     exe.root_module.addImport("term", termlib.module("term"));
 
+    const commonlib = b.dependency("common", .{});
+    exe.root_module.addImport("common", commonlib.module("common"));
+
     const engine_module = b.addModule("engine", .{
         .root_source_file = b.path("src/engine.zig"),
     });

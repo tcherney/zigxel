@@ -1,9 +1,9 @@
 const std = @import("std");
 const _ttf = @import("ttf.zig");
 const _texture = @import("texture.zig");
-const utils = @import("utils.zig");
+const common = @import("common");
 
-pub const Point = utils.Point(2, i32);
+pub const Point = common.Point(2, i32);
 pub const TTF = _ttf.TTF;
 pub const Texture = _texture.Texture;
 pub const Pixel = _texture.Pixel;

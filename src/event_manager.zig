@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const utils = @import("utils.zig");
+const common = @import("common");
 
 // const c = @cImport({
 //     @cInclude("stdlib.h");
@@ -58,9 +58,9 @@ pub const WindowSize = struct {
     width: u32,
     height: u32,
 };
-pub const WindowChangeCallback = utils.Callback(WindowSize);
-pub const KeyChangeCallback = utils.Callback(KEYS);
-pub const MouseChangeCallback = utils.Callback(MouseEvent);
+pub const WindowChangeCallback = common.Callback(WindowSize);
+pub const KeyChangeCallback = common.Callback(KEYS);
+pub const MouseChangeCallback = common.Callback(MouseEvent);
 
 pub const MouseEvent = struct {
     x: i16,

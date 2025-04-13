@@ -1,7 +1,7 @@
 const std = @import("std");
 const term = @import("term");
 const texture = @import("texture.zig");
-const utils = @import("utils.zig");
+const common = @import("common");
 const sprite = @import("sprite.zig");
 const image = @import("image");
 
@@ -94,7 +94,8 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
         allocator: std.mem.Allocator = undefined,
         first_render: bool = true,
         stack: MatrixStack(graphics_type),
-        pub const Point = utils.Point(2, i32);
+        pub const Point = common.Point(2, i32);
+        pub const Rectangle = common.Rectangle;
         pub const PixelType: type = switch (color_type) {
             .color_256 => u8,
             .color_true => struct { r: u8 = 0, g: u8 = 0, b: u8 = 0 },
@@ -305,12 +306,12 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                 try self.draw_pixel_buffer(s.tex.pixel_buffer, s.tex.width, s.tex.height, s.src, s.dest, dest);
             } else {
                 GRAPHICS_LOG.debug("rendering scaled\n", .{});
-                const src_rect = utils.Rectangle{ .x = 0, .y = 0, .width = s.dest.width, .height = s.dest.height };
+                const src_rect = Rectangle{ .x = 0, .y = 0, .width = s.dest.width, .height = s.dest.height };
                 try self.draw_pixel_buffer(s.scaled_buffer.?, s.dest.width, s.dest.height, src_rect, s.dest, dest);
             }
         }
 
-        pub fn draw_pixel_buffer(self: *Self, pixel_buffer: []texture.Pixel, width: u32, height: u32, src: utils.Rectangle, dest_rect: utils.Rectangle, dest: ?texture.Texture) Error!void {
+        pub fn draw_pixel_buffer(self: *Self, pixel_buffer: []texture.Pixel, width: u32, height: u32, src: Rectangle, dest_rect: Rectangle, dest: ?texture.Texture) Error!void {
             var tex_indx: usize = (@as(u32, @bitCast(src.y)) * width + @as(u32, @bitCast(src.x)));
             if (src.height > height or src.width > width) {
                 return Error.TextureError;
@@ -427,7 +428,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
             }
         }
 
-        pub fn draw_texture(self: *Self, tex: texture.Texture, src_rect: utils.Rectangle, dest_rect: utils.Rectangle, dest: ?texture.Texture) Error!void {
+        pub fn draw_texture(self: *Self, tex: texture.Texture, src_rect: Rectangle, dest_rect: Rectangle, dest: ?texture.Texture) Error!void {
             try self.draw_pixel_buffer(tex.pixel_buffer, tex.width, tex.height, src_rect, dest_rect, dest);
         }
 
@@ -485,7 +486,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
         }
 
         //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
-        pub fn flip(self: *Self, dest: ?texture.Texture, bounds: ?utils.Rectangle) Error!void {
+        pub fn flip(self: *Self, dest: ?texture.Texture, bounds: ?Rectangle) Error!void {
             if (dest != null and bounds != null) {
                 if (bounds.?.width > @as(u32, @intCast(self.terminal.size.width)) or bounds.?.height > @as(u32, @intCast(self.terminal.size.height))) {
                     return Error.TextureError;

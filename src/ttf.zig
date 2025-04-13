@@ -1,5 +1,5 @@
 const std = @import("std");
-const utils = @import("utils.zig");
+const common = @import("common");
 const ByteStream = @import("image").ByteStream;
 const BitReader = @import("image").BitReader;
 
@@ -1475,7 +1475,7 @@ pub const TTF = struct {
             self.allocator.free(self.end_curves);
         }
     };
-    pub const Point = utils.Point(2, i16);
+    pub const Point = common.Point(2, i16);
     pub const BezierCurve = struct {
         p0: Point,
         p1: Point,

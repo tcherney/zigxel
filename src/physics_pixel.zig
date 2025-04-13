@@ -1,5 +1,5 @@
 const std = @import("std");
-const utils = @import("utils.zig");
+const common = @import("common");
 const Pixel = @import("image").Pixel;
 
 //https://tomforsyth1000.github.io/papers/cellular_automata_for_physical_modelling.html
@@ -12,7 +12,7 @@ pub inline fn to_seconds(nano: u64) f64 {
 
 const PHYSICS_PIXEL_LOG = std.log.scoped(.physics_pixel);
 //TODO update callback with more information like xy to remove pixel from object
-pub const ObjectReactionCallback = utils.Callback(PixelType);
+pub const ObjectReactionCallback = common.Callback(PixelType);
 pub const PixelType = enum {
     Sand,
     Water,
@@ -57,7 +57,7 @@ const Properties = struct {
     piercing: bool,
     flammability: u32,
     pub fn vary_color(self: *Properties, variance: i16) Pixel {
-        const variation = utils.rand.intRangeAtMost(i16, -variance, variance);
+        const variation = common.rand.intRangeAtMost(i16, -variance, variance);
         return Pixel.init(
             @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.get_r())))) + variation)))),
             @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.get_g())))) + variation)))),
@@ -284,7 +284,7 @@ pub const PhysicsPixel = struct {
                 color = properties.color;
             },
         }
-        return Self{ .x = x, .y = y, .pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .pixel_type = pixel_type, .last_dir = if (utils.rand.boolean()) -1 else 1, .properties = properties };
+        return Self{ .x = x, .y = y, .pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .pixel_type = pixel_type, .last_dir = if (common.rand.boolean()) -1 else 1, .properties = properties };
     }
 
     pub fn set_color(self: *Self, r: u8, g: u8, b: u8, a: u8) void {
@@ -629,7 +629,7 @@ pub const PhysicsPixel = struct {
     fn fire_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         const first = self.last_dir;
         const second = -first;
-        const direction = utils.rand.intRangeAtMost(u8, 0, 7);
+        const direction = common.rand.intRangeAtMost(u8, 0, 7);
         switch (direction) {
             0 => {
                 if (self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit)) return;

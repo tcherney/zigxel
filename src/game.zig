@@ -1,6 +1,6 @@
 const std = @import("std");
 const engine = @import("engine.zig");
-const utils = @import("utils.zig");
+const common = @import("common");
 const image = @import("image");
 const sprite = @import("sprite.zig");
 const physic_pixel = @import("physics_pixel.zig");
@@ -44,7 +44,7 @@ pub const Game = struct {
     pub const Error = error{} || image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator };
-        try utils.gen_rand();
+        try common.gen_rand();
         ret.placement_pixel = try ret.allocator.alloc(PhysicsPixel, 13);
         ret.placement_pixel[0] = PhysicsPixel.init(physic_pixel.PixelType.Sand, ret.starting_pos_x, ret.starting_pos_y);
         ret.placement_pixel[1] = PhysicsPixel.init(physic_pixel.PixelType.Water, ret.starting_pos_x, ret.starting_pos_y);

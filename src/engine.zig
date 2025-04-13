@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 const graphics = @import("graphics.zig");
 const event_manager = @import("event_manager.zig");
 const term = @import("term");
-const utils = @import("utils.zig");
+const common = @import("common");
 const texture = @import("texture.zig");
 const image = @import("image");
 
@@ -13,7 +13,7 @@ pub const Texture = texture.Texture;
 pub const KEYS = event_manager.KEYS;
 pub const MouseEvent = event_manager.MouseEvent;
 pub const WindowSize = event_manager.WindowSize;
-pub const RenderCallback = utils.CallbackError(u64, Error);
+pub const RenderCallback = common.CallbackError(u64, Error);
 pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Timer.Error || std.posix.GetRandomError;
 
 pub const ENGINE_LOG = std.log.scoped(.engine);
