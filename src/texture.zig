@@ -10,6 +10,8 @@ pub const Texture = struct {
     height: u32 = undefined,
     width: u32 = undefined,
     pixel_buffer: []Pixel = undefined,
+    is_ascii: bool = false,
+    ascii_buffer: []u8 = undefined,
     alpha_index: ?u8 = null,
     loaded: bool = false,
     const Self = @This();
@@ -20,6 +22,9 @@ pub const Texture = struct {
 
     pub fn deinit(self: *Self) void {
         self.allocator.free(self.pixel_buffer);
+        if (self.is_ascii) {
+            self.allocator.free(self.ascii_buffer);
+        }
     }
 
     pub fn rect(self: *Self, width: u32, height: u32, r: u8, g: u8, b: u8, a: u8) Error!void {
@@ -27,10 +32,19 @@ pub const Texture = struct {
         self.width = width;
         if (self.loaded) {
             self.allocator.free(self.pixel_buffer);
+            if (self.is_ascii) {
+                self.allocator.free(self.ascii_buffer);
+            }
         }
         self.pixel_buffer = try self.allocator.alloc(Pixel, height * width);
         for (0..self.pixel_buffer.len) |i| {
             self.pixel_buffer[i] = Pixel.init(r, g, b, a);
+        }
+        if (self.is_ascii) {
+            self.ascii_buffer = try self.allocator.alloc(u8, height * width);
+            for (0..self.ascii_buffer.len) |i| {
+                self.ascii_buffer[i] = ' ';
+            }
         }
         self.loaded = true;
     }
@@ -42,6 +56,10 @@ pub const Texture = struct {
         tex.width = self.width;
         tex.loaded = true;
         tex.pixel_buffer = try self.allocator.dupe(Pixel, self.pixel_buffer);
+        if (self.is_ascii) {
+            tex.ascii_buffer = try self.allocator.dupe(u8, self.ascii_buffer);
+            tex.is_ascii = true;
+        }
         return tex;
     }
 
