@@ -219,16 +219,15 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                     }
                     var i: i32 = dest_rect.x;
                     while (i < (dest_rect.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
-                        const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
-                        if (res_point.x < 0) {
+                        if (i < 0) {
                             tex_indx += 1;
                             continue;
-                        } else if (res_point.x >= @as(f64, @floatFromInt(self.terminal.size.width))) {
+                        } else if (i >= @as(i32, @bitCast(self.terminal.size.width))) {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
-                        const i_usize: usize = @intFromFloat(res_point.x);
-                        const j_usize: usize = @intFromFloat(res_point.y);
+                        const i_usize: usize = @intCast(i);
+                        const j_usize: usize = @intCast(j);
                         // have alpha channel
                         var r: u8 = pixel_buffer[tex_indx].get_r();
                         var g: u8 = pixel_buffer[tex_indx].get_g();
@@ -255,6 +254,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                                 self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = b;
                             },
                         }
+                        self.ascii_buffer[j_usize * self.terminal.size.width + i_usize] = ascii_buffer[tex_indx];
 
                         tex_indx += 1;
                     }
@@ -270,16 +270,15 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                     }
                     var i: i32 = dest_rect.x;
                     while (i < (dest_rect.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
-                        const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
-                        if (res_point.x < 0) {
+                        if (i < 0) {
                             tex_indx += 1;
                             continue;
-                        } else if (res_point.x >= @as(f64, @floatFromInt(dest.?.width))) {
+                        } else if (i >= @as(i32, @bitCast(dest.?.width))) {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
-                        const i_usize: usize = @intFromFloat(res_point.x);
-                        const j_usize: usize = @intFromFloat(res_point.y);
+                        const i_usize: usize = @bitCast(i);
+                        const j_usize: usize = @bitCast(j);
                         // have alpha channel
                         var r: u8 = pixel_buffer[tex_indx].get_r();
                         var g: u8 = pixel_buffer[tex_indx].get_g();
@@ -307,6 +306,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                                 dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_a(pixel_buffer[tex_indx].get_a());
                             },
                         }
+                        dest.?.ascii_buffer[j_usize * dest.?.width + i_usize] = ascii_buffer[tex_indx];
 
                         tex_indx += 1;
                     }

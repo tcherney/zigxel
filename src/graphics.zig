@@ -11,7 +11,7 @@ const UPPER_PX = "▀";
 const LOWER_PX = "▄";
 //▀█▄
 
-pub const GraphicsType = enum { _2d, _2D, _3d, _3D };
+pub const GraphicsType = enum { _2d, _2D, _3d, _3D, ascii };
 pub const ColorMode = enum {
     color_256,
     color_true,

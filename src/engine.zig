@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const graphics = @import("graphics.zig");
+const ascii_graphics = @import("ascii_graphics.zig");
 const event_manager = @import("event_manager.zig");
 const term = @import("term");
 const common = @import("common");
@@ -9,6 +10,7 @@ const image = @import("image");
 
 pub const EventManager = event_manager.EventManager;
 pub const Graphics = graphics.Graphics;
+pub const AsciiGraphics = ascii_graphics.AsciiGraphics;
 pub const Texture = texture.Texture;
 pub const KEYS = event_manager.KEYS;
 pub const MouseEvent = event_manager.MouseEvent;
@@ -20,7 +22,7 @@ pub const ENGINE_LOG = std.log.scoped(.engine);
 
 pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type: graphics.ColorMode) type {
     return struct {
-        renderer: Graphics(graphics_type, color_type) = undefined,
+        renderer: Renderer = undefined,
         events: EventManager = undefined,
         render_callback: ?RenderCallback = null,
         render_thread: std.Thread = undefined,
@@ -32,6 +34,10 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
         window_change_callback: ?event_manager.WindowChangeCallback = null,
 
         const Self = @This();
+        pub const Renderer = switch (graphics_type) {
+            .ascii => AsciiGraphics(color_type),
+            else => Graphics(graphics_type, color_type),
+        };
         pub fn init(allocator: std.mem.Allocator) Error!Self {
             return Self{ .renderer = try Graphics(graphics_type, color_type).init(allocator), .events = EventManager.init() };
         }
