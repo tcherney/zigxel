@@ -23,10 +23,12 @@ fn MatrixStack(comptime T: GraphicsType) type {
         const Mat: type = switch (T) {
             ._2d, ._2D => image.Mat(3, f64),
             ._3d, ._3D => image.Mat(4, f64),
+            else => unreachable,
         };
         const MatPoint: type = switch (T) {
             ._2d, ._2D => struct { x: f64, y: f64 },
             ._3d, ._3D => struct { x: f64, y: f64, z: f64 },
+            else => unreachable,
         };
         pub const Self = @This();
         pub fn init(allocator: std.mem.Allocator) Error!Self {
@@ -54,6 +56,7 @@ fn MatrixStack(comptime T: GraphicsType) type {
                     self.stack.items[self.stack.items.len - 1] = self.stack.items[self.stack.items.len - 1].mul(try Mat.translate(p.x, p.y));
                 },
                 ._3D, ._3d => unreachable,
+                else => unreachable,
             }
         }
         pub fn rotate(self: *Self, degrees: f64) Error!void {
@@ -62,6 +65,7 @@ fn MatrixStack(comptime T: GraphicsType) type {
                     self.stack.items[self.stack.items.len - 1] = self.stack.items[self.stack.items.len - 1].mul(try Mat.rotate(.z, degrees));
                 },
                 ._3D, ._3d => unreachable,
+                else => unreachable,
             }
         }
         //TODO can probably improve this by splitting the result pixels instead of just rounding
@@ -75,6 +79,7 @@ fn MatrixStack(comptime T: GraphicsType) type {
                     const res = self.stack.getLast().mul_v(.{ p.x, p.y, p.z, 1.0 });
                     return .{ .x = @round(res[0]), .y = @round(res[1]), .z = @round(res[2]) };
                 },
+                else => unreachable,
             }
         }
     };

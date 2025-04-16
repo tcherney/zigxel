@@ -35,11 +35,14 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
 
         const Self = @This();
         pub const Renderer = switch (graphics_type) {
-            .ascii => AsciiGraphics(color_type),
+            .ascii => switch (color_type) {
+                .color_256 => AsciiGraphics(.color_256),
+                .color_true => AsciiGraphics(.color_true),
+            },
             else => Graphics(graphics_type, color_type),
         };
         pub fn init(allocator: std.mem.Allocator) Error!Self {
-            return Self{ .renderer = try Graphics(graphics_type, color_type).init(allocator), .events = EventManager.init() };
+            return Self{ .renderer = try Renderer.init(allocator), .events = EventManager.init() };
         }
 
         pub fn deinit(self: *Self) Error!void {
