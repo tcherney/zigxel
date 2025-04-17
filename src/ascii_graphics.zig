@@ -222,7 +222,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                         if (i < 0) {
                             tex_indx += 1;
                             continue;
-                        } else if (i >= @as(i32, @bitCast(self.terminal.size.width))) {
+                        } else if (i >= @as(i32, @intCast(self.terminal.size.width))) {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
@@ -277,8 +277,8 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
-                        const i_usize: usize = @bitCast(i);
-                        const j_usize: usize = @bitCast(j);
+                        const i_usize: usize = @intCast(i);
+                        const j_usize: usize = @intCast(j);
                         // have alpha channel
                         var r: u8 = pixel_buffer[tex_indx].get_r();
                         var g: u8 = pixel_buffer[tex_indx].get_g();
@@ -320,6 +320,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
         }
 
         //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
+        //TODO FIX TO JUST OUTPUT THE RAW ASCII HAVE TO RESTRUCTURE TO NOT TREAT BG AS ANOTHER ROW
         pub fn flip(self: *Self, dest: ?texture.Texture, bounds: ?Rectangle) Error!void {
             if (dest != null and bounds != null) {
                 if (bounds.?.width > @as(u32, @intCast(self.terminal.size.width)) or bounds.?.height > @as(u32, @intCast(self.terminal.size.height))) {
@@ -488,75 +489,6 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                             }
                         },
                     }
-                }
-            }
-            if (self.text_to_render.items.len > 0) {
-                var text = self.text_to_render.pop();
-                while (text) |t| {
-                    if (t.y >= 0 and t.y < self.terminal.size.height) {
-                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ @divFloor(t.y, 2) + 1, t.x + 1 })) |c| {
-                            self.terminal_buffer[buffer_len] = c;
-                            buffer_len += 1;
-                        }
-
-                        switch (color_type) {
-                            .color_256 => {
-                                const fg_pixel = term.rgb_256(t.r, t.g, t.b);
-
-                                if (prev_fg_pixel != fg_pixel) {
-                                    prev_fg_pixel.r = fg_pixel.r;
-                                    prev_fg_pixel.g = fg_pixel.g;
-                                    prev_fg_pixel.b = fg_pixel.b;
-                                    for (term.FG[fg_pixel]) |c| {
-                                        self.terminal_buffer[buffer_len] = c;
-                                        buffer_len += 1;
-                                    }
-                                }
-
-                                for (t.value, 0..) |c, z| {
-                                    const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
-                                    if (prev_bg_pixel != bg_pixel) {
-                                        prev_bg_pixel.r = bg_pixel.r;
-                                        prev_bg_pixel.g = bg_pixel.g;
-                                        prev_bg_pixel.b = bg_pixel.b;
-                                        for (term.BG[bg_pixel]) |ci| {
-                                            self.terminal_buffer[buffer_len] = ci;
-                                            buffer_len += 1;
-                                        }
-                                    }
-                                    self.terminal_buffer[buffer_len] = c;
-                                    buffer_len += 1;
-                                }
-                            },
-                            .color_true => {
-                                if (prev_fg_pixel.r != t.r or prev_fg_pixel.g != t.g or prev_fg_pixel.b != t.b) {
-                                    prev_fg_pixel.r = t.r;
-                                    prev_fg_pixel.g = t.g;
-                                    prev_fg_pixel.b = t.b;
-                                    for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.FG_RGB, .{ t.r, t.g, t.b })) |c| {
-                                        self.terminal_buffer[buffer_len] = c;
-                                        buffer_len += 1;
-                                    }
-                                }
-
-                                for (t.value, 0..) |c, z| {
-                                    const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
-                                    if (prev_bg_pixel.r != bg_pixel.r or prev_bg_pixel.g != bg_pixel.g or prev_bg_pixel.b != bg_pixel.b) {
-                                        prev_bg_pixel.r = bg_pixel.r;
-                                        prev_bg_pixel.g = bg_pixel.g;
-                                        prev_bg_pixel.b = bg_pixel.b;
-                                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ bg_pixel.r, bg_pixel.g, bg_pixel.b })) |ci| {
-                                            self.terminal_buffer[buffer_len] = ci;
-                                            buffer_len += 1;
-                                        }
-                                    }
-                                    self.terminal_buffer[buffer_len] = c;
-                                    buffer_len += 1;
-                                }
-                            },
-                        }
-                    }
-                    text = self.text_to_render.pop();
                 }
             }
             self.first_render = false;
