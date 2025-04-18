@@ -10,6 +10,7 @@ pub const Texture = struct {
     height: u32 = undefined,
     width: u32 = undefined,
     pixel_buffer: []Pixel = undefined,
+    background_pixel_buffer: []Pixel = undefined,
     is_ascii: bool = false,
     ascii_buffer: []u8 = undefined,
     alpha_index: ?u8 = null,
@@ -24,6 +25,7 @@ pub const Texture = struct {
         self.allocator.free(self.pixel_buffer);
         if (self.is_ascii) {
             self.allocator.free(self.ascii_buffer);
+            self.allocator.free(self.background_pixel_buffer);
         }
     }
 
@@ -34,6 +36,7 @@ pub const Texture = struct {
             self.allocator.free(self.pixel_buffer);
             if (self.is_ascii) {
                 self.allocator.free(self.ascii_buffer);
+                self.allocator.free(self.background_pixel_buffer);
             }
         }
         self.pixel_buffer = try self.allocator.alloc(Pixel, height * width);
@@ -44,6 +47,10 @@ pub const Texture = struct {
             self.ascii_buffer = try self.allocator.alloc(u8, height * width);
             for (0..self.ascii_buffer.len) |i| {
                 self.ascii_buffer[i] = ' ';
+            }
+            self.background_pixel_buffer = try self.allocator.alloc(Pixel, height * width);
+            for (0..self.background_pixel_buffer.len) |i| {
+                self.background_pixel_buffer[i] = Pixel.init(r, g, b, a);
             }
         }
         self.loaded = true;
@@ -58,6 +65,7 @@ pub const Texture = struct {
         tex.pixel_buffer = try self.allocator.dupe(Pixel, self.pixel_buffer);
         if (self.is_ascii) {
             tex.ascii_buffer = try self.allocator.dupe(u8, self.ascii_buffer);
+            tex.background_pixel_buffer = try self.allocator.dupe(Pixel, self.background_pixel_buffer);
             tex.is_ascii = true;
         }
         return tex;

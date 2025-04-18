@@ -23,6 +23,8 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
         ascii_buffer: []u8 = undefined,
         last_frame: []PixelType = undefined,
         ascii_last_frame: []u8 = undefined,
+        background_pixel_buffer: []PixelType = undefined,
+        background_last_frame: []PixelType = undefined,
         terminal_buffer: []u8 = undefined,
         allocator: std.mem.Allocator = undefined,
         first_render: bool = true,
@@ -62,6 +64,23 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                     last_frame[i] = PixelType{};
                 }
             }
+            var background_pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 2);
+            for (0..background_pixel_buffer.len) |i| {
+                if (color_type == .color_256) {
+                    background_pixel_buffer[i] = 0;
+                } else {
+                    background_pixel_buffer[i] = PixelType{};
+                }
+            }
+            var background_last_frame = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 2);
+            for (0..background_last_frame.len) |i| {
+                if (color_type == .color_256) {
+                    background_last_frame[i] = 0;
+                } else {
+                    background_last_frame[i] = PixelType{};
+                }
+            }
+
             return Self{
                 .terminal = terminal,
                 .allocator = allocator,
@@ -69,6 +88,8 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                 .last_frame = last_frame,
                 .ascii_buffer = ascii_buffer,
                 .ascii_last_frame = ascii_last_frame,
+                .background_last_frame = background_last_frame,
+                .background_pixel_buffer = background_pixel_buffer,
                 // need space for setting background and setting of foreground color for every pixel
                 .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width) + 200)),
             };
@@ -83,6 +104,8 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             self.allocator.free(self.pixel_buffer);
             self.allocator.free(self.ascii_buffer);
             self.allocator.free(self.ascii_last_frame);
+            self.allocator.free(self.background_last_frame);
+            self.allocator.free(self.background_pixel_buffer);
             self.pixel_buffer = try self.allocator.alloc(PixelType, self.terminal.size.height * self.terminal.size.width * 2);
             for (0..self.pixel_buffer.len) |i| {
                 if (color_type == .color_256) {
@@ -103,6 +126,18 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             for (0..self.pixel_buffer.len) |i| {
                 self.ascii_buffer[i] = ' ';
             }
+            self.background_pixel_buffer = try self.allocator.alloc(PixelType, self.terminal.size.height * self.terminal.size.width * 2);
+            for (0..self.background_pixel_buffer.len) |i| {
+                if (color_type == .color_256) {
+                    self.background_pixel_buffer[i] = 0;
+                } else {
+                    self.background_pixel_buffer[i] = PixelType{};
+                }
+            }
+            self.background_last_frame = try self.allocator.alloc(PixelType, self.background_pixel_buffer.len);
+            for (0..self.background_pixel_buffer.len) |i| {
+                self.background_last_frame[i] = self.background_pixel_buffer[i];
+            }
             self.first_render = true;
         }
 
@@ -113,25 +148,27 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             self.allocator.free(self.last_frame);
             self.allocator.free(self.ascii_buffer);
             self.allocator.free(self.ascii_last_frame);
+            self.allocator.free(self.background_last_frame);
+            self.allocator.free(self.background_pixel_buffer);
         }
 
         pub fn set_bg(self: *Self, r: u8, g: u8, b: u8, dest: ?texture.Texture) void {
             if (dest == null) {
                 const bg_color_indx = term.rgb_256(r, g, b);
-                for (0..self.pixel_buffer.len) |i| {
+                for (0..self.background_pixel_buffer.len) |i| {
                     if (color_type == .color_256) {
-                        self.pixel_buffer[i] = bg_color_indx;
+                        self.background_pixel_buffer[i] = bg_color_indx;
                     } else {
-                        self.pixel_buffer[i] = .{ .r = r, .g = g, .b = b };
+                        self.background_pixel_buffer[i] = .{ .r = r, .g = g, .b = b };
                     }
                 }
             } else {
                 const bg_color_indx = term.rgb_256(r, g, b);
-                for (0..dest.?.pixel_buffer.len) |i| {
+                for (0..dest.?.background_pixel_buffer.len) |i| {
                     if (color_type == .color_256) {
-                        dest.?.pixel_buffer[i].set_r(bg_color_indx);
+                        dest.?.background_pixel_buffer[i].set_r(bg_color_indx);
                     } else {
-                        dest.?.pixel_buffer[i] = texture.Pixel.init(r, g, b, null);
+                        dest.?.background_pixel_buffer[i] = texture.Pixel.init(r, g, b, null);
                     }
                 }
             }
@@ -144,26 +181,14 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                 }
                 const x_indx: usize = @bitCast(x);
                 const y_indx: usize = @bitCast(y);
-                if (p.get_a() != 255) {
-                    const max_pixel = 255.0;
-                    var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(p.get_r())), @as(f32, @floatFromInt(p.get_g())), @as(f32, @floatFromInt(p.get_b())), @as(f32, @floatFromInt(p.get_a())) };
-                    end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(p.get_a())) / max_pixel)));
-                    if (custom_bg) {
-                        const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bgr)), @as(f32, @floatFromInt(bgg)), @as(f32, @floatFromInt(bgb)), @as(f32, @floatFromInt(p.get_a())) };
-                        end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
-                    } else {
-                        const bkgd = self.pixel_buffer[y_indx * self.terminal.size.width + x_indx];
-                        const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.r)), @as(f32, @floatFromInt(bkgd.g)), @as(f32, @floatFromInt(bkgd.b)), 255.0 };
-                        end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
-                    }
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = @as(u8, @intFromFloat(end_color[0]));
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = @as(u8, @intFromFloat(end_color[1]));
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = @as(u8, @intFromFloat(end_color[2]));
-                } else {
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = p.get_r();
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = p.get_g();
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.get_b();
-                }
+
+                self.background_pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = bgr;
+                self.background_pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = bgg;
+                self.background_pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = bgb;
+
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = p.get_r();
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = p.get_g();
+                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.get_b();
                 self.ascii_buffer[y_indx * self.terminal.size.width + x_indx] = symbol;
             } else {
                 if (x < 0 or x >= @as(i32, @bitCast(dest.?.width)) or y >= @as(i32, @bitCast(dest.?.height)) or y < 0) {
@@ -171,25 +196,13 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                 }
                 const x_indx: usize = @bitCast(x);
                 const y_indx: usize = @bitCast(y);
-                if (p.get_a() != 255) {
-                    const max_pixel = 255.0;
-                    var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(p.get_r())), @as(f32, @floatFromInt(p.get_g())), @as(f32, @floatFromInt(p.get_b())), @as(f32, @floatFromInt(p.get_a())) };
-                    end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(p.get_a())) / max_pixel)));
-                    if (custom_bg) {
-                        const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bgr)), @as(f32, @floatFromInt(bgg)), @as(f32, @floatFromInt(bgb)), @as(f32, @floatFromInt(p.get_a())) };
-                        end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
-                    } else {
-                        const bkgd = dest.?.pixel_buffer[y_indx * dest.?.width + x_indx];
-                        const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.get_r())), @as(f32, @floatFromInt(bkgd.get_g())), @as(f32, @floatFromInt(bkgd.get_b())), @as(f32, @floatFromInt(bkgd.get_a())) };
-                        end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
-                    }
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_r(@as(u8, @intFromFloat(end_color[0])));
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_g(@as(u8, @intFromFloat(end_color[1])));
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_b(@as(u8, @intFromFloat(end_color[2])));
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_a(p.get_a());
-                } else {
-                    dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].v = p.v;
-                }
+                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_r(p.get_a());
+                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_g(p.get_g());
+                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_b(p.get_b());
+                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_a(p.get_a());
+                dest.?.background_pixel_buffer[y_indx * dest.?.width + x_indx].set_r(bgr);
+                dest.?.background_pixel_buffer[y_indx * dest.?.width + x_indx].set_g(bgg);
+                dest.?.background_pixel_buffer[y_indx * dest.?.width + x_indx].set_b(bgb);
                 dest.?.ascii_buffer[y_indx * self.terminal.size.width + x_indx] = symbol;
             }
         }
@@ -198,7 +211,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             self.draw_symbol_bg(x, y, symbol, p, dest, 0, 0, 0, false);
         }
         //TODO fix by removing stack references and setting the ascii buffer in graphics/texture objects
-        pub fn draw_ascii_buffer(self: *Self, pixel_buffer: []texture.Pixel, ascii_buffer: []u8, width: u32, height: u32, src: Rectangle, dest_rect: Rectangle, dest: ?texture.Texture) Error!void {
+        pub fn draw_ascii_buffer(self: *Self, pixel_buffer: []texture.Pixel, background_pixel_buffer: []texture.Pixel, ascii_buffer: []u8, width: u32, height: u32, src: Rectangle, dest_rect: Rectangle, dest: ?texture.Texture) Error!void {
             var tex_indx: usize = (@as(u32, @bitCast(src.y)) * width + @as(u32, @bitCast(src.x)));
             if (src.height > height or src.width > width) {
                 return Error.TextureError;
@@ -228,30 +241,20 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                         }
                         const i_usize: usize = @intCast(i);
                         const j_usize: usize = @intCast(j);
-                        // have alpha channel
-                        var r: u8 = pixel_buffer[tex_indx].get_r();
-                        var g: u8 = pixel_buffer[tex_indx].get_g();
-                        var b: u8 = pixel_buffer[tex_indx].get_b();
-                        if (pixel_buffer[tex_indx].get_a() != 255) {
-                            const max_pixel = 255.0;
-                            const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
-                            var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(r)), @as(f32, @floatFromInt(g)), @as(f32, @floatFromInt(b)), @as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) };
-                            end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)));
-                            const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.r)), @as(f32, @floatFromInt(bkgd.g)), @as(f32, @floatFromInt(bkgd.b)), 255.0 };
-                            end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)))) * bkgd_vec;
-                            r = @as(u8, @intFromFloat(end_color[0]));
-                            g = @as(u8, @intFromFloat(end_color[1]));
-                            b = @as(u8, @intFromFloat(end_color[2]));
-                        }
 
                         switch (color_type) {
                             .color_256 => {
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = term.rgb_256(r, g, b);
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = term.rgb_256(pixel_buffer[tex_indx].get_r(), pixel_buffer[tex_indx].get_g(), pixel_buffer[tex_indx].get_b());
+                                self.background_pixel_buffer[j_usize * self.terminal.size.width + i_usize] = term.rgb_256(background_pixel_buffer[tex_indx].get_r(), background_pixel_buffer[tex_indx].get_g(), background_pixel_buffer[tex_indx].get_b());
                             },
                             .color_true => {
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = r;
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].g = g;
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = b;
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = pixel_buffer[tex_indx].get_r();
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].g = pixel_buffer[tex_indx].get_g();
+                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = pixel_buffer[tex_indx].get_b();
+
+                                self.background_pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = background_pixel_buffer[tex_indx].get_r();
+                                self.background_pixel_buffer[j_usize * self.terminal.size.width + i_usize].g = background_pixel_buffer[tex_indx].get_g();
+                                self.background_pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = background_pixel_buffer[tex_indx].get_b();
                             },
                         }
                         self.ascii_buffer[j_usize * self.terminal.size.width + i_usize] = ascii_buffer[tex_indx];
@@ -279,31 +282,22 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                         }
                         const i_usize: usize = @intCast(i);
                         const j_usize: usize = @intCast(j);
-                        // have alpha channel
-                        var r: u8 = pixel_buffer[tex_indx].get_r();
-                        var g: u8 = pixel_buffer[tex_indx].get_g();
-                        var b: u8 = pixel_buffer[tex_indx].get_b();
-                        if (pixel_buffer[tex_indx].get_a() != 255) {
-                            const max_pixel = 255.0;
-                            const bkgd = dest.?.pixel_buffer[j_usize * dest.?.width + i_usize];
-                            var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(r)), @as(f32, @floatFromInt(g)), @as(f32, @floatFromInt(b)), @as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) };
-                            end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)));
-                            const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.get_r())), @as(f32, @floatFromInt(bkgd.get_g())), @as(f32, @floatFromInt(bkgd.get_b())), @as(f32, @floatFromInt(bkgd.get_a())) };
-                            end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)))) * bkgd_vec;
-                            r = @as(u8, @intFromFloat(end_color[0]));
-                            g = @as(u8, @intFromFloat(end_color[1]));
-                            b = @as(u8, @intFromFloat(end_color[2]));
-                        }
 
                         switch (color_type) {
                             .color_256 => {
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_r(term.rgb_256(r, g, b));
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_r(term.rgb_256(pixel_buffer[tex_indx].get_r(), pixel_buffer[tex_indx].get_g(), pixel_buffer[tex_indx].get_b()));
+                                dest.?.background_pixel_buffer[j_usize * dest.?.width + i_usize].set_r(term.rgb_256(background_pixel_buffer[tex_indx].get_r(), background_pixel_buffer[tex_indx].get_g(), background_pixel_buffer[tex_indx].get_b()));
                             },
                             .color_true => {
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_r(r);
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_g(g);
-                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_b(b);
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_r(pixel_buffer[tex_indx].get_r());
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_g(pixel_buffer[tex_indx].get_g());
+                                dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_b(pixel_buffer[tex_indx].get_b());
                                 dest.?.pixel_buffer[j_usize * dest.?.width + i_usize].set_a(pixel_buffer[tex_indx].get_a());
+
+                                dest.?.background_pixel_buffer[j_usize * dest.?.width + i_usize].set_r(background_pixel_buffer[tex_indx].get_r());
+                                dest.?.background_pixel_buffer[j_usize * dest.?.width + i_usize].set_g(background_pixel_buffer[tex_indx].get_g());
+                                dest.?.background_pixel_buffer[j_usize * dest.?.width + i_usize].set_b(background_pixel_buffer[tex_indx].get_b());
+                                dest.?.background_pixel_buffer[j_usize * dest.?.width + i_usize].set_a(background_pixel_buffer[tex_indx].get_a());
                             },
                         }
                         dest.?.ascii_buffer[j_usize * dest.?.width + i_usize] = ascii_buffer[tex_indx];
@@ -316,7 +310,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
         }
 
         pub fn draw_texture(self: *Self, tex: texture.Texture, src_rect: Rectangle, dest_rect: Rectangle, dest: ?texture.Texture) Error!void {
-            try self.draw_ascii_buffer(tex.pixel_buffer, tex.ascii_buffer, tex.width, tex.height, src_rect, dest_rect, dest);
+            try self.draw_ascii_buffer(tex.pixel_buffer, tex.background_pixel_buffer, tex.ascii_buffer, tex.width, tex.height, src_rect, dest_rect, dest);
         }
 
         //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
@@ -336,11 +330,17 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                         while (x < x_bound) : (x += 1) {
                             if (color_type == .color_256) {
                                 self.pixel_buffer[buffer_indx] = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
+                                self.background_pixel_buffer[buffer_indx] = dest.?.background_pixel_buffer[y * dest.?.width + x].get_r();
                             } else {
                                 self.pixel_buffer[buffer_indx].r = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
                                 self.pixel_buffer[buffer_indx].g = dest.?.pixel_buffer[y * dest.?.width + x].get_g();
                                 self.pixel_buffer[buffer_indx].b = dest.?.pixel_buffer[y * dest.?.width + x].get_b();
+
+                                self.background_pixel_buffer[buffer_indx].r = dest.?.background_pixel_buffer[y * dest.?.width + x].get_r();
+                                self.background_pixel_buffer[buffer_indx].g = dest.?.background_pixel_buffer[y * dest.?.width + x].get_g();
+                                self.background_pixel_buffer[buffer_indx].b = dest.?.background_pixel_buffer[y * dest.?.width + x].get_b();
                             }
+                            self.ascii_buffer[buffer_indx] = dest.?.ascii_buffer[y * dest.?.width + x];
                             buffer_indx += 1;
                         }
                     }
@@ -353,7 +353,8 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             const width = self.terminal.size.width;
             const height = self.terminal.size.height * 2;
             var prev_fg_pixel: PixelType = self.pixel_buffer[j * width + i];
-            var prev_bg_pixel: PixelType = self.pixel_buffer[(j + 1) * width + i];
+            var prev_bg_pixel: PixelType = self.background_pixel_buffer[j * width + i];
+            var prev_ascii: u8 = self.ascii_buffer[j * width + i];
             var dirty_pixel_buffer: [48]u8 = undefined;
             if (color_type == .color_256) {
                 for (term.FG[prev_fg_pixel]) |c| {
@@ -386,9 +387,10 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                 i = 0;
                 while (i < width) : (i += 1) {
                     const fg_pixel = self.pixel_buffer[j * width + i];
-                    const bg_pixel = self.pixel_buffer[(j + 1) * width + i];
+                    const bg_pixel = self.background_pixel_buffer[j * width + i];
+                    const ascii = self.ascii_buffer[j * width + i];
                     const last_fg_pixel = self.last_frame[j * width + i];
-                    const last_bg_pixel = self.last_frame[(j + 1) * width + i];
+                    const last_bg_pixel = self.background_last_frame[j * width + i];
                     if (!self.first_render) {
                         switch (color_type) {
                             .color_256 => {
@@ -396,7 +398,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                                     continue;
                                 }
                                 self.last_frame[j * width + i] = fg_pixel;
-                                self.last_frame[(j + 1) * width + i] = bg_pixel;
+                                self.background_last_frame[j * width + i] = bg_pixel;
                             },
                             .color_true => {
                                 if (fg_pixel.r == last_fg_pixel.r and bg_pixel.r == last_bg_pixel.r and fg_pixel.g == last_fg_pixel.g and bg_pixel.g == last_bg_pixel.g and fg_pixel.b == last_fg_pixel.b and bg_pixel.b == last_bg_pixel.b) {
@@ -405,9 +407,9 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                                 self.last_frame[j * width + i].r = fg_pixel.r;
                                 self.last_frame[j * width + i].g = fg_pixel.g;
                                 self.last_frame[j * width + i].b = fg_pixel.b;
-                                self.last_frame[(j + 1) * width + i].r = bg_pixel.r;
-                                self.last_frame[(j + 1) * width + i].g = bg_pixel.g;
-                                self.last_frame[(j + 1) * width + i].b = bg_pixel.b;
+                                self.background_last_frame[j * width + i].r = bg_pixel.r;
+                                self.background_last_frame[j * width + i].g = bg_pixel.g;
+                                self.background_last_frame[j * width + i].b = bg_pixel.b;
                             },
                         }
 
