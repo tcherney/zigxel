@@ -50,7 +50,7 @@ pub const Texture = struct {
             }
             self.background_pixel_buffer = try self.allocator.alloc(Pixel, height * width);
             for (0..self.background_pixel_buffer.len) |i| {
-                self.background_pixel_buffer[i] = Pixel.init(r, g, b, a);
+                self.background_pixel_buffer[i] = Pixel.init(0, 0, 0, 255);
             }
         }
         self.loaded = true;

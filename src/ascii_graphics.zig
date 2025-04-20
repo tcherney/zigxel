@@ -174,13 +174,13 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             }
         }
 
-        pub fn draw_symbol_bg(self: *Self, x: i32, y: i32, symbol: u8, p: texture.Pixel, dest: ?texture.Texture, bgr: u8, bgg: u8, bgb: u8, custom_bg: bool) void {
+        pub fn draw_symbol_bg(self: *Self, x: i32, y: i32, symbol: u8, p: texture.Pixel, dest: ?texture.Texture, bgr: u8, bgg: u8, bgb: u8) void {
             if (dest == null) {
-                if (x < 0 or x >= @as(i32, @bitCast(self.terminal.size.width)) or y >= @as(i32, @bitCast(self.terminal.size.height)) or y < 0) {
+                if (x < 0 or x >= @as(i32, @intCast(self.terminal.size.width)) or y >= @as(i32, @intCast(self.terminal.size.height)) or y < 0) {
                     return;
                 }
-                const x_indx: usize = @bitCast(x);
-                const y_indx: usize = @bitCast(y);
+                const x_indx: usize = @intCast(x);
+                const y_indx: usize = @intCast(y);
 
                 self.background_pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = bgr;
                 self.background_pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = bgg;
@@ -191,12 +191,12 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                 self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.get_b();
                 self.ascii_buffer[y_indx * self.terminal.size.width + x_indx] = symbol;
             } else {
-                if (x < 0 or x >= @as(i32, @bitCast(dest.?.width)) or y >= @as(i32, @bitCast(dest.?.height)) or y < 0) {
+                if (x < 0 or x >= @as(i32, @intCast(dest.?.width)) or y >= @as(i32, @intCast(dest.?.height)) or y < 0) {
                     return;
                 }
-                const x_indx: usize = @bitCast(x);
-                const y_indx: usize = @bitCast(y);
-                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_r(p.get_a());
+                const x_indx: usize = @intCast(x);
+                const y_indx: usize = @intCast(y);
+                dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_r(p.get_r());
                 dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_g(p.get_g());
                 dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_b(p.get_b());
                 dest.?.pixel_buffer[y_indx * dest.?.width + x_indx].set_a(p.get_a());
@@ -208,7 +208,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
         }
 
         pub fn draw_symbol(self: *Self, x: i32, y: i32, symbol: u8, p: texture.Pixel, dest: ?texture.Texture) void {
-            self.draw_symbol_bg(x, y, symbol, p, dest, 0, 0, 0, false);
+            self.draw_symbol_bg(x, y, symbol, p, dest, 0, 0, 0);
         }
         //TODO fix by removing stack references and setting the ascii buffer in graphics/texture objects
         pub fn draw_ascii_buffer(self: *Self, pixel_buffer: []texture.Pixel, background_pixel_buffer: []texture.Pixel, ascii_buffer: []u8, width: u32, height: u32, src: Rectangle, dest_rect: Rectangle, dest: ?texture.Texture) Error!void {
@@ -345,6 +345,31 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                         }
                     }
                 }
+            } else if (dest != null) {
+                var y: usize = 0;
+                var buffer_indx: usize = 0;
+                const y_bound = @min(self.terminal.size.height, dest.?.height);
+                var x: usize = 0;
+                const x_bound = @min(self.terminal.size.width, dest.?.width);
+                while (y < y_bound) : (y += 1) {
+                    x = 0;
+                    while (x < x_bound) : (x += 1) {
+                        if (color_type == .color_256) {
+                            self.pixel_buffer[buffer_indx] = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
+                            self.background_pixel_buffer[buffer_indx] = dest.?.background_pixel_buffer[y * dest.?.width + x].get_r();
+                        } else {
+                            self.pixel_buffer[buffer_indx].r = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
+                            self.pixel_buffer[buffer_indx].g = dest.?.pixel_buffer[y * dest.?.width + x].get_g();
+                            self.pixel_buffer[buffer_indx].b = dest.?.pixel_buffer[y * dest.?.width + x].get_b();
+
+                            self.background_pixel_buffer[buffer_indx].r = dest.?.background_pixel_buffer[y * dest.?.width + x].get_r();
+                            self.background_pixel_buffer[buffer_indx].g = dest.?.background_pixel_buffer[y * dest.?.width + x].get_g();
+                            self.background_pixel_buffer[buffer_indx].b = dest.?.background_pixel_buffer[y * dest.?.width + x].get_b();
+                        }
+                        self.ascii_buffer[buffer_indx] = dest.?.ascii_buffer[y * dest.?.width + x];
+                        buffer_indx += 1;
+                    }
+                }
             }
             var buffer_len: usize = 0;
 
@@ -354,7 +379,6 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             const height = self.terminal.size.height * 2;
             var prev_fg_pixel: PixelType = self.pixel_buffer[j * width + i];
             var prev_bg_pixel: PixelType = self.background_pixel_buffer[j * width + i];
-            var prev_ascii: u8 = self.ascii_buffer[j * width + i];
             var dirty_pixel_buffer: [48]u8 = undefined;
             if (color_type == .color_256) {
                 for (term.FG[prev_fg_pixel]) |c| {
@@ -383,7 +407,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             }
             //GRAPHICS_LOG.debug("width height {d} {d}\n", .{ width, height });
             // each pixel is an index into the possible 256 colors
-            while (j < height) : (j += 2) {
+            while (j < height) : (j += 1) {
                 i = 0;
                 while (i < width) : (i += 1) {
                     const fg_pixel = self.pixel_buffer[j * width + i];
@@ -391,17 +415,19 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                     const ascii = self.ascii_buffer[j * width + i];
                     const last_fg_pixel = self.last_frame[j * width + i];
                     const last_bg_pixel = self.background_last_frame[j * width + i];
+                    const last_ascii = self.ascii_last_frame[j * width + i];
                     if (!self.first_render) {
                         switch (color_type) {
                             .color_256 => {
-                                if (fg_pixel == last_fg_pixel and bg_pixel == last_bg_pixel) {
+                                if (fg_pixel == last_fg_pixel and bg_pixel == last_bg_pixel and ascii == last_ascii) {
                                     continue;
                                 }
                                 self.last_frame[j * width + i] = fg_pixel;
                                 self.background_last_frame[j * width + i] = bg_pixel;
+                                self.ascii_last_frame[j * width + i] = ascii;
                             },
                             .color_true => {
-                                if (fg_pixel.r == last_fg_pixel.r and bg_pixel.r == last_bg_pixel.r and fg_pixel.g == last_fg_pixel.g and bg_pixel.g == last_bg_pixel.g and fg_pixel.b == last_fg_pixel.b and bg_pixel.b == last_bg_pixel.b) {
+                                if (fg_pixel.r == last_fg_pixel.r and bg_pixel.r == last_bg_pixel.r and fg_pixel.g == last_fg_pixel.g and bg_pixel.g == last_bg_pixel.g and fg_pixel.b == last_fg_pixel.b and bg_pixel.b == last_bg_pixel.b and ascii == last_ascii) {
                                     continue;
                                 }
                                 self.last_frame[j * width + i].r = fg_pixel.r;
@@ -410,10 +436,11 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                                 self.background_last_frame[j * width + i].r = bg_pixel.r;
                                 self.background_last_frame[j * width + i].g = bg_pixel.g;
                                 self.background_last_frame[j * width + i].b = bg_pixel.b;
+                                self.ascii_last_frame[j * width + i] = ascii;
                             },
                         }
 
-                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ (j / 2) + 1, i + 1 })) |c| {
+                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ j + 1, i + 1 })) |c| {
                             self.terminal_buffer[buffer_len] = c;
                             buffer_len += 1;
                         }
@@ -422,10 +449,8 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                     switch (color_type) {
                         .color_256 => {
                             if (bg_pixel == prev_fg_pixel and fg_pixel == prev_bg_pixel) {
-                                for (LOWER_PX) |c| {
-                                    self.terminal_buffer[buffer_len] = c;
-                                    buffer_len += 1;
-                                }
+                                self.terminal_buffer[buffer_len] = ascii;
+                                buffer_len += 1;
                             } else {
                                 if (prev_fg_pixel != fg_pixel) {
                                     prev_fg_pixel = fg_pixel;
@@ -441,24 +466,14 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                                         buffer_len += 1;
                                     }
                                 }
-
-                                if (fg_pixel == bg_pixel) {
-                                    self.terminal_buffer[buffer_len] = ' ';
-                                    buffer_len += 1;
-                                } else {
-                                    for (UPPER_PX) |c| {
-                                        self.terminal_buffer[buffer_len] = c;
-                                        buffer_len += 1;
-                                    }
-                                }
+                                self.terminal_buffer[buffer_len] = ascii;
+                                buffer_len += 1;
                             }
                         },
                         .color_true => {
                             if (bg_pixel.r == prev_fg_pixel.r and fg_pixel.r == prev_bg_pixel.r and bg_pixel.g == prev_fg_pixel.g and fg_pixel.g == prev_bg_pixel.g and bg_pixel.b == prev_fg_pixel.b and fg_pixel.b == prev_bg_pixel.b) {
-                                for (LOWER_PX) |c| {
-                                    self.terminal_buffer[buffer_len] = c;
-                                    buffer_len += 1;
-                                }
+                                self.terminal_buffer[buffer_len] = ascii;
+                                buffer_len += 1;
                             } else {
                                 if (prev_fg_pixel.r != fg_pixel.r or prev_fg_pixel.g != fg_pixel.g or prev_fg_pixel.b != fg_pixel.b) {
                                     prev_fg_pixel.r = fg_pixel.r;
@@ -479,15 +494,8 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
                                     }
                                 }
 
-                                if (fg_pixel.r == bg_pixel.r and fg_pixel.g == bg_pixel.g and fg_pixel.b == bg_pixel.b) {
-                                    self.terminal_buffer[buffer_len] = ' ';
-                                    buffer_len += 1;
-                                } else {
-                                    for (UPPER_PX) |c| {
-                                        self.terminal_buffer[buffer_len] = c;
-                                        buffer_len += 1;
-                                    }
-                                }
+                                self.terminal_buffer[buffer_len] = ascii;
+                                buffer_len += 1;
                             }
                         },
                     }
