@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const graphics = @import("graphics.zig");
-const ascii_graphics = @import("ascii_graphics.zig");
+pub const graphics = @import("graphics.zig");
+pub const ascii_graphics = @import("ascii_graphics.zig");
 const event_manager = @import("event_manager.zig");
 const term = @import("term");
 const common = @import("common");
