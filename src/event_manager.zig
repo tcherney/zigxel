@@ -225,8 +225,12 @@ pub const EventManager = struct {
                 if (self.key_down_callback != null) {
                     self.key_down_callback.?.call(@enumFromInt(byte));
                 }
+                //TODO this is not working on linux the mouse file is not getting opened, need to just use xlib
                 if (self.mouse != null) {
+                    EVENT_LOG.info("mouse attempt {any}\n", .{mouse_events});
+                    //TODO if we want to use this we will have to figure out non blocking io for this FD
                     const num_bytes = try self.mouse.?.read(&mouse_events);
+                    EVENT_LOG.info("read mouse {any}\n", .{mouse_events});
                     if (num_bytes > 0) {
                         const left = mouse_events[0] & 0x1;
                         const right = mouse_events[0] & 0x2;

@@ -10,7 +10,8 @@ const UPPER_PX = "▀";
 //const FULL_PX = "█";
 const LOWER_PX = "▄";
 //▀█▄
-
+//TODO need to fix graphics assumtion about the height provided from the terminal lib
+//TODO terminal lib should just give the height in rows
 pub const GraphicsType = enum { _2d, _2D, _3d, _3D, ascii };
 pub const ColorMode = enum {
     color_256,
