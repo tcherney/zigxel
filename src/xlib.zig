@@ -4,8 +4,12 @@ const std = @import("std");
 //     @cInclude("X11/Xlib.h");
 // });
 
-pub const Display = struct {};
-pub const Window = struct {};
+pub const Display = struct {
+    //TODO
+};
+pub const Window = struct {
+    //TODO
+};
 //TODO might need to convert bool to int type
 pub const XAnyEvent = struct {
     type: i32,
@@ -34,6 +38,125 @@ pub const XKeyEvent = struct {
     keycode: u32,
     same_screen: bool,
 };
+
+pub const XButtonEvent = struct {
+    type: i32,
+    serial: u32,
+    send_event: bool,
+    display: *Display,
+    window: Window,
+    root: Window,
+    subwindow: Window,
+    time: Time,
+    x: i32,
+    y: i32,
+    x_root: i32,
+    y_root: i32,
+    state: u32,
+    keycode: u32,
+    same_screen: bool,
+};
+
+pub const XMotionEvent = struct {
+    type: i32,
+    serial: u32,
+    send_event: bool,
+    display: *Display,
+    window: Window,
+    root: Window,
+    subwindow: Window,
+    time: Time,
+    x: i32,
+    y: i32,
+    x_root: i32,
+    y_root: i32,
+    state: u32,
+    keycode: u32,
+    same_screen: bool,
+};
+
+pub const XCrossingEvent = struct {
+    //TODO
+};
+pub const XFocusChangeEvent = struct {
+    //TODO
+};
+pub const XExposeEvent = struct {
+    //TODO
+};
+pub const XGraphicsExposeEvent = struct {
+    //TODO
+};
+pub const XNoExposeEvent = struct {
+    //TODO
+};
+pub const XVisibilityEvent = struct {
+    //TODO
+};
+pub const XCreateWindowEvent = struct {
+    //TODO
+};
+pub const XDestroyWindowEvent = struct {
+    //TODO
+};
+pub const XUnmapEvent = struct {
+    //TODO
+};
+pub const XMapEvent = struct {
+    //TODO
+};
+pub const XMapRequestEvent = struct {
+    //TODO
+};
+pub const XReparentEvent = struct {
+    //TODO
+};
+pub const XConfigureEvent = struct {
+    //TODO
+};
+pub const XGravityEvent = struct {
+    //TODO
+};
+pub const XResizeRequestEvent = struct {
+    //TODO
+};
+pub const XConfigureRequestEvent = struct {
+    //TODO
+};
+pub const XCirculateEvent = struct {
+    //TODO
+};
+pub const XCirculateRequestEvent = struct {
+    //TODO
+};
+pub const XPropertyEvent = struct {
+    //TODO
+};
+pub const XSelectionClearEvent = struct {
+    //TODO
+};
+pub const XSelectionRequestEvent = struct {
+    //TODO
+};
+pub const XSelectionEvent = struct {
+    //TODO
+};
+pub const XColormapEvent = struct {
+    //TODO
+};
+pub const XClientMessageEvent = struct {
+    //TODO
+};
+pub const XMappingEvent = struct {
+    //TODO
+};
+pub const XErrorEvent = struct {
+    //TODO
+};
+pub const XKeymapEvent = struct {
+    //TODO
+};
+
 pub const XEvent = struct {
     type: i32,
     xany: XAnyEvent,
