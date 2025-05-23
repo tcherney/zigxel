@@ -13,6 +13,13 @@ pub const XExtData = struct {
     pub const Self = @This();
 };
 
+pub const ScreenFormat = struct {
+    ext_data: *XExtData,
+    depth: i32,
+    bits_per_pixel: i32,
+    scan_line_pad: i32,
+};
+
 pub const KeyCode = u8;
 
 pub const XmodifierKeymap = struct {
@@ -35,52 +42,132 @@ pub const XFreeFuncs = struct {
     xkb: FreeFuncType,
 };
 
+pub const XSQEvent = struct {
+    next: *XSQEvent,
+    event: XEvent,
+    qserial_num: u32
+};
+
+pub const NTable = struct {
+    next: *NTable,
+    name: XrmQuark,
+    tight: u32 = 1,
+    leaf: u32 = 1,
+    hasloose: u32 = 1,
+    hasany: u32 = 1,
+    pad: u32 = 4,
+    mask: u32 = 8,
+    entries: u32 = 16,
+};
+pub const XmbInitProc = fn(state: XPointer) void;
+pub const XmbCharProc = fn(state: XPointer, str: XPointer, lenp: *i32) u8;
+pub const XmbFinishProc = fn(state: XPointer) void;
+pub const XlcNameProc = fn(state: XPointer) XPointer;
+pub const XrmDestroyProc = fn(state: XPointer) void;
+
+pub const XrmMethods = struct {
+    mbinit: XmbInitProc,
+    mbchar: XmbCharProc,
+    mbfinish: XmbFinishProc,
+    lcname: XlcNameProc,
+    destroy: XrmDestroyProc,
+};
+
+// XTHREADS LockInfoRec linfo
+pub const XrmHashBucketRec = struct {
+    table: NTable,
+    mbstate: XPointer,
+    methods: XrmMethods,
+};
+
+pub const Depth = struct {
+    depth: i32,
+    nvisuals: i32,
+    visuals: [*]Visual,
+};
+
+pub const Visual = struct {
+    ext_data: *XExtData,
+    visualid: VisualID,
+    class: i32,
+    red_mask: u32,
+    green_mask: u32,
+    blue_mask: u32,
+    bits_per_rgb: i32,
+    map_entries: i32,
+};
+
+pub const GC = struct {
+    ext_data: *XExtData,
+    gid: GContext,
+};
+
+pub const Screen = struct {
+    ext_data: *XExtData,
+    display: *Display,
+    root: Window,
+    width: i32,
+    height: i32,
+    mwidth: i32,
+    mheight: i32,
+    ndepths: i32,
+    depths: [*]Depth,
+    root_depth: i32,
+    root_visual: *Visual,
+    default_gc: GC,
+    cmap: Colormap,
+    white_pixel: u32,
+    black_pixel: u32,
+    max_maps: i32,
+    min_maps: i32,
+    backing_store: i32,
+    save_unders: bool,
+    root_input_mask: i32,
+};
+
 pub const Display = struct {
     ext_data: *XExtData,
 	free_funcs: *XFreeFuncs,
-	int fd;			/* Network socket. */
-	int conn_checker;         /* ugly thing used by _XEventsQueued */
-	int proto_major_version;/* maj. version of server's X protocol */
-	int proto_minor_version;/* minor version of server's X protocol */
-	char *vendor;		/* vendor of the server hardware */
-        XID resource_base;	/* resource ID base */
-	XID resource_mask;	/* resource ID mask bits */
-	XID resource_id;	/* allocator current ID */
-	int resource_shift;	/* allocator shift to correct bits */
-	XID (*resource_alloc)(	/* allocator function */
-		struct _XDisplay*
-		);
-	int byte_order;		/* screen byte order, LSBFirst, MSBFirst */
-	int bitmap_unit;	/* padding and data requirements */
-	int bitmap_pad;		/* padding requirements on bitmaps */
-	int bitmap_bit_order;	/* LeastSignificant or MostSignificant */
-	int nformats;		/* number of pixmap formats in list */
-	ScreenFormat *pixmap_format;	/* pixmap format list */
-	int vnumber;		/* Xlib's X protocol version number. */
-	int release;		/* release of the server */
-	struct _XSQEvent *head, *tail;	/* Input event queue. */
-	int qlen;		/* Length of input event queue */
-	unsigned long last_request_read; /* seq number of last event read */
-	unsigned long request;	/* sequence number of last request. */
-	char *last_req;		/* beginning of last request, or dummy */
-	char *buffer;		/* Output buffer starting address. */
-	char *bufptr;		/* Output buffer index pointer. */
-	char *bufmax;		/* Output buffer maximum+1 address. */
-	unsigned max_request_size; /* maximum number 32 bit words in request*/
-	struct _XrmHashBucketRec *db;
-	int (*synchandler)(	/* Synchronization handler */
-		struct _XDisplay*
-		);
-	char *display_name;	/* "host:display" string used on this connect*/
-	int default_screen;	/* default screen for operations */
-	int nscreens;		/* number of screens on this server*/
-	Screen *screens;	/* pointer to list of screens */
-	unsigned long motion_buffer;	/* size of motion buffer */
-	unsigned long flags;	   /* internal connection flags */
-	int min_keycode;	/* minimum defined keycode */
-	int max_keycode;	/* maximum defined keycode */
-	KeySym *keysyms;	/* This server's keysyms */
-	XModifierKeymap *modifiermap;	/* This server's modifier keymap */
+	fd: i32,
+	conn_checker: i32,
+	proto_major_version: i32,
+	proto_minor_version: i32,
+	vendor: XPointer,
+    resource_base: u32,
+	resource_mask: u32,
+	resource_id: u32,
+	resource_shift: i32,
+    resource_alloc: fn (Self) u32,
+	byte_order: i32,
+	bitmap_unit: i32,
+	bitmap_pad: i32,
+	bitmap_bit_order: i32,
+	nformats: i32,
+	pixmap_format: ScreenFormat,
+	vnumber: i32,
+	release: i32,
+	head: *XSQEvent,
+    tail: *XSQEvent,
+	qlen: i32,
+	last_request_read: u32,
+	request: u32,
+	last_req: XPointer,
+	buffer: XPointer,
+	bufptr: XPointer,
+	bufmax: XPointer,
+	max_request_size: u32,
+	db: *XrmHashBucketRec,
+    synchandler: fn(*Self) i32,
+	display_name: XPointer,
+	default_screen: i32,
+	nscreens: i32,
+	screens: [*]Screen,
+	motion_buffer: u32,
+	flags: u32,
+	min_keycode: i32,
+	max_keycode: i32,
+	keysyms: [*]KeySym,
+	modifiermap: *XmodifierKeymap,
 	int keysyms_per_keycode;/* number of rows */
 	char *xdefaults;	/* contents of defaults from server */
 	char *scratch_buffer;	/* place to hang scratch buffer */
@@ -152,6 +239,7 @@ pub const Display = struct {
 	int xcmisc_opcode;	/* major opcode for XC-MISC */
 	struct _XkbInfoRec *xkb_info; /* XKB info */
 	struct _XtransConnInfo *trans_conn; /* transport connection object */
+    const Self = @This();
 };
 pub const Window = u32;
 pub const Drawable = u32;
@@ -159,6 +247,9 @@ pub const Time = u32;
 pub const Atom = u32;
 pub const Colormap = u32;
 pub const XPointer = [*]u8;
+pub const VisualID = u32;
+pub const GContext = u32;
+pub const KeySym = u32;
 
 //TODO might need to convert bool to int type
 pub const XAnyEvent = struct {
