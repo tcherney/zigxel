@@ -125,6 +125,84 @@ pub const Screen = struct {
     root_input_mask: i32,
 };
 
+pub const XExtCodes = struct {
+    extension: i32,
+    major_opcode: i32,
+    first_event: i32,
+    first_error: i32,
+};
+
+pub const XFontProp = struct {
+    name: Atom,
+    card32: u32,
+};
+
+pub const XCharStruct = struct {
+    lbearing: i16,
+    rbearing: i16,
+    width: i16,
+    ascent: i16,
+    descent: i16,
+    attributes: u16,
+};
+
+pub const XFontStruct = struct {
+    ext_data: *XExtData,
+    fid: Font,
+    direction: u8,
+    min_char_or_byte2: u8,
+    max_char_or_byte2: u8,
+    min_byte1: u8,
+    max_byte1: u8,
+    all_chars_exist: bool,
+    default_char: u8,
+    n_properties: i32,
+    properties: [*]XFontProp,
+    min_bounds: XCharStruct,
+    max_bounds: XCharStruct,
+    per_char: *XCharStruct,
+    ascent: i32,
+    descent: i32,
+};
+
+pub const XError = struct {
+    type: u8,
+    errorCode: u8,
+    sequenceNumber: u16,
+    resourceID: u32,
+    minorCode: u16,
+    majorCode: u8,
+    pad1: u8,
+    pad3: u32,
+    pad4: u32,
+    pad5: u32,
+    pad6: u32,
+    pad7: u32,
+};
+
+pub const XExten = struct {
+    next: *XExten,
+    codes: XExtCodes,
+    create_GC: fn(*Display, GC, *XExtCodes) i32,
+    copy_GC: fn(*Display, GC, *XExtCodes) i32,
+    flush_GC: fn(*Display, GC, *XExtCodes) i32,
+    free_GC: fn(*Display, GC, *XExtCodes) i32,
+    create_Font: fn(*Display, *XFontStruct, *XExtCodes) i32,
+    free_Font: fn(*Display, *XFontStruct, *XExtCodes) i32,
+    close_display: fn(*Display, *XExtCodes) i32,
+    err: fn(*Display, *XError, *XExtCodes, *i32) i32,
+    error_string: fn(*Display, i32, *XExtCodes, XPointer, i32) i32,
+    name: XPointer,
+    error_values: fn(*Display, *XErrorEvent, anyopaque) i32,
+    before_flush: fn(*Display, *XExtCodes, XPointer, i32) i32,
+};
+
+pub const xEvent = struct {
+
+};
+
+// https://cgit.freedesktop.org/xorg/proto/xproto/tree/Xproto.h
+
 pub const Display = struct {
     ext_data: *XExtData,
 	free_funcs: *XFreeFuncs,
@@ -168,31 +246,15 @@ pub const Display = struct {
 	max_keycode: i32,
 	keysyms: [*]KeySym,
 	modifiermap: *XmodifierKeymap,
-	int keysyms_per_keycode;/* number of rows */
-	char *xdefaults;	/* contents of defaults from server */
-	char *scratch_buffer;	/* place to hang scratch buffer */
-	unsigned long scratch_length;	/* length of scratch buffer */
-	int ext_number;		/* extension number on this display */
-	struct _XExten *ext_procs; /* extensions initialized on this display */
-	/*
-	 * the following can be fixed size, as the protocol defines how
-	 * much address space is available. 
-	 * While this could be done using the extension vector, there
-	 * may be MANY events processed, so a search through the extension
-	 * list to find the right procedure for each event might be
-	 * expensive if many extensions are being used.
-	 */
-	Bool (*event_vec[128])(	/* vector for wire to event */
-		Display *	/* dpy */,
-		XEvent *	/* re */,
-		xEvent *	/* event */
-		);
-	Status (*wire_vec[128])( /* vector for event to wire */
-		Display *	/* dpy */,
-		XEvent *	/* re */,
-		xEvent *	/* event */
-		);
-	KeySym lock_meaning;	   /* for XLookupString */
+	keysyms_per_keycode: i32,
+	xdefaults: XPointer,
+	scratch_buffer: XPointer,
+	scratch_length: u32,
+	ext_number: i32,
+    ext_procs: *XExten,
+    event_vec: fn(*Display, *XEvent, *xEvent) bool,
+    wire_vec: fn(*Display, *XEvent, *xEvent) i32,
+	lock_meaning: KeySym,
 	struct _XLockInfo *lock;   /* multi-thread state, display lock */
 	struct _XInternalAsync *async_handlers; /* for internal async */
 	unsigned long bigreq_size; /* max size of big requests */
@@ -250,6 +312,7 @@ pub const XPointer = [*]u8;
 pub const VisualID = u32;
 pub const GContext = u32;
 pub const KeySym = u32;
+pub const Font = u32;
 
 //TODO might need to convert bool to int type
 pub const XAnyEvent = struct {
