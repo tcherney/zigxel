@@ -7,10 +7,9 @@ const std = @import("std");
 
 pub const XExtData = struct {
     number: i32,
-    next: *Self,
-    free_private: fn() i32,
+    next: *XExtData,
+    free_private: fn () i32,
     private_data: XPointer,
-    pub const Self = @This();
 };
 
 pub const ScreenFormat = struct {
@@ -27,8 +26,8 @@ pub const XmodifierKeymap = struct {
     modifiermap: [*]KeyCode,
 };
 
-pub const FreeFuncType = fn(display: *Display) void;
-pub const FreeModmapType = fn(xmodifier_keymap: *XmodifierKeymap) i32;
+pub const FreeFuncType = fn (display: *Display) void;
+pub const FreeModmapType = fn (xmodifier_keymap: *XmodifierKeymap) i32;
 
 pub const XFreeFuncs = struct {
     atoms: FreeFuncType,
@@ -42,11 +41,9 @@ pub const XFreeFuncs = struct {
     xkb: FreeFuncType,
 };
 
-pub const XSQEvent = struct {
-    next: *XSQEvent,
-    event: XEvent,
-    qserial_num: u32
-};
+pub const XSQEvent = struct { next: *XSQEvent, event: XEvent, qserial_num: u32 };
+
+pub const XrmQuark = struct {};
 
 pub const NTable = struct {
     next: *NTable,
@@ -59,11 +56,11 @@ pub const NTable = struct {
     mask: u32 = 8,
     entries: u32 = 16,
 };
-pub const XmbInitProc = fn(state: XPointer) void;
-pub const XmbCharProc = fn(state: XPointer, str: XPointer, lenp: *i32) u8;
-pub const XmbFinishProc = fn(state: XPointer) void;
-pub const XlcNameProc = fn(state: XPointer) XPointer;
-pub const XrmDestroyProc = fn(state: XPointer) void;
+pub const XmbInitProc = fn (state: XPointer) void;
+pub const XmbCharProc = fn (state: XPointer, str: XPointer, lenp: *i32) u8;
+pub const XmbFinishProc = fn (state: XPointer) void;
+pub const XlcNameProc = fn (state: XPointer) XPointer;
+pub const XrmDestroyProc = fn (state: XPointer) void;
 
 pub const XrmMethods = struct {
     mbinit: XmbInitProc,
@@ -183,126 +180,130 @@ pub const XError = struct {
 pub const XExten = struct {
     next: *XExten,
     codes: XExtCodes,
-    create_GC: fn(*Display, GC, *XExtCodes) i32,
-    copy_GC: fn(*Display, GC, *XExtCodes) i32,
-    flush_GC: fn(*Display, GC, *XExtCodes) i32,
-    free_GC: fn(*Display, GC, *XExtCodes) i32,
-    create_Font: fn(*Display, *XFontStruct, *XExtCodes) i32,
-    free_Font: fn(*Display, *XFontStruct, *XExtCodes) i32,
-    close_display: fn(*Display, *XExtCodes) i32,
-    err: fn(*Display, *XError, *XExtCodes, *i32) i32,
-    error_string: fn(*Display, i32, *XExtCodes, XPointer, i32) i32,
+    create_GC: fn (*Display, GC, *XExtCodes) i32,
+    copy_GC: fn (*Display, GC, *XExtCodes) i32,
+    flush_GC: fn (*Display, GC, *XExtCodes) i32,
+    free_GC: fn (*Display, GC, *XExtCodes) i32,
+    create_Font: fn (*Display, *XFontStruct, *XExtCodes) i32,
+    free_Font: fn (*Display, *XFontStruct, *XExtCodes) i32,
+    close_display: fn (*Display, *XExtCodes) i32,
+    err: fn (*Display, *XError, *XExtCodes, *i32) i32,
+    error_string: fn (*Display, i32, *XExtCodes, XPointer, i32) i32,
     name: XPointer,
-    error_values: fn(*Display, *XErrorEvent, anyopaque) i32,
-    before_flush: fn(*Display, *XExtCodes, XPointer, i32) i32,
+    error_values: fn (*Display, *XErrorEvent, anyopaque) i32,
+    before_flush: fn (*Display, *XExtCodes, XPointer, i32) i32,
 };
 
-pub const xEvent = struct {
+pub const xEvent = struct {};
 
-};
+pub const XLockInfo = struct {};
+
+pub const XInternalAsync = struct {};
+
+pub const XLockPtrs = struct {};
+
+pub const XKeytrans = struct {};
+
+pub const XDisplayAtoms = struct {};
+
+pub const XContextDB = struct {};
+
+pub const XIMFilter = struct {};
+
+pub const XConnectionInfo = struct {};
+
+pub const XConnWatchInfo = struct {};
+
+pub const XkbInfoRec = struct {};
+
+pub const XtransConnInfo = struct {};
 
 // https://cgit.freedesktop.org/xorg/proto/xproto/tree/Xproto.h
 
+//pub const Display = struct {};
+
 pub const Display = struct {
     ext_data: *XExtData,
-	free_funcs: *XFreeFuncs,
-	fd: i32,
-	conn_checker: i32,
-	proto_major_version: i32,
-	proto_minor_version: i32,
-	vendor: XPointer,
+    free_funcs: *XFreeFuncs,
+    fd: i32,
+    conn_checker: i32,
+    proto_major_version: i32,
+    proto_minor_version: i32,
+    vendor: XPointer,
     resource_base: u32,
-	resource_mask: u32,
-	resource_id: u32,
-	resource_shift: i32,
+    resource_mask: u32,
+    resource_id: u32,
+    resource_shift: i32,
     resource_alloc: fn (Self) u32,
-	byte_order: i32,
-	bitmap_unit: i32,
-	bitmap_pad: i32,
-	bitmap_bit_order: i32,
-	nformats: i32,
-	pixmap_format: ScreenFormat,
-	vnumber: i32,
-	release: i32,
-	head: *XSQEvent,
+    byte_order: i32,
+    bitmap_unit: i32,
+    bitmap_pad: i32,
+    bitmap_bit_order: i32,
+    nformats: i32,
+    pixmap_format: ScreenFormat,
+    vnumber: i32,
+    release: i32,
+    head: *XSQEvent,
     tail: *XSQEvent,
-	qlen: i32,
-	last_request_read: u32,
-	request: u32,
-	last_req: XPointer,
-	buffer: XPointer,
-	bufptr: XPointer,
-	bufmax: XPointer,
-	max_request_size: u32,
-	db: *XrmHashBucketRec,
-    synchandler: fn(*Self) i32,
-	display_name: XPointer,
-	default_screen: i32,
-	nscreens: i32,
-	screens: [*]Screen,
-	motion_buffer: u32,
-	flags: u32,
-	min_keycode: i32,
-	max_keycode: i32,
-	keysyms: [*]KeySym,
-	modifiermap: *XmodifierKeymap,
-	keysyms_per_keycode: i32,
-	xdefaults: XPointer,
-	scratch_buffer: XPointer,
-	scratch_length: u32,
-	ext_number: i32,
+    qlen: i32,
+    last_request_read: u32,
+    request: u32,
+    last_req: XPointer,
+    buffer: XPointer,
+    bufptr: XPointer,
+    bufmax: XPointer,
+    max_request_size: u32,
+    db: *XrmHashBucketRec,
+    synchandler: fn (*Self) i32,
+    display_name: XPointer,
+    default_screen: i32,
+    nscreens: i32,
+    screens: [*]Screen,
+    motion_buffer: u32,
+    flags: u32,
+    min_keycode: i32,
+    max_keycode: i32,
+    keysyms: [*]KeySym,
+    modifiermap: *XmodifierKeymap,
+    keysyms_per_keycode: i32,
+    xdefaults: XPointer,
+    scratch_buffer: XPointer,
+    scratch_length: u32,
+    ext_number: i32,
     ext_procs: *XExten,
-    event_vec: fn(*Display, *XEvent, *xEvent) bool,
-    wire_vec: fn(*Display, *XEvent, *xEvent) i32,
-	lock_meaning: KeySym,
-	struct _XLockInfo *lock;   /* multi-thread state, display lock */
-	struct _XInternalAsync *async_handlers; /* for internal async */
-	unsigned long bigreq_size; /* max size of big requests */
-	struct _XLockPtrs *lock_fns; /* pointers to threads functions */
-	void (*idlist_alloc)(	   /* XID list allocator function */
-		Display *	/* dpy */,
-		XID *		/* ids */,
-		int		/* count */
-		);
-	/* things above this line should not move, for binary compatibility */
-	struct _XKeytrans *key_bindings; /* for XLookupString */
-	Font cursor_font;	   /* for XCreateFontCursor */
-	struct _XDisplayAtoms *atoms; /* for XInternAtom */
-	unsigned int mode_switch;  /* keyboard group modifiers */
-	unsigned int num_lock;  /* keyboard numlock modifiers */
-	struct _XContextDB *context_db; /* context database */
-	Bool (**error_vec)(	/* vector for wire to error */
-		Display     *	/* display */,
-		XErrorEvent *	/* he */,
-		xError      *	/* we */
-		);
-	/*
-	 * Xcms information
-	 */
-	struct {
-	   XPointer defaultCCCs;  /* pointer to an array of default XcmsCCC */
-	   XPointer clientCmaps;  /* pointer to linked list of XcmsCmapRec */
-	   XPointer perVisualIntensityMaps;
-				  /* linked list of XcmsIntensityMap */
-	} cms;
-	struct _XIMFilter *im_filters;
-	struct _XSQEvent *qfree; /* unallocated event queue elements */
-	unsigned long next_event_serial_num; /* inserted into next queue elt */
-	struct _XExten *flushes; /* Flush hooks */
-	struct _XConnectionInfo *im_fd_info; /* _XRegisterInternalConnection */
-	int im_fd_length;	/* number of im_fd_info */
-	struct _XConnWatchInfo *conn_watchers; /* XAddConnectionWatch */
-	int watcher_count;	/* number of conn_watchers */
-	XPointer filedes;	/* struct pollfd cache for _XWaitForReadable */
-	int (*savedsynchandler)( /* user synchandler when Xlib usurps */
-		Display *	/* dpy */
-		);
-	XID resource_max;	/* allocator max ID */
-	int xcmisc_opcode;	/* major opcode for XC-MISC */
-	struct _XkbInfoRec *xkb_info; /* XKB info */
-	struct _XtransConnInfo *trans_conn; /* transport connection object */
+    event_vec: fn (*Display, *XEvent, *xEvent) bool,
+    wire_vec: fn (*Display, *XEvent, *xEvent) i32,
+    lock_meaning: KeySym,
+    lock: *XLockInfo,
+    async_handlers: *XInternalAsync,
+    bigreq_size: u32,
+    lock_fns: *XLockPtrs,
+    idlist_alloc: fn (*Display, u32, i32) void,
+    key_bindings: *XKeytrans,
+    cursor_font: Font,
+    atoms: *XDisplayAtoms,
+    mode_switch: u32,
+    num_lock: u32,
+    context_db: *XContextDB,
+    error_vec: *fn (*Display, *XErrorEvent, *XError) bool,
+    cms: struct { defaultCCCs: XPointer, clientCmaps: XPointer, perVisualIntensityMaps: XPointer },
+    im_filters: *XIMFilter,
+    qfree: *XSQEvent,
+    next_event_serial_num: u32,
+    flushes: *XExten,
+    im_fd_info: *XConnectionInfo,
+    im_fd_length: i32,
+    conn_watchers: *XConnWatchInfo,
+    watcher_count: i32,
+    filedes: XPointer,
+    savedsynchandler: fn (*Display) i32,
+    resource_max: u32,
+    xcmisc_opcode: i32,
+    xkb_info: *XkbInfoRec,
+    trans_conn: *XtransConnInfo,
     const Self = @This();
 };
+
 pub const Window = u32;
 pub const Drawable = u32;
 pub const Time = u32;
