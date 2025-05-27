@@ -1,18 +1,18 @@
 const std = @import("std");
 
 //TODO we may want to return to this idea, call everything from c then just build a wrapper around the event struct
-// const c = @cImport({
-//     @cInclude("X11/Xlib.h");
-// });
+const c = @cImport({
+    @cInclude("X11/Xlib.h");
+});
 
-pub const XExtData = struct {
+pub const XExtData = extern struct {
     number: i32,
-    next: *XExtData,
-    free_private: fn () i32,
+    next: ?*XExtData,
+    free_private: *const fn () callconv(.C) c_int,
     private_data: XPointer,
 };
 
-pub const ScreenFormat = struct {
+pub const ScreenFormat = extern struct {
     ext_data: *XExtData,
     depth: i32,
     bits_per_pixel: i32,
@@ -21,15 +21,15 @@ pub const ScreenFormat = struct {
 
 pub const KeyCode = u8;
 
-pub const XmodifierKeymap = struct {
+pub const XmodifierKeymap = extern struct {
     max_keypermod: i32,
     modifiermap: [*]KeyCode,
 };
 
-pub const FreeFuncType = fn (display: *Display) void;
-pub const FreeModmapType = fn (xmodifier_keymap: *XmodifierKeymap) i32;
+pub const FreeFuncType = *const fn (display: ?*Display) callconv(.C) void;
+pub const FreeModmapType = *const fn (xmodifier_keymap: *XmodifierKeymap) callconv(.C) c_int;
 
-pub const XFreeFuncs = struct {
+pub const XFreeFuncs = extern struct {
     atoms: FreeFuncType,
     modifiermap: FreeModmapType,
     key_bindings: FreeFuncType,
@@ -41,11 +41,11 @@ pub const XFreeFuncs = struct {
     xkb: FreeFuncType,
 };
 
-pub const XSQEvent = struct { next: *XSQEvent, event: XEvent, qserial_num: u32 };
+pub const XSQEvent = extern struct { next: *XSQEvent, event: XEvent, qserial_num: u32 };
 
-pub const XrmQuark = struct {};
+pub const XrmQuark = extern struct {};
 
-pub const NTable = struct {
+pub const NTable = extern struct {
     next: *NTable,
     name: XrmQuark,
     tight: u32 = 1,
@@ -56,13 +56,13 @@ pub const NTable = struct {
     mask: u32 = 8,
     entries: u32 = 16,
 };
-pub const XmbInitProc = fn (state: XPointer) void;
-pub const XmbCharProc = fn (state: XPointer, str: XPointer, lenp: *i32) u8;
-pub const XmbFinishProc = fn (state: XPointer) void;
-pub const XlcNameProc = fn (state: XPointer) XPointer;
-pub const XrmDestroyProc = fn (state: XPointer) void;
+pub const XmbInitProc = *const fn (state: XPointer) callconv(.C) void;
+pub const XmbCharProc = *const fn (state: XPointer, str: XPointer, lenp: *i32) callconv(.C) u8;
+pub const XmbFinishProc = *const fn (state: XPointer) callconv(.C) void;
+pub const XlcNameProc = *const fn (state: XPointer) callconv(.C) XPointer;
+pub const XrmDestroyProc = *const fn (state: XPointer) callconv(.C) void;
 
-pub const XrmMethods = struct {
+pub const XrmMethods = extern struct {
     mbinit: XmbInitProc,
     mbchar: XmbCharProc,
     mbfinish: XmbFinishProc,
@@ -71,19 +71,19 @@ pub const XrmMethods = struct {
 };
 
 // XTHREADS LockInfoRec linfo
-pub const XrmHashBucketRec = struct {
+pub const XrmHashBucketRec = extern struct {
     table: NTable,
     mbstate: XPointer,
     methods: XrmMethods,
 };
 
-pub const Depth = struct {
+pub const Depth = extern struct {
     depth: i32,
     nvisuals: i32,
     visuals: [*]Visual,
 };
 
-pub const Visual = struct {
+pub const Visual = extern struct {
     ext_data: *XExtData,
     visualid: VisualID,
     class: i32,
@@ -94,14 +94,14 @@ pub const Visual = struct {
     map_entries: i32,
 };
 
-pub const GC = struct {
+pub const GC = extern struct {
     ext_data: *XExtData,
     gid: GContext,
 };
 
-pub const Screen = struct {
+pub const Screen = extern struct {
     ext_data: *XExtData,
-    display: *Display,
+    display: ?*Display,
     root: Window,
     width: i32,
     height: i32,
@@ -122,19 +122,19 @@ pub const Screen = struct {
     root_input_mask: i32,
 };
 
-pub const XExtCodes = struct {
+pub const XExtCodes = extern struct {
     extension: i32,
     major_opcode: i32,
     first_event: i32,
     first_error: i32,
 };
 
-pub const XFontProp = struct {
+pub const XFontProp = extern struct {
     name: Atom,
     card32: u32,
 };
 
-pub const XCharStruct = struct {
+pub const XCharStruct = extern struct {
     lbearing: i16,
     rbearing: i16,
     width: i16,
@@ -143,7 +143,7 @@ pub const XCharStruct = struct {
     attributes: u16,
 };
 
-pub const XFontStruct = struct {
+pub const XFontStruct = extern struct {
     ext_data: *XExtData,
     fid: Font,
     direction: u8,
@@ -162,7 +162,7 @@ pub const XFontStruct = struct {
     descent: i32,
 };
 
-pub const XError = struct {
+pub const XError = extern struct {
     type: u8,
     errorCode: u8,
     sequenceNumber: u16,
@@ -177,52 +177,54 @@ pub const XError = struct {
     pad7: u32,
 };
 
-pub const XExten = struct {
+pub const XExten = extern struct {
     next: *XExten,
     codes: XExtCodes,
-    create_GC: fn (*Display, GC, *XExtCodes) i32,
-    copy_GC: fn (*Display, GC, *XExtCodes) i32,
-    flush_GC: fn (*Display, GC, *XExtCodes) i32,
-    free_GC: fn (*Display, GC, *XExtCodes) i32,
-    create_Font: fn (*Display, *XFontStruct, *XExtCodes) i32,
-    free_Font: fn (*Display, *XFontStruct, *XExtCodes) i32,
-    close_display: fn (*Display, *XExtCodes) i32,
-    err: fn (*Display, *XError, *XExtCodes, *i32) i32,
-    error_string: fn (*Display, i32, *XExtCodes, XPointer, i32) i32,
+    create_GC: *const fn (?*Display, GC, *XExtCodes) callconv(.C) i32,
+    copy_GC: *const fn (?*Display, GC, *XExtCodes) callconv(.C) i32,
+    flush_GC: *const fn (?*Display, GC, *XExtCodes) callconv(.C) i32,
+    free_GC: *const fn (?*Display, GC, *XExtCodes) callconv(.C) i32,
+    create_Font: *const fn (?*Display, *XFontStruct, *XExtCodes) callconv(.C) i32,
+    free_Font: *const fn (?*Display, *XFontStruct, *XExtCodes) callconv(.C) i32,
+    close_display: *const fn (?*Display, *XExtCodes) callconv(.C) i32,
+    err: *const fn (?*Display, *XError, *XExtCodes, *i32) callconv(.C) i32,
+    error_string: *const fn (?*Display, i32, *XExtCodes, XPointer, i32) callconv(.C) i32,
     name: XPointer,
-    error_values: fn (*Display, *XErrorEvent, anyopaque) i32,
-    before_flush: fn (*Display, *XExtCodes, XPointer, i32) i32,
+    error_values: *const fn (?*Display, *XErrorEvent, *anyopaque) callconv(.C) i32,
+    before_flush: *const fn (?*Display, *XExtCodes, XPointer, i32) callconv(.C) i32,
 };
 
-pub const xEvent = struct {};
+pub const xEvent = extern struct {};
 
-pub const XLockInfo = struct {};
+pub const XLockInfo = extern struct {};
 
-pub const XInternalAsync = struct {};
+pub const XInternalAsync = extern struct {};
 
-pub const XLockPtrs = struct {};
+pub const XLockPtrs = extern struct {};
 
-pub const XKeytrans = struct {};
+pub const XKeytrans = extern struct {};
 
-pub const XDisplayAtoms = struct {};
+pub const XDisplayAtoms = extern struct {};
 
-pub const XContextDB = struct {};
+pub const XContextDB = extern struct {};
 
-pub const XIMFilter = struct {};
+pub const XIMFilter = extern struct {};
 
-pub const XConnectionInfo = struct {};
+pub const XConnectionInfo = extern struct {};
 
-pub const XConnWatchInfo = struct {};
+pub const XConnWatchInfo = extern struct {};
 
-pub const XkbInfoRec = struct {};
+pub const XkbInfoRec = extern struct {};
 
-pub const XtransConnInfo = struct {};
+pub const XtransConnInfo = extern struct {};
+
+pub const XsetWindowAttributes = extern struct {};
 
 // https://cgit.freedesktop.org/xorg/proto/xproto/tree/Xproto.h
 
-//pub const Display = struct {};
+//pub const Display = extern struct {};
 
-pub const Display = struct {
+pub const Display = extern struct {
     ext_data: *XExtData,
     free_funcs: *XFreeFuncs,
     fd: i32,
@@ -234,7 +236,7 @@ pub const Display = struct {
     resource_mask: u32,
     resource_id: u32,
     resource_shift: i32,
-    resource_alloc: fn (Self) u32,
+    resource_alloc: *const fn (?*Display) callconv(.C) u32,
     byte_order: i32,
     bitmap_unit: i32,
     bitmap_pad: i32,
@@ -254,7 +256,7 @@ pub const Display = struct {
     bufmax: XPointer,
     max_request_size: u32,
     db: *XrmHashBucketRec,
-    synchandler: fn (*Self) i32,
+    synchandler: *const fn (?*Display) callconv(.C) i32,
     display_name: XPointer,
     default_screen: i32,
     nscreens: i32,
@@ -271,22 +273,22 @@ pub const Display = struct {
     scratch_length: u32,
     ext_number: i32,
     ext_procs: *XExten,
-    event_vec: fn (*Display, *XEvent, *xEvent) bool,
-    wire_vec: fn (*Display, *XEvent, *xEvent) i32,
+    event_vec: *const fn (?*Display, *XEvent, *xEvent) callconv(.C) bool,
+    wire_vec: *const fn (?*Display, *XEvent, *xEvent) callconv(.C) i32,
     lock_meaning: KeySym,
     lock: *XLockInfo,
     async_handlers: *XInternalAsync,
     bigreq_size: u32,
     lock_fns: *XLockPtrs,
-    idlist_alloc: fn (*Display, u32, i32) void,
+    idlist_alloc: *const fn (?*Display, u32, i32) callconv(.C) void,
     key_bindings: *XKeytrans,
     cursor_font: Font,
     atoms: *XDisplayAtoms,
     mode_switch: u32,
     num_lock: u32,
     context_db: *XContextDB,
-    error_vec: *fn (*Display, *XErrorEvent, *XError) bool,
-    cms: struct { defaultCCCs: XPointer, clientCmaps: XPointer, perVisualIntensityMaps: XPointer },
+    error_vec: *const *fn (?*Display, *XErrorEvent, *XError) callconv(.C) bool,
+    cms: extern struct { defaultCCCs: XPointer, clientCmaps: XPointer, perVisualIntensityMaps: XPointer },
     im_filters: *XIMFilter,
     qfree: *XSQEvent,
     next_event_serial_num: u32,
@@ -296,15 +298,14 @@ pub const Display = struct {
     conn_watchers: *XConnWatchInfo,
     watcher_count: i32,
     filedes: XPointer,
-    savedsynchandler: fn (*Display) i32,
+    savedsynchandler: *const fn (?*Display) callconv(.C) i32,
     resource_max: u32,
     xcmisc_opcode: i32,
     xkb_info: *XkbInfoRec,
     trans_conn: *XtransConnInfo,
-    const Self = @This();
 };
 
-pub const Window = u32;
+pub const Window = c_ulong;
 pub const Drawable = u32;
 pub const Time = u32;
 pub const Atom = u32;
@@ -316,37 +317,19 @@ pub const KeySym = u32;
 pub const Font = u32;
 
 //TODO might need to convert bool to int type
-pub const XAnyEvent = struct {
+pub const XAnyEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
 };
 
-pub const XKeyEvent = struct {
+pub const XKeyEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
-    window: Window,
-    root: Window,
-    subwindow: Window,
-    time: Time,
-    x: i32,
-    y: i32,
-    x_root: i32,
-    y_root: i32,
-    state: u32,
-    keycode: u32,
-    same_screen: bool,
-};
-
-pub const XButtonEvent = struct {
-    type: i32,
-    serial: u32,
-    send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     root: Window,
     subwindow: Window,
@@ -360,11 +343,11 @@ pub const XButtonEvent = struct {
     same_screen: bool,
 };
 
-pub const XMotionEvent = struct {
+pub const XButtonEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     root: Window,
     subwindow: Window,
@@ -378,11 +361,29 @@ pub const XMotionEvent = struct {
     same_screen: bool,
 };
 
-pub const XCrossingEvent = struct {
+pub const XMotionEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
+    window: Window,
+    root: Window,
+    subwindow: Window,
+    time: Time,
+    x: i32,
+    y: i32,
+    x_root: i32,
+    y_root: i32,
+    state: u32,
+    keycode: u32,
+    same_screen: bool,
+};
+
+pub const XCrossingEvent = extern struct {
+    type: i32,
+    serial: u32,
+    send_event: bool,
+    display: ?*Display,
     window: Window,
     root: Window,
     subwindow: Window,
@@ -398,21 +399,21 @@ pub const XCrossingEvent = struct {
     state: u32,
 };
 
-pub const XFocusChangeEvent = struct {
+pub const XFocusChangeEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     mode: i32,
     detail: i32,
 };
 
-pub const XExposeEvent = struct {
+pub const XExposeEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     x: i32,
     y: i32,
@@ -421,11 +422,11 @@ pub const XExposeEvent = struct {
     count: i32,
 };
 
-pub const XGraphicsExposeEvent = struct {
+pub const XGraphicsExposeEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     drawable: Drawable,
     x: i32,
     y: i32,
@@ -436,30 +437,30 @@ pub const XGraphicsExposeEvent = struct {
     minor_code: i32,
 };
 
-pub const XNoExposeEvent = struct {
+pub const XNoExposeEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     drawable: Drawable,
     major_code: i32,
     minor_code: i32,
 };
 
-pub const XVisibilityEvent = struct {
+pub const XVisibilityEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     state: i32,
 };
 
-pub const XCreateWindowEvent = struct {
+pub const XCreateWindowEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     parent: Window,
     window: Window,
     x: i32,
@@ -470,49 +471,49 @@ pub const XCreateWindowEvent = struct {
     override_redirect: bool,
 };
 
-pub const XDestroyWindowEvent = struct {
+pub const XDestroyWindowEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     event: Window,
     window: Window,
 };
 
-pub const XUnmapEvent = struct {
+pub const XUnmapEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     event: Window,
     window: Window,
     from_configure: bool,
 };
 
-pub const XMapEvent = struct {
+pub const XMapEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     event: Window,
     window: Window,
     override_redirect: bool,
 };
 
-pub const XMapRequestEvent = struct {
+pub const XMapRequestEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     parent: Window,
     window: Window,
 };
 
-pub const XReparentEvent = struct {
+pub const XReparentEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     event: Window,
     window: Window,
     parent: Window,
@@ -521,11 +522,11 @@ pub const XReparentEvent = struct {
     override_redirect: bool,
 };
 
-pub const XConfigureEvent = struct {
+pub const XConfigureEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     event: Window,
     window: Window,
     x: i32,
@@ -537,32 +538,32 @@ pub const XConfigureEvent = struct {
     override_redirect: bool,
 };
 
-pub const XGravityEvent = struct {
+pub const XGravityEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     event: Window,
     window: Window,
     x: i32,
     y: i32,
 };
 
-pub const XResizeRequestEvent = struct {
+pub const XResizeRequestEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     width: i32,
     height: i32,
 };
 
-pub const XConfigureRequestEvent = struct {
+pub const XConfigureRequestEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     parent: Window,
     window: Window,
     x: i32,
@@ -575,52 +576,52 @@ pub const XConfigureRequestEvent = struct {
     value_mask: u32,
 };
 
-pub const XCirculateEvent = struct {
+pub const XCirculateEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     event: Window,
     window: Window,
     place: i32,
 };
 
-pub const XCirculateRequestEvent = struct {
+pub const XCirculateRequestEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     parent: Window,
     window: Window,
     place: i32,
 };
 
-pub const XPropertyEvent = struct {
+pub const XPropertyEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     atom: Atom,
     time: Time,
     state: i32,
 };
 
-pub const XSelectionClearEvent = struct {
+pub const XSelectionClearEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     selection: Atom,
     time: Time,
 };
 
-pub const XSelectionRequestEvent = struct {
+pub const XSelectionRequestEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     owner: Window,
     requestor: Window,
     selection: Atom,
@@ -629,11 +630,11 @@ pub const XSelectionRequestEvent = struct {
     time: Time,
 };
 
-pub const XSelectionEvent = struct {
+pub const XSelectionEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     requestor: Window,
     selection: Atom,
     target: Atom,
@@ -641,47 +642,47 @@ pub const XSelectionEvent = struct {
     time: Time,
 };
 
-pub const XColormapEvent = struct {
+pub const XColormapEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     colormap: Colormap,
     new: bool,
     state: i32,
 };
 
-pub const XClientMessageEvent = struct {
+pub const XClientMessageEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     message_type: Atom,
     format: i32,
     data: Data,
-    pub const Data = union {
+    pub const Data = extern union {
         b: [20]u8,
         s: [10]u16,
         l: [5]u32,
     };
 };
 
-pub const XMappingEvent = struct {
+pub const XMappingEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     request: i32,
     first_keycode: i32,
     count: i32,
 };
 
-pub const XErrorEvent = struct {
+pub const XErrorEvent = extern struct {
     type: i32,
-    display: *Display,
+    display: ?*Display,
     serial: u32,
     error_code: u8,
     request_code: u8,
@@ -689,16 +690,30 @@ pub const XErrorEvent = struct {
     resource_id: u32,
 };
 
-pub const XKeymapEvent = struct {
+pub const XKeymapEvent = extern struct {
     type: i32,
     serial: u32,
     send_event: bool,
-    display: *Display,
+    display: ?*Display,
     window: Window,
     key_vector: [32]u8,
 };
 
-pub const XEvent = struct {
+pub const EventMask = enum(i32) {
+    KeyPressMask = 1,
+    KeyReleaseMask = 2,
+};
+
+pub const EventType = enum(c_int) {
+    KeyPress = 2,
+    KeyRelease = 3,
+};
+
+pub const WindowClass = enum(c_int) {
+    InputOnly = 2,
+};
+
+pub const XEvent = extern struct {
     type: i32,
     xany: XAnyEvent,
     xkey: XKeyEvent,
@@ -734,14 +749,112 @@ pub const XEvent = struct {
     pad: [24]i32,
 };
 
-pub extern fn XOpenDisplay(display_name: ?[*:0]const u8) *Display;
-pub extern fn XSelectInput(display: *Display, w: Window, event_mask: c_int) c_int;
-pub extern fn XNextEvent(display: *Display, event_return: *XEvent) c_int;
+pub const CurrentTime: Time = 0;
+
+pub extern fn XOpenDisplay(display_name: ?[*:0]const u8) ?*Display;
+pub extern fn XSelectInput(display: ?*Display, w: Window, event_mask: c_int) c_int;
+pub extern fn XNextEvent(display: ?*Display, event_return: ?*XEvent) c_int;
+pub extern fn XDefaultRootWindow(?*Display) Window;
+pub extern fn XCloseDisplay(?*Display) c_int;
+pub extern fn XMapWindow(?*Display, Window) c_int;
+pub extern fn XGrabKeyboard(?*Display, Window, bool, c_int, c_int, Time) c_int;
+pub extern fn XSetErrorHandler(*const fn(?*Display, ?*XErrorEvent) callconv(.C) c_int) c_int;
+pub extern fn XCreateWindow(?*Display, Window, c_int, c_int, c_ulong, c_ulong, c_ulong, c_int, c_ulong, ?*Visual, c_ulong, ?*XsetWindowAttributes) Window;
 
 //pub extern "C" fn XSelectInput(display: *Display, root_window: Window) i32;
 
-test "open" {
-    const display: *Display = XOpenDisplay(null);
+pub fn handler(_: ?*Display, e: ?*XErrorEvent) callconv(.C) c_int {
+    std.debug.print("error {any}\n", .{e});
+    return 0;
+}
+
+// test "C2" {
+//     const display = c.XOpenDisplay(null);
+//     var keys: [32]u8 = undefined;
+//     const running: bool = true;
+//     while(running) {
+//         _ = c.XQueryKeymap(display, &keys);
+//         for (0..32) |i| {
+//             std.debug.print("{d},",.{keys[i]});
+//         }
+//         std.debug.print("\n",.{});
+//         std.time.sleep(std.time.ns_per_s / 4);
+//     }
+//     _ = c.XCloseDisplay(display);
+// }
+
+test "C" {
+    const display = c.XOpenDisplay(null);
     std.debug.print("function success\n", .{});
     std.debug.print("display {any}\n", .{display});
+    const root_window = c.XDefaultRootWindow(display);
+    const window = c.XCreateWindow(display, root_window,-99, -99, 1, 1, 0, 0, c.InputOnly,c.CopyFromParent,0, null);
+    std.debug.print("class flag val {d}\n",.{c.InputOnly});
+    std.debug.print("function success\n", .{});
+    std.debug.print("window {any}\n", .{window});
+    var res = c.XSelectInput(display, window, c.KeyPressMask | c.KeyReleaseMask);
+    std.debug.print("function success\n", .{});
+    std.debug.print("res {any}\n", .{res});
+    var res = c.XMapWindow(display, window);
+    std.debug.print("function success\n", .{});
+    std.debug.print("res {any}\n", .{res});
+    res = c.XGrabKeyboard(display, window, 1, c.GrabModeAsync, c.GrabModeAsync, c.CurrentTime);
+    //res = c.XGrabKey(display, c.AnyKey, c.AnyModifier, window, true, c.GrabModeAsync, c.GrabModeAsync);
+    std.debug.print("function success\n", .{});
+    std.debug.print("res {any}\n", .{res});
+    std.debug.print("AlreadyGrabbed {d}, GrabNotViewable {d}, GrabFrozen {d}, GrabInvalidTime {d}\n",.{c.AlreadyGrabbed, c.GrabNotViewable, c.GrabFrozen, c.GrabInvalidTime});
+    res = c.XLowerWindow(display, window);
+    var running: bool = true;
+    var event: c.XEvent = undefined;
+    std.debug.print("starting loop\n",.{});
+    while (running) {
+        res = c.XNextEvent(display, &event);
+        std.debug.print("event type {any}\n", .{event.type});
+        if (event.type == c.KeyPress) {
+            std.debug.print("keycode {any}\n", .{event.xkey.keycode});
+            if (event.xkey.keycode == 0x09 or event.xkey.keycode == 113) {
+                running = false;
+            }
+        }
+    }
+    res = c.XCloseDisplay(display);
+    std.debug.print("function success\n", .{});
+    std.debug.print("res {any}\n", .{res});
 }
+
+// test "open" {
+//     var res = XSetErrorHandler(handler);
+//     std.debug.print("function success\n", .{});
+//     std.debug.print("res {any}\n", .{res});
+//     const display: ?*Display = XOpenDisplay(null);
+//     std.debug.print("function success\n", .{});
+//     const root_window = XDefaultRootWindow(display);
+//     const window = XCreateWindow(display, root_window,-99, -99, 1, 1, 0, 0, @intFromEnum(WindowClass.InputOnly),null,0, null);
+//     std.debug.print("function success\n", .{});
+//     std.debug.print("window {any}\n", .{window});
+//     res = XSelectInput(display, window, @intFromEnum(EventMask.KeyPressMask) | @intFromEnum(EventMask.KeyReleaseMask));
+//     std.debug.print("function success\n", .{});
+//     std.debug.print("res {any}\n", .{res});
+//     res = XMapWindow(display, window);
+//     std.debug.print("function success\n", .{});
+//     std.debug.print("res {any}\n", .{res});
+//     res = XGrabKeyboard(display, window, false, 1, 1, CurrentTime);
+//     std.debug.print("function success\n", .{});
+//     std.debug.print("res {any}\n", .{res});
+//     var running: bool = true;
+//     var event: XEvent = undefined;
+//     std.debug.print("starting loop\n",.{});
+//     while (running) {
+//         res = XNextEvent(display, &event);
+//         std.debug.print("event type {any}\n", .{event.type});
+//         if (event.type == @intFromEnum(EventType.KeyPress)) {
+//             std.debug.print("keycode {any}\n", .{event.xkey.keycode});
+//             if (event.xkey.keycode == 0x09 or event.xkey.keycode == 113) {
+//                 running = false;
+//             }
+//         }
+//     }
+//     res = XCloseDisplay(display);
+//     std.debug.print("function success\n", .{});
+//     std.debug.print("res {any}\n", .{res});
+// }
