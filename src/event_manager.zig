@@ -2,14 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const common = @import("common");
 
-// const c = @cImport({
-//     @cInclude("stdlib.h");
-//     @cInclude("termios.h");
-//     @cInclude("unistd.h");
-// });
-
-// const MAX_EVENTS = 32;
-
 const EVENT_LOG = std.log.scoped(.event_manager);
 
 const win32 = struct {
