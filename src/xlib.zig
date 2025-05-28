@@ -5,6 +5,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     display: ?*c._XDisplay,
     window: c_ulong,
     event: c.XEvent = undefined,
+    event_type: EventType = undefined,
     pub fn init() Xlib {
         const display = c.XOpenDisplay(null);
         const window = c.XDefaultRootWindow(display);
@@ -21,6 +22,11 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     }
     pub fn next_event(self: *Xlib) void {
         _ = c.XNextEvent(self.display, &self.event);
+        self.event_type = @enumFromInt(self.event.type);
+    }
+    //TODO translate keycode into u8 ascii char
+    pub fn get_event_key(self: *Xlib) u8 {
+        _ = self;
     }
     const c = @cImport({
         @cInclude("X11/Xlib.h");
