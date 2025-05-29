@@ -6,6 +6,8 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     window: c_ulong,
     event: c.XEvent = undefined,
     event_type: EventType = undefined,
+    buffer: [16]u8 = undefined,
+
     pub fn init() Xlib {
         const display = c.XOpenDisplay(null);
         const window = c.XDefaultRootWindow(display);
@@ -26,7 +28,9 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     }
     //TODO translate keycode into u8 ascii char
     pub fn get_event_key(self: *Xlib) u8 {
-        _ = self;
+        @memset(&self.buffer, 0);
+        _ = c.XLookupString(&self.event, &self.buffer, 16, null, null);
+        return self.buffer[0];
     }
     const c = @cImport({
         @cInclude("X11/Xlib.h");
@@ -46,7 +50,7 @@ test "C" {
         xlib.next_event();
         std.debug.print("event type {any}\n", .{xlib.event.type});
         if (xlib.event.type == @intFromEnum(Xlib.EventType.KeyPress)) {
-            std.debug.print("keycode {any}\n", .{xlib.event.xkey.keycode});
+            std.debug.print("keycode {any}, key {c}\n", .{ xlib.event.xkey.keycode, xlib.get_event_key() });
             if (xlib.event.xkey.keycode == 0x09 or xlib.event.xkey.keycode == 113) {
                 running = false;
             }
