@@ -207,6 +207,9 @@ pub const EventManager = struct {
                 }
             }
         } else {
+            EVENT_LOG.info("Initializing x11\n", .{});
+            self.xlib = Xlib.init();
+            defer self.xlib.deinit();
             while (self.running) {
                 self.xlib.next_event();
                 switch (self.xlib.event_type) {
