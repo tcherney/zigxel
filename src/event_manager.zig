@@ -214,16 +214,28 @@ pub const EventManager = struct {
                 self.xlib.next_event();
                 switch (self.xlib.event_type) {
                     .KeyPress => {
-                        const key: KEYS = @enumFromInt(self.xlib.get_event_key());
+                        const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
                         if (self.key_down_callback != null) {
                             self.key_down_callback.?.call(key);
                         }
                     },
                     .KeyRelease => {
-                        const key: KEYS = @enumFromInt(self.xlib.get_event_key());
+                        const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
                         if (self.key_up_callback != null) {
                             self.key_up_callback.?.call(key);
                         }
+                        if (self.key_press_callback != null) {
+                            self.key_press_callback.?.call(key);
+                        }
+                    },
+                    //TODO handle events
+                    .ButtonPressm.ButtonReleasem.MotionNotify => {
+                        if (self.mouse_event_callback != null) {
+                            self.mouse_event_callback.?.call(.{});
+                        }
+                    },
+                    .ResizeRequest => {
+                        if (self.window_change_callback != null) {}
                     },
                 }
             }
