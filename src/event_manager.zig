@@ -229,9 +229,10 @@ pub const EventManager = struct {
                         }
                     },
                     //TODO handle events
-                    .ButtonPressm.ButtonReleasem.MotionNotify => {
+                    .ButtonPress, .ButtonRelease, .MotionNotify => {
                         if (self.mouse_event_callback != null) {
-                            self.mouse_event_callback.?.call(.{});
+                            //TODO handle scrolling and ctrl
+                            self.mouse_event_callback.?.call(.{ .x = @truncate(self.xlib.mouse_state.x), .y = @truncate(self.xlib.mouse_state.y), .clicked = self.xlib.mouse_state.button1, .scroll_up = false, .scroll_down = false, .ctrl_pressed = self.xlib.is_mod_pressed(.ControlMask) });
                         }
                     },
                     .ResizeRequest => {

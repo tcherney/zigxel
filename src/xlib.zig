@@ -6,14 +6,26 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     window: c_ulong,
     event: c.XEvent = undefined,
     event_type: EventType = undefined,
-    mouse_state: MouseState = undefined,
+    mouse_state: MouseState = .{
+        .x = 0,
+        .y = 0,
+        .button_state = 0,
+        .button1 = false,
+        .button2 = false,
+        .button3 = false,
+        .button4 = false,
+        .button5 = false,
+    },
     pub const Error = error{InvalidEvent};
     pub const MouseState = struct {
         x: i32,
         y: i32,
-        //TODO might need to fiddle with these types
-        button_state: c_uint,
-        pub const ButtonState = enum(c_uint) {
+        button1: bool,
+        button2: bool,
+        button3: bool,
+        button4: bool,
+        button5: bool,
+        pub const ButtonMask = enum(c_uint) {
             Button1MotionMask = c.Button1MotionMask,
             Button2MotionMask = c.Button2MotionMask,
             Button3MotionMask = c.Button3MotionMask,
@@ -32,6 +44,9 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
             Mod3Mask = c.Mod3Mask,
             Mod4Mask = c.Mod4Mask,
             Mod5Mask = c.Mod5Mask,
+        };
+        pub const Button = enum(c_uint) {
+            None = 0,
             Button1 = c.Button1,
             Button2 = c.Button2,
             Button3 = c.Button3,
@@ -63,17 +78,38 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
                 self.mouse_state.x = self.event.xbutton.x;
                 self.mouse_state.y = self.event.xbutton.y;
                 self.mouse_state.button_state = self.event.xbutton.state;
+                const button_changed: MouseState.Button = @enumFromInt(self.event.xbutton.button);
+                switch (button_changed) {
+                    .Button1 => {
+                        self.mouse_state.button1 = !((self.event.xbutton.state & MouseState.ButtonState.Button1Mask != 0) or (self.event.xbutton.state & MouseState.ButtonState.Button1MotionMask != 0));
+                    },
+                    .Button2 => {
+                        self.mouse_state.button2 = !((self.event.xbutton.state & MouseState.ButtonState.Button2Mask != 0) or (self.event.xbutton.state & MouseState.ButtonState.Button2MotionMask != 0));
+                    },
+                    .Button3 => {
+                        self.mouse_state.button3 = !((self.event.xbutton.state & MouseState.ButtonState.Button3Mask != 0) or (self.event.xbutton.state & MouseState.ButtonState.Button3MotionMask != 0));
+                    },
+                    .Button4 => {
+                        self.mouse_state.button4 = !((self.event.xbutton.state & MouseState.ButtonState.Button4Mask != 0) or (self.event.xbutton.state & MouseState.ButtonState.Button4MotionMask != 0));
+                    },
+                    .Button5 => {
+                        self.mouse_state.button5 = !((self.event.xbutton.state & MouseState.ButtonState.Button5Mask != 0) or (self.event.xbutton.state & MouseState.ButtonState.Button5MotionMask != 0));
+                    },
+                    else => {
+                        //TODO
+                    },
+                }
             },
             .MotionNotify => {
                 self.mouse_state.x = self.event.xmotion.x;
                 self.mouse_state.y = self.event.xmotion.y;
-                self.mouse_state.button_state = self.event.xmotion.state;
             },
             else => {},
         }
     }
 
-    pub fn is_button_state(self: *Xlib, button_state: MouseState.ButtonState) Error!bool {
+    //TODO revisit this to handle modifer presses
+    pub fn is_mod_pressed(self: *Xlib, button_state: MouseState.ButtonState) Error!bool {
         if (self.event_type != .ButtonPress and self.event_type != .ButtonRelease and self.event_type != .MotionNotify) {
             return Error.InvalidEvent;
         }
@@ -97,7 +133,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     pub const EventType = enum(c_int) {
         KeyPress = c.KeyPress,
         KeyRelease = c.KeyRelease,
-        ButtonPress = c.ButtonPres,
+        ButtonPress = c.ButtonPress,
         ButtonRelease = c.ButtonRelease,
         MotionNotify = c.MotionNotify,
         ResizeRequest = c.ResizeRequest,
