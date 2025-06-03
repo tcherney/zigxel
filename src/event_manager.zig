@@ -77,7 +77,7 @@ pub const EventManager = struct {
     stdin: std.fs.File,
     xlib: Xlib = undefined,
     const Self = @This();
-    pub const Error = error{ WindowsInit, WindowsRead, PosixInit, FileLocksNotSupported, FileBusy } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError || std.posix.ReadError || std.posix.ReadLinkError || std.fs.SelfExePathError;
+    pub const Error = error{ WindowsInit, WindowsRead, PosixInit, FileLocksNotSupported, FileBusy } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError || std.posix.ReadError || std.posix.ReadLinkError || std.fs.SelfExePathError || Xlib.Error;
     pub const termios = switch (builtin.os.tag) {
         .windows => std.os.windows.DWORD,
         else => std.posix.termios,
@@ -208,9 +208,11 @@ pub const EventManager = struct {
             }
         } else {
             EVENT_LOG.info("Initializing x11\n", .{});
-            self.xlib = Xlib.init();
+            self.xlib = Xlib.init(0, 70);
+            EVENT_LOG.info("x11 initialized\n", .{});
             defer self.xlib.deinit();
             while (self.running) {
+                EVENT_LOG.info("Grabbing next xevent\n", .{});
                 self.xlib.next_event();
                 switch (self.xlib.event_type) {
                     .KeyPress => {
@@ -232,7 +234,7 @@ pub const EventManager = struct {
                     .ButtonPress, .ButtonRelease, .MotionNotify => {
                         if (self.mouse_event_callback != null) {
                             //TODO handle scrolling and ctrl
-                            self.mouse_event_callback.?.call(.{ .x = @truncate(self.xlib.mouse_state.x), .y = @truncate(self.xlib.mouse_state.y), .clicked = self.xlib.mouse_state.button1, .scroll_up = false, .scroll_down = false, .ctrl_pressed = self.xlib.is_mod_pressed(.ControlMask) });
+                            self.mouse_event_callback.?.call(.{ .x = @truncate(self.xlib.mouse_state.x), .y = @truncate(self.xlib.mouse_state.y), .clicked = self.xlib.mouse_state.button1, .scroll_up = false, .scroll_down = false, .ctrl_pressed = try self.xlib.is_mod_pressed(.ControlMask) });
                         }
                     },
                     .ResizeRequest => {
