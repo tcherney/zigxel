@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const common = @import("common");
 const _xlib = @import("xlib.zig");
+const term = @import("term");
 
 const EVENT_LOG = std.log.scoped(.event_manager);
 const Xlib = _xlib.Xlib;
@@ -74,16 +75,18 @@ pub const EventManager = struct {
     window_change_callback: ?WindowChangeCallback = null,
     mouse_event_callback: ?MouseChangeCallback = null,
     original_termios: termios = undefined,
+    term_height_offset: usize,
     stdin: std.fs.File,
+    stdout: std.fs.File,
     xlib: Xlib = undefined,
     const Self = @This();
-    pub const Error = error{ WindowsInit, WindowsRead, PosixInit, FileLocksNotSupported, FileBusy } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError || std.posix.ReadError || std.posix.ReadLinkError || std.fs.SelfExePathError || _xlib.Error;
+    pub const Error = error{ WindowsInit, WindowsRead, PosixInit, FileLocksNotSupported, FileBusy } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError || std.posix.ReadError || std.posix.ReadLinkError || std.fs.SelfExePathError || _xlib.Error || term.Error;
     pub const termios = switch (builtin.os.tag) {
         .windows => std.os.windows.DWORD,
         else => std.posix.termios,
     };
-    pub fn init() EventManager {
-        return EventManager{ .stdin = std.io.getStdIn() };
+    pub fn init(term_height_offset: usize) EventManager {
+        return EventManager{ .stdin = std.io.getStdIn(), .stdout = std.io.getStdOut(), .term_height_offset = term_height_offset };
     }
 
     pub fn deinit(self: *Self) Error!void {
@@ -208,9 +211,10 @@ pub const EventManager = struct {
             }
         } else {
             EVENT_LOG.info("Initializing x11\n", .{});
-            self.xlib = Xlib.init(0, 70);
+            self.xlib = Xlib.init();
             EVENT_LOG.info("x11 initialized\n", .{});
             defer self.xlib.deinit();
+            var term_size = try term.Term.get_Size(self.stdout.handle);
             while (self.running) {
                 EVENT_LOG.info("Grabbing next xevent\n", .{});
                 self.xlib.next_event();
@@ -230,14 +234,19 @@ pub const EventManager = struct {
                             self.key_press_callback.?.call(key);
                         }
                     },
-                    //TODO handle events
                     .ButtonPress, .ButtonRelease, .MotionNotify => {
                         if (self.mouse_event_callback != null) {
-                            //TODO handle scrolling and ctrl
-                            self.mouse_event_callback.?.call(.{ .x = @truncate(self.xlib.mouse_state.x), .y = @truncate(self.xlib.mouse_state.y), .clicked = self.xlib.mouse_state.button1, .scroll_up = false, .scroll_down = false, .ctrl_pressed = try self.xlib.is_mod_pressed(.ControlMask) });
+                            const x_ratio: f64 = @as(f64, @floatFromInt(self.xlib.mouse_state.x)) / @as(f64, @floatFromInt(self.xlib.child_width));
+                            const adjusted_y = self.xlib.mouse_state.y - @as(i32, @intCast(@as(i64, @bitCast(self.term_height_offset))));
+                            const y_ratio: f64 = if (adjusted_y > 0) @as(f64, @floatFromInt(adjusted_y)) / @as(f64, @floatFromInt(self.xlib.child_height)) else 0;
+                            const x: f64 = x_ratio * @as(f64, @floatFromInt(term_size.width)) - @as(f64, @floatFromInt(self.xlib.child_border_width));
+                            const y: f64 = y_ratio * @as(f64, @floatFromInt(term_size.height / 2));
+                            self.mouse_event_callback.?.call(.{ .x = @intFromFloat(x), .y = @intFromFloat(y), .clicked = self.xlib.mouse_state.button1, .scroll_up = self.xlib.mouse_state.button4, .scroll_down = self.xlib.mouse_state.button5, .ctrl_pressed = try self.xlib.is_mod_pressed(.ControlMask) });
                         }
                     },
+                    //TODO handle window changes
                     .ResizeRequest => {
+                        term_size = try term.Term.get_Size(self.stdout.handle);
                         if (self.window_change_callback != null) {}
                     },
                 }

@@ -41,8 +41,8 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
             },
             else => Graphics(graphics_type, color_type),
         };
-        pub fn init(allocator: std.mem.Allocator) Error!Self {
-            return Self{ .renderer = try Renderer.init(allocator), .events = EventManager.init() };
+        pub fn init(allocator: std.mem.Allocator, term_height_offset: usize) Error!Self {
+            return Self{ .renderer = try Renderer.init(allocator), .events = EventManager.init(term_height_offset) };
         }
 
         pub fn deinit(self: *Self) Error!void {

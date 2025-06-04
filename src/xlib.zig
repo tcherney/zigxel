@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const XLIB_LOG = std.log.scoped(.xlib);
+
 pub const Error = error{InvalidEvent};
 
 pub const Xlib = if (builtin.os.tag == .linux) struct {
@@ -8,8 +10,9 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     window: c_ulong,
     event: c.XEvent = undefined,
     event_type: EventType = undefined,
-    y_offset: i32,
-    x_offset: i32,
+    child_width: u32 = undefined,
+    child_height: u32 = undefined,
+    child_border_width: u32 = undefined,
     mouse_state: MouseState = .{
         .x = 0,
         .y = 0,
@@ -28,11 +31,6 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         button4: bool,
         button5: bool,
         pub const ButtonMask = enum(c_uint) {
-            // Button1MotionMask = c.Button1MotionMask,
-            // Button2MotionMask = c.Button2MotionMask,
-            // Button3MotionMask = c.Button3MotionMask,
-            // Button4MotionMask = c.Button4MotionMask,
-            // Button5MotionMask = c.Button5MotionMask,
             Button1Mask = c.Button1Mask,
             Button2Mask = c.Button2Mask,
             Button3Mask = c.Button3Mask,
@@ -54,24 +52,46 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
             Button3 = c.Button3,
             Button4 = c.Button4,
             Button5 = c.Button5,
+            _,
         };
     };
-    pub fn init(x_offset: i32, y_offset: i32) Xlib {
+    pub fn init() Xlib {
         const display = c.XOpenDisplay(null);
         const window = c.XDefaultRootWindow(display);
-        var res = c.XSelectInput(display, window, c.KeyPressMask | c.KeyReleaseMask | c.ResizeRedirectMask | c.PointerMotionMask);
+        var res = c.XSelectInput(display, window, c.KeyPressMask | c.KeyReleaseMask | c.ResizeRedirectMask);
         res = c.XMapWindow(display, window);
         res = c.XGrabKeyboard(display, window, 1, c.GrabModeAsync, c.GrabModeAsync, c.CurrentTime);
-        res = c.XGrabButton(display, c.Button1, c.AnyModifier, window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.ButtonMotionMask | c.PointerMotionMask, c.GrabModeAsync, c.GrabModeAsync, 0, 0);
+        //res = c.XGrabButton(display, c.AnyButton, c.AnyModifier, window, 0, c.ButtonPressMask | c.ButtonReleaseMask, c.GrabModeAsync, c.GrabModeAsync, 0, 0);
+        res = c.XGrabPointer(display, window, 1, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeAsync, c.GrabModeAsync, 0, 0, c.CurrentTime);
         return .{
             .display = display,
             .window = window,
-            .x_offset = x_offset,
-            .y_offset = y_offset,
         };
     }
     pub fn deinit(self: *Xlib) void {
         _ = c.XCloseDisplay(self.display);
+    }
+    fn process_coords(self: *Xlib) void {
+        var root_return: c_ulong = undefined;
+        var child_return: c_ulong = undefined;
+        var root_x: c_int = undefined;
+        var root_y: c_int = undefined;
+        var child_x: c_int = undefined;
+        var child_y: c_int = undefined;
+        var mask: c_uint = undefined;
+        //this allows us to grab the window the click occured in
+        _ = c.XQueryPointer(self.display, self.window, &root_return, &child_return, &root_x, &root_y, &child_x, &child_y, &mask);
+        XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
+        //now we have coordinates relative to the child window the event happened in
+        _ = c.XQueryPointer(self.display, child_return, &root_return, &child_return, &root_x, &root_y, &child_x, &child_y, &mask);
+        XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
+        self.mouse_state.x = child_x;
+        self.mouse_state.y = child_y;
+        XLIB_LOG.info("{any}\n", .{self.event.xbutton});
+        //grab dimensions of window we clicked in
+        var depth_return: c_uint = undefined;
+        _ = c.XGetGeometry(self.display, child_return, &root_return, &root_x, &root_y, &self.child_width, &self.child_height, &self.child_border_width, &depth_return);
+        XLIB_LOG.info("width: {d}, height: {d}, border: {d}\n", .{ self.child_width, self.child_height, self.child_border_width });
     }
     //TODO add window and mouse event handling
     pub fn next_event(self: *Xlib) void {
@@ -79,24 +99,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         self.event_type = @enumFromInt(self.event.type);
         switch (self.event_type) {
             .ButtonPress, .ButtonRelease => {
-                var root_return: c_ulong = undefined;
-                var child_return: c_ulong = undefined;
-                var root_x: c_int = undefined;
-                var root_y: c_int = undefined;
-                var x: c_int = undefined;
-                var y: c_int = undefined;
-                var mask: c_uint = undefined;
-                //this allows us to grab the window the click occured in
-                _ = c.XQueryPointer(self.display, self.window, &root_return, &child_return, &root_x, &root_y, &x, &y, &mask);
-                std.debug.print("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ x, y, root_x, root_y });
-                //now we have coordinates relative to the child window the event happened in
-                _ = c.XQueryPointer(self.display, child_return, &root_return, &child_return, &root_x, &root_y, &x, &y, &mask);
-                std.debug.print("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ x, y, root_x, root_y });
-                //TODO we will need to offset the y due to the title bar of the terminal
-                self.mouse_state.x = x - self.x_offset;
-                self.mouse_state.y = y - self.y_offset;
-                std.debug.print("{any}\n", .{self.event.xbutton});
-                std.debug.print("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ self.event.xbutton.x, self.event.xbutton.y, self.event.xbutton.x_root, self.event.xbutton.y_root });
+                self.process_coords();
                 const button_changed: MouseState.Button = @enumFromInt(self.event.xbutton.button);
                 switch (button_changed) {
                     .Button1 => {
@@ -120,9 +123,8 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
                 }
             },
             .MotionNotify => {
-                std.debug.print("Motion\n", .{});
-                self.mouse_state.x = self.event.xmotion.x;
-                self.mouse_state.y = self.event.xmotion.y;
+                XLIB_LOG.info("Motion\n", .{});
+                self.process_coords();
             },
             else => {},
         }
@@ -169,12 +171,12 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
 test "C" {
     var xlib: Xlib = Xlib.init();
     var running: bool = true;
-    std.debug.print("starting loop\n", .{});
+    XLIB_LOG.info("starting loop\n", .{});
     while (running) {
         xlib.next_event();
-        std.debug.print("event type {any}\n", .{xlib.event.type});
+        XLIB_LOG.info("event type {any}\n", .{xlib.event.type});
         if (xlib.event.type == @intFromEnum(Xlib.EventType.KeyPress)) {
-            std.debug.print("keycode {any}, key {c}\n", .{ xlib.event.xkey.keycode, xlib.get_event_key() });
+            XLIB_LOG.info("keycode {any}, key {c}\n", .{ xlib.event.xkey.keycode, xlib.get_event_key() });
             if (xlib.event.xkey.keycode == 0x09 or xlib.get_event_key() == 'q') {
                 running = false;
             }
