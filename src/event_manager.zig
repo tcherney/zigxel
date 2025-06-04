@@ -77,7 +77,7 @@ pub const EventManager = struct {
     stdin: std.fs.File,
     xlib: Xlib = undefined,
     const Self = @This();
-    pub const Error = error{ WindowsInit, WindowsRead, PosixInit, FileLocksNotSupported, FileBusy } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError || std.posix.ReadError || std.posix.ReadLinkError || std.fs.SelfExePathError || Xlib.Error;
+    pub const Error = error{ WindowsInit, WindowsRead, PosixInit, FileLocksNotSupported, FileBusy } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError || std.posix.ReadError || std.posix.ReadLinkError || std.fs.SelfExePathError || _xlib.Error;
     pub const termios = switch (builtin.os.tag) {
         .windows => std.os.windows.DWORD,
         else => std.posix.termios,

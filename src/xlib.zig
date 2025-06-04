@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+pub const Error = error{InvalidEvent};
+
 pub const Xlib = if (builtin.os.tag == .linux) struct {
     display: ?*c._XDisplay,
     window: c_ulong,
@@ -17,7 +19,6 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         .button4 = false,
         .button5 = false,
     },
-    pub const Error = error{InvalidEvent};
     pub const MouseState = struct {
         x: i32,
         y: i32,
