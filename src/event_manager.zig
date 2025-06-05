@@ -249,6 +249,7 @@ pub const EventManager = struct {
                         term_size = try term.Term.get_Size(self.stdout.handle);
                         if (self.window_change_callback != null) {}
                     },
+                    else => {},
                 }
             }
         }

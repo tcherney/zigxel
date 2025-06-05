@@ -13,6 +13,8 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     child_width: u32 = undefined,
     child_height: u32 = undefined,
     child_border_width: u32 = undefined,
+    last_child: c_ulong = 0,
+    pointer_grabbed: bool = false,
     mouse_state: MouseState = .{
         .x = 0,
         .y = 0,
@@ -61,11 +63,12 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         var res = c.XSelectInput(display, window, c.KeyPressMask | c.KeyReleaseMask | c.ResizeRedirectMask);
         res = c.XMapWindow(display, window);
         res = c.XGrabKeyboard(display, window, 1, c.GrabModeAsync, c.GrabModeAsync, c.CurrentTime);
-        //res = c.XGrabButton(display, c.AnyButton, c.AnyModifier, window, 0, c.ButtonPressMask | c.ButtonReleaseMask, c.GrabModeAsync, c.GrabModeAsync, 0, 0);
-        res = c.XGrabPointer(display, window, 1, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeAsync, c.GrabModeAsync, 0, 0, c.CurrentTime);
+        //res = c.XGrabButton(display, c.AnyButton, c.AnyModifier, window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.ButtonMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0);
+        res = c.XGrabPointer(display, window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0, c.CurrentTime);
         return .{
             .display = display,
             .window = window,
+            .last_child = window,
         };
     }
     pub fn deinit(self: *Xlib) void {
@@ -82,19 +85,33 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         //this allows us to grab the window the click occured in
         _ = c.XQueryPointer(self.display, self.window, &root_return, &child_return, &root_x, &root_y, &child_x, &child_y, &mask);
         XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
-        //now we have coordinates relative to the child window the event happened in
-        _ = c.XQueryPointer(self.display, child_return, &root_return, &child_return, &root_x, &root_y, &child_x, &child_y, &mask);
-        XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
-        self.mouse_state.x = child_x;
-        self.mouse_state.y = child_y;
-        XLIB_LOG.info("{any}\n", .{self.event.xbutton});
-        //grab dimensions of window we clicked in
-        var depth_return: c_uint = undefined;
-        _ = c.XGetGeometry(self.display, child_return, &root_return, &root_x, &root_y, &self.child_width, &self.child_height, &self.child_border_width, &depth_return);
-        XLIB_LOG.info("width: {d}, height: {d}, border: {d}\n", .{ self.child_width, self.child_height, self.child_border_width });
+        if (self.last_child != 0 and self.last_child != child_return) {
+            //TODO ungrab pointer
+        } else {
+            self.last_child = child_return;
+            //now we have coordinates relative to the child window the event happened in
+            _ = c.XQueryPointer(self.display, self.last_child, &root_return, &self.last_child, &root_x, &root_y, &child_x, &child_y, &mask);
+            XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
+            self.mouse_state.x = child_x;
+            self.mouse_state.y = child_y;
+            XLIB_LOG.info("{any}\n", .{self.event.xbutton});
+            //grab dimensions of window we clicked in
+            var depth_return: c_uint = undefined;
+            //TODO this can apparently error need to handle it
+            _ = c.XGetGeometry(self.display, self.last_child, &root_return, &root_x, &root_y, &self.child_width, &self.child_height, &self.child_border_width, &depth_return);
+            XLIB_LOG.info("width: {d}, height: {d}, border: {d}\n", .{ self.child_width, self.child_height, self.child_border_width });
+            //_ = c.XSendEvent(self.display, self.last_child, 0, c.ButtonPressMask | c.ButtonReleaseMask, &self.event);
+        }
     }
     //TODO add window and mouse event handling
     pub fn next_event(self: *Xlib) void {
+        //TODO establish child window
+        // use this window to then subscribe to pointer events
+        // if we detect a click outside of this window we unsubscribe until the window is clicked in again
+        _ = c.XAllowEvents(self.display, c.SyncPointer, c.CurrentTime);
+        _ = c.XAllowEvents(self.display, c.ReplayPointer, c.CurrentTime);
+        _ = c.XSendEvent(self.display, self.last_child, 0, c.ButtonPressMask | c.ButtonReleaseMask, &self.event);
+        _ = c.XSync(self.display, 0);
         _ = c.XNextEvent(self.display, &self.event);
         self.event_type = @enumFromInt(self.event.type);
         switch (self.event_type) {
@@ -121,10 +138,17 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
                         //TODO
                     },
                 }
+                // _ = c.XUngrabPointer(self.display, self.event.xbutton.time);
+                // _ = c.XAllowEvents(self.display, c.ReplayPointer, self.event.xbutton.time);
+                // _ = c.XSync(self.display, 0);
+                // _ = c.XGrabPointer(self.display, self.window, 1, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeAsync, c.GrabModeAsync, 0, 0, c.CurrentTime);
             },
             .MotionNotify => {
                 XLIB_LOG.info("Motion\n", .{});
                 self.process_coords();
+            },
+            .ResizeRequest => {
+                XLIB_LOG.info("Resize {any}\n", .{self.event.xresizerequest});
             },
             else => {},
         }
@@ -158,14 +182,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         @cInclude("X11/Xlib.h");
     });
     //TODO define all constants for use in zig half (keycodes, event types, etc)
-    pub const EventType = enum(c_int) {
-        KeyPress = c.KeyPress,
-        KeyRelease = c.KeyRelease,
-        ButtonPress = c.ButtonPress,
-        ButtonRelease = c.ButtonRelease,
-        MotionNotify = c.MotionNotify,
-        ResizeRequest = c.ResizeRequest,
-    };
+    pub const EventType = enum(c_int) { KeyPress = c.KeyPress, KeyRelease = c.KeyRelease, ButtonPress = c.ButtonPress, ButtonRelease = c.ButtonRelease, MotionNotify = c.MotionNotify, ResizeRequest = c.ResizeRequest, _ };
 } else void;
 
 test "C" {
