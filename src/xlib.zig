@@ -13,7 +13,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     child_width: u32 = undefined,
     child_height: u32 = undefined,
     child_border_width: u32 = undefined,
-    last_child: c_ulong = 0,
+    last_child: c_ulong,
     pointer_grabbed: bool = false,
     mouse_state: MouseState = .{
         .x = 0,
@@ -63,8 +63,8 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         var res = c.XSelectInput(display, window, c.KeyPressMask | c.KeyReleaseMask | c.ResizeRedirectMask);
         res = c.XMapWindow(display, window);
         res = c.XGrabKeyboard(display, window, 1, c.GrabModeAsync, c.GrabModeAsync, c.CurrentTime);
-        //res = c.XGrabButton(display, c.AnyButton, c.AnyModifier, window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.ButtonMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0);
-        res = c.XGrabPointer(display, window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0, c.CurrentTime);
+        res = c.XGrabButton(display, c.AnyButton, c.AnyModifier, window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0);
+        //res = c.XGrabPointer(display, window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0, c.CurrentTime);
         return .{
             .display = display,
             .window = window,
@@ -72,6 +72,12 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         };
     }
     pub fn deinit(self: *Xlib) void {
+        _ = c.XUngrabKeyboard(self.display, c.CurrentTime);
+        if (self.pointer_grabbed) {
+            _ = c.XUngrabPointer(self.display, c.CurrentTime);
+        } else {
+            _ = c.XUngrabButton(self.display, c.AnyButton, c.AnyModifier, self.window);
+        }
         _ = c.XCloseDisplay(self.display);
     }
     fn process_coords(self: *Xlib) void {
@@ -85,33 +91,55 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         //this allows us to grab the window the click occured in
         _ = c.XQueryPointer(self.display, self.window, &root_return, &child_return, &root_x, &root_y, &child_x, &child_y, &mask);
         XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
-        if (self.last_child != 0 and self.last_child != child_return) {
-            //TODO ungrab pointer
-        } else {
-            self.last_child = child_return;
-            //now we have coordinates relative to the child window the event happened in
-            _ = c.XQueryPointer(self.display, self.last_child, &root_return, &self.last_child, &root_x, &root_y, &child_x, &child_y, &mask);
-            XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
-            self.mouse_state.x = child_x;
-            self.mouse_state.y = child_y;
-            XLIB_LOG.info("{any}\n", .{self.event.xbutton});
-            //grab dimensions of window we clicked in
-            var depth_return: c_uint = undefined;
-            //TODO this can apparently error need to handle it
-            _ = c.XGetGeometry(self.display, self.last_child, &root_return, &root_x, &root_y, &self.child_width, &self.child_height, &self.child_border_width, &depth_return);
-            XLIB_LOG.info("width: {d}, height: {d}, border: {d}\n", .{ self.child_width, self.child_height, self.child_border_width });
-            //_ = c.XSendEvent(self.display, self.last_child, 0, c.ButtonPressMask | c.ButtonReleaseMask, &self.event);
+        XLIB_LOG.info("{any}\n", .{self.event.xbutton});
+        //TODO so the title bar is still the terminal subwindow, we will have to find out if its within the title bar and unbind it then as well
+        if (self.event_type == .ButtonPress and self.pointer_grabbed and self.last_child != self.event.xbutton.subwindow) {
+            XLIB_LOG.info("ungrabbing pointer\n", .{});
+            _ = c.XUngrabPointer(self.display, c.CurrentTime);
+            _ = c.XGrabButton(self.display, c.AnyButton, c.AnyModifier, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0);
+            self.pointer_grabbed = false;
+        } else if (self.event_type == .ButtonPress and !self.pointer_grabbed and (self.last_child == self.event.xbutton.subwindow or self.last_child == self.window)) {
+            self.pointer_grabbed = true;
+            if (self.last_child == self.window) {
+                XLIB_LOG.info("Child set to {d}, no longer {d}\n", .{ child_return, self.last_child });
+                self.last_child = child_return;
+                //grab dimensions of window we clicked in
+                var depth_return: c_uint = undefined;
+                //TODO this can apparently error need to handle it
+                _ = c.XGetGeometry(self.display, self.last_child, &root_return, &root_x, &root_y, &self.child_width, &self.child_height, &self.child_border_width, &depth_return);
+                XLIB_LOG.info("width: {d}, height: {d}, border: {d}\n", .{ self.child_width, self.child_height, self.child_border_width });
+            }
+            XLIB_LOG.info("grabbing pointer\n", .{});
+            _ = c.XUngrabButton(self.display, c.AnyButton, c.AnyModifier, self.window);
+            _ = c.XGrabPointer(self.display, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0, c.CurrentTime);
         }
+
+        if (self.event_type == .ButtonPress and self.last_child != self.event.xbutton.subwindow) {
+            XLIB_LOG.info("Child not equal {d} {d}\n", .{ self.last_child, child_return });
+            return;
+        }
+        //now we have coordinates relative to the child window the event happened in
+        _ = c.XQueryPointer(self.display, self.last_child, &root_return, &child_return, &root_x, &root_y, &child_x, &child_y, &mask);
+        XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
+        self.mouse_state.x = child_x;
+        self.mouse_state.y = child_y;
+
+        //_ = c.XSendEvent(self.display, self.last_child, 0, c.ButtonPressMask | c.ButtonReleaseMask, &self.event);
+
     }
     //TODO add window and mouse event handling
     pub fn next_event(self: *Xlib) void {
         //TODO establish child window
         // use this window to then subscribe to pointer events
         // if we detect a click outside of this window we unsubscribe until the window is clicked in again
-        _ = c.XAllowEvents(self.display, c.SyncPointer, c.CurrentTime);
-        _ = c.XAllowEvents(self.display, c.ReplayPointer, c.CurrentTime);
-        _ = c.XSendEvent(self.display, self.last_child, 0, c.ButtonPressMask | c.ButtonReleaseMask, &self.event);
-        _ = c.XSync(self.display, 0);
+        if (self.pointer_grabbed) {
+            _ = c.XAllowEvents(self.display, c.SyncPointer, c.CurrentTime);
+        } else {
+            _ = c.XAllowEvents(self.display, c.ReplayPointer, c.CurrentTime);
+            _ = c.XSync(self.display, 0);
+        }
+        // _ = c.XSendEvent(self.display, self.last_child, 0, c.ButtonPressMask | c.ButtonReleaseMask, &self.event);
+        // _ = c.XSync(self.display, 0);
         _ = c.XNextEvent(self.display, &self.event);
         self.event_type = @enumFromInt(self.event.type);
         switch (self.event_type) {
