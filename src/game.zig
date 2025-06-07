@@ -19,7 +19,8 @@ pub const AssetManager = asset_manager.AssetManager;
 pub const Engine = engine.Engine;
 const GAME_LOG = std.log.scoped(.game);
 
-const TERMINAL_OFFSET = 70;
+const TERMINAL_HEIGHT_OFFSET = 70;
+const TERMINAL_WIDTH_OFFSET = 30;
 
 pub const Game = struct {
     running: bool = true,
@@ -366,7 +367,7 @@ pub const Game = struct {
     }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
-        self.e = try Engine(._2d, .color_true).init(self.allocator, TERMINAL_OFFSET);
+        self.e = try Engine(._2d, .color_true).init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET);
         GAME_LOG.info("starting height {d}\n", .{self.e.renderer.terminal.size.height});
         self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);

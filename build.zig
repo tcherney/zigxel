@@ -77,7 +77,9 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("sprite", sprite_module);
 
     exe.linkLibC();
+    //TODO need to change how we build the zigxel library so we actually link to it instead of rebuilding in other projects
     if (builtin.target.os.tag == .linux) {
+        exe.addIncludePath(b.path("../../../linuxbrew/.linuxbrew/include"));
         exe.linkSystemLibrary("X11");
     }
 

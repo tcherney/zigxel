@@ -15,6 +15,8 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
     child_border_width: u32 = undefined,
     last_child: c_ulong,
     pointer_grabbed: bool = false,
+    term_height_offset: i32,
+    term_width_offset: i32,
     mouse_state: MouseState = .{
         .x = 0,
         .y = 0,
@@ -57,7 +59,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
             _,
         };
     };
-    pub fn init() Xlib {
+    pub fn init(term_width_offset: i32, term_height_offset: i32) Xlib {
         const display = c.XOpenDisplay(null);
         const window = c.XDefaultRootWindow(display);
         var res = c.XSelectInput(display, window, c.KeyPressMask | c.KeyReleaseMask | c.ResizeRedirectMask);
@@ -69,6 +71,8 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
             .display = display,
             .window = window,
             .last_child = window,
+            .term_width_offset = term_width_offset,
+            .term_height_offset = term_height_offset,
         };
     }
     pub fn deinit(self: *Xlib) void {
@@ -99,7 +103,6 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
             _ = c.XGrabButton(self.display, c.AnyButton, c.AnyModifier, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0);
             self.pointer_grabbed = false;
         } else if (self.event_type == .ButtonPress and !self.pointer_grabbed and (self.last_child == self.event.xbutton.subwindow or self.last_child == self.window)) {
-            self.pointer_grabbed = true;
             if (self.last_child == self.window) {
                 XLIB_LOG.info("Child set to {d}, no longer {d}\n", .{ child_return, self.last_child });
                 self.last_child = child_return;
@@ -109,9 +112,13 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
                 _ = c.XGetGeometry(self.display, self.last_child, &root_return, &root_x, &root_y, &self.child_width, &self.child_height, &self.child_border_width, &depth_return);
                 XLIB_LOG.info("width: {d}, height: {d}, border: {d}\n", .{ self.child_width, self.child_height, self.child_border_width });
             }
-            XLIB_LOG.info("grabbing pointer\n", .{});
-            _ = c.XUngrabButton(self.display, c.AnyButton, c.AnyModifier, self.window);
-            _ = c.XGrabPointer(self.display, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0, c.CurrentTime);
+            _ = c.XQueryPointer(self.display, self.last_child, &root_return, &child_return, &root_x, &root_y, &child_x, &child_y, &mask);
+            if (child_y >= self.term_height_offset and child_x < (@as(i32, @bitCast(self.child_width)) - self.term_width_offset)) {
+                XLIB_LOG.info("grabbing pointer\n", .{});
+                self.pointer_grabbed = true;
+                _ = c.XUngrabButton(self.display, c.AnyButton, c.AnyModifier, self.window);
+                _ = c.XGrabPointer(self.display, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0, c.CurrentTime);
+            }
         }
 
         if (self.event_type == .ButtonPress and self.last_child != self.event.xbutton.subwindow) {
@@ -121,6 +128,13 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         //now we have coordinates relative to the child window the event happened in
         _ = c.XQueryPointer(self.display, self.last_child, &root_return, &child_return, &root_x, &root_y, &child_x, &child_y, &mask);
         XLIB_LOG.info("x: {d}, y: {d}, x_root: {d}, y_root: {d}\n", .{ child_x, child_y, root_x, root_y });
+        if (self.pointer_grabbed and child_y < self.term_height_offset or child_x >= (@as(i32, @bitCast(self.child_width)) - self.term_width_offset)) {
+            XLIB_LOG.info("UNgrabbing pointer\n", .{});
+            _ = c.XUngrabPointer(self.display, c.CurrentTime);
+            _ = c.XGrabButton(self.display, c.AnyButton, c.AnyModifier, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0);
+            self.pointer_grabbed = false;
+            return;
+        }
         self.mouse_state.x = child_x;
         self.mouse_state.y = child_y;
 

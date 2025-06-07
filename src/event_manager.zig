@@ -75,7 +75,8 @@ pub const EventManager = struct {
     window_change_callback: ?WindowChangeCallback = null,
     mouse_event_callback: ?MouseChangeCallback = null,
     original_termios: termios = undefined,
-    term_height_offset: usize,
+    term_width_offset: i32,
+    term_height_offset: i32,
     stdin: std.fs.File,
     stdout: std.fs.File,
     xlib: Xlib = undefined,
@@ -85,8 +86,8 @@ pub const EventManager = struct {
         .windows => std.os.windows.DWORD,
         else => std.posix.termios,
     };
-    pub fn init(term_height_offset: usize) EventManager {
-        return EventManager{ .stdin = std.io.getStdIn(), .stdout = std.io.getStdOut(), .term_height_offset = term_height_offset };
+    pub fn init(term_width_offset: i32, term_height_offset: i32) EventManager {
+        return EventManager{ .stdin = std.io.getStdIn(), .stdout = std.io.getStdOut(), .term_width_offset = term_width_offset, .term_height_offset = term_height_offset };
     }
 
     pub fn deinit(self: *Self) Error!void {
@@ -211,7 +212,7 @@ pub const EventManager = struct {
             }
         } else {
             EVENT_LOG.info("Initializing x11\n", .{});
-            self.xlib = Xlib.init();
+            self.xlib = Xlib.init(self.term_width_offset, self.term_height_offset);
             EVENT_LOG.info("x11 initialized\n", .{});
             defer self.xlib.deinit();
             var term_size = try term.Term.get_Size(self.stdout.handle);
@@ -237,7 +238,7 @@ pub const EventManager = struct {
                     .ButtonPress, .ButtonRelease, .MotionNotify => {
                         if (self.mouse_event_callback != null) {
                             const x_ratio: f64 = @as(f64, @floatFromInt(self.xlib.mouse_state.x)) / @as(f64, @floatFromInt(self.xlib.child_width));
-                            const adjusted_y = self.xlib.mouse_state.y - @as(i32, @intCast(@as(i64, @bitCast(self.term_height_offset))));
+                            const adjusted_y = self.xlib.mouse_state.y - self.term_height_offset;
                             const y_ratio: f64 = if (adjusted_y > 0) @as(f64, @floatFromInt(adjusted_y)) / @as(f64, @floatFromInt(self.xlib.child_height)) else 0;
                             const x: f64 = x_ratio * @as(f64, @floatFromInt(term_size.width)) - @as(f64, @floatFromInt(self.xlib.child_border_width));
                             const y: f64 = y_ratio * @as(f64, @floatFromInt(term_size.height / 2));
