@@ -53,7 +53,7 @@ pub const WindowSize = struct {
     width: u32,
     height: u32,
 };
-pub const WindowChangeCallback = common.Callback(WindowSize);
+pub const WindowChangeCallback = common.Callback(void);
 pub const KeyChangeCallback = common.Callback(KEYS);
 pub const MouseChangeCallback = common.Callback(MouseEvent);
 
@@ -185,7 +185,7 @@ pub const EventManager = struct {
                                 @intFromEnum(win32.EventType.WINDOW_BUFFER_SIZE) => {
                                     if (self.window_change_callback != null) {
                                         EVENT_LOG.info("{any}\n", .{irInBuf[i].Event.WindowBufferSizeEvent.dwSize});
-                                        self.window_change_callback.?.call(.{ .width = @as(u32, @bitCast(@as(i32, @intCast(irInBuf[i].Event.WindowBufferSizeEvent.dwSize.X)))), .height = @as(u32, @bitCast(@as(i32, @intCast(irInBuf[i].Event.WindowBufferSizeEvent.dwSize.Y)))) });
+                                        self.window_change_callback.?.call({});
                                     }
                                 },
                                 @intFromEnum(win32.EventType.MOUSE_EVENT) => {
@@ -215,7 +215,6 @@ pub const EventManager = struct {
             self.xlib = Xlib.init(self.term_width_offset, self.term_height_offset);
             EVENT_LOG.info("x11 initialized\n", .{});
             defer self.xlib.deinit();
-            var term_size = try term.Term.get_Size(self.stdout.handle);
             while (self.running) {
                 EVENT_LOG.info("Grabbing next xevent\n", .{});
                 self.xlib.next_event();
@@ -240,6 +239,7 @@ pub const EventManager = struct {
                     .ButtonPress, .ButtonRelease, .MotionNotify => {
                         EVENT_LOG.info("Mouse\n", .{});
                         if (self.mouse_event_callback != null) {
+                            const term_size = try term.Term.get_Size(self.stdout.handle);
                             const x_ratio: f64 = @as(f64, @floatFromInt(self.xlib.mouse_state.x)) / @as(f64, @floatFromInt(self.xlib.child_width));
                             const adjusted_y = self.xlib.mouse_state.y - self.term_height_offset;
                             const y_ratio: f64 = if (adjusted_y > 0) @as(f64, @floatFromInt(adjusted_y)) / @as(f64, @floatFromInt(self.xlib.child_height)) else 0;
@@ -250,15 +250,9 @@ pub const EventManager = struct {
                     },
                     //TODO handle window changes
                     .ResizeRequest => {
-                        term_size = try term.Term.get_Size(self.stdout.handle);
-                        EVENT_LOG.info("Window change {any}\n", .{term_size});
+                        EVENT_LOG.info("Window change\n", .{});
                         if (self.window_change_callback != null) {
-                            self.window_change_callback.?.call(.{
-                                .width = @truncate(term_size.width),
-                                .height = @truncate(term_size.height),
-                            });
-                        } else {
-                            EVENT_LOG.info("no callback\n", .{});
+                            self.window_change_callback.?.call({});
                         }
                     },
                     else => {

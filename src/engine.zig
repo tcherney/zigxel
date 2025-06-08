@@ -18,6 +18,7 @@ pub const WindowSize = event_manager.WindowSize;
 pub const RenderCallback = common.CallbackError(u64, Error);
 pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Timer.Error || std.posix.GetRandomError;
 
+pub const WindowChangeCallback = common.Callback(WindowSize);
 pub const ENGINE_LOG = std.log.scoped(.engine);
 
 pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type: graphics.ColorMode) type {
@@ -31,7 +32,7 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
         fps: f64 = 0.0,
         window_changed: bool = false,
         window_change_size: term.Size = undefined,
-        window_change_callback: ?event_manager.WindowChangeCallback = null,
+        window_change_callback: ?WindowChangeCallback = null,
 
         const Self = @This();
         pub const Renderer = switch (graphics_type) {
@@ -54,9 +55,8 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
             try self.events.deinit();
         }
 
-        pub fn window_change(self: *Self, win_size: WindowSize) void {
+        pub fn window_change(self: *Self, _: void) void {
             self.window_changed = true;
-            self.window_change_size = term.Size{ .width = @as(usize, @intCast(win_size.width)), .height = @as(usize, @intCast(win_size.height)) };
         }
         //TODO multithreaded rendering?? can split target texture into multiple parts
         fn render_loop(self: *Self) Error!void {
@@ -69,11 +69,14 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
                 try self.render_callback.?.call(delta);
                 // check window change
                 if (self.window_changed) {
-                    try self.renderer.size_change(self.window_change_size);
-                    if (self.window_change_callback != null) {
-                        self.window_change_callback.?.call(.{ .width = @as(u32, @intCast(self.window_change_size.width)), .height = @as(u32, @intCast(self.window_change_size.height)) });
+                    self.window_change_size = try term.Term.get_Size(self.renderer.terminal.stdout.context.handle);
+                    if (self.window_change_size.width != self.renderer.terminal.size.width or self.window_change_size.height != self.renderer.terminal.size.height) {
+                        try self.renderer.size_change(self.window_change_size);
+                        if (self.window_change_callback != null) {
+                            self.window_change_callback.?.call(.{ .width = @as(u32, @intCast(self.window_change_size.width)), .height = @as(u32, @intCast(self.window_change_size.height)) });
+                        }
+                        self.window_changed = false;
                     }
-                    self.window_changed = false;
                 }
                 delta = timer.read();
                 elapsed += @as(f64, @floatFromInt(delta)) / 1_000_000_000.0;
@@ -129,7 +132,7 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
             self.events.mouse_event_callback = event_manager.MouseChangeCallback.init(CONTEXT_TYPE, func, context);
         }
         pub fn on_window_change(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
-            self.window_change_callback = event_manager.WindowChangeCallback.init(CONTEXT_TYPE, func, context);
+            self.window_change_callback = WindowChangeCallback.init(CONTEXT_TYPE, func, context);
         }
 
         pub fn on_render(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
