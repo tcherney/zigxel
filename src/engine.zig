@@ -55,10 +55,8 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
         }
 
         pub fn window_change(self: *Self, win_size: WindowSize) void {
-            if (builtin.os.tag == .windows) {
-                self.window_changed = true;
-                self.window_change_size = term.Size{ .width = @as(usize, @intCast(win_size.width)), .height = @as(usize, @intCast(win_size.height)) };
-            }
+            self.window_changed = true;
+            self.window_change_size = term.Size{ .width = @as(usize, @intCast(win_size.width)), .height = @as(usize, @intCast(win_size.height)) };
         }
         //TODO multithreaded rendering?? can split target texture into multiple parts
         fn render_loop(self: *Self) Error!void {
@@ -70,12 +68,6 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
                 timer.reset();
                 try self.render_callback.?.call(delta);
                 // check window change
-                if (builtin.os.tag != .windows) {
-                    const check_size = try term.Term.get_Size(self.renderer.terminal.stdout.context.handle);
-                    if (check_size.width != self.renderer.terminal.size.width or check_size.height * 2 != self.renderer.terminal.size.height) {
-                        try self.renderer.size_change(check_size);
-                    }
-                }
                 if (self.window_changed) {
                     try self.renderer.size_change(self.window_change_size);
                     if (self.window_change_callback != null) {
@@ -111,10 +103,9 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
         }
 
         pub fn start(self: *Self) Error!void {
+            //TODO need to go through this on both platofrms and make sure the dimensions make sense and are consistent
             ENGINE_LOG.info("Window size {d}x{d}\n", .{ self.renderer.terminal.size.width, self.renderer.terminal.size.height });
-            if (builtin.os.tag == .windows) {
-                self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
-            }
+            self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
             self.running = true;
             if (self.render_callback) |_| {
                 self.render_thread = try std.Thread.spawn(.{}, render_loop, .{self});

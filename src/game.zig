@@ -178,6 +178,7 @@ pub const Game = struct {
         }
     }
     pub fn on_window_change(self: *Self, win_size: engine.WindowSize) void {
+        GAME_LOG.info("on_window_change\n", .{});
         self.lock.lock();
         GAME_LOG.info("changed height {d}\n", .{win_size.height});
         const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;

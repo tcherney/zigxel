@@ -106,6 +106,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
             if (self.last_child == self.window) {
                 XLIB_LOG.info("Child set to {d}, no longer {d}\n", .{ child_return, self.last_child });
                 self.last_child = child_return;
+                _ = c.XSelectInput(self.display, self.last_child, c.ResizeRedirectMask);
                 //grab dimensions of window we clicked in
                 var depth_return: c_uint = undefined;
                 //TODO this can apparently error need to handle it
@@ -156,6 +157,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         // _ = c.XSync(self.display, 0);
         _ = c.XNextEvent(self.display, &self.event);
         self.event_type = @enumFromInt(self.event.type);
+        XLIB_LOG.info("event type {any}, {d}\n", .{ self.event_type, self.event.type });
         switch (self.event_type) {
             .ButtonPress, .ButtonRelease => {
                 self.process_coords();
@@ -190,7 +192,9 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
                 self.process_coords();
             },
             .ResizeRequest => {
-                XLIB_LOG.info("Resize {any}\n", .{self.event.xresizerequest});
+                XLIB_LOG.info("Resize\n {any}\n", .{self.event.xresizerequest});
+                self.child_width = @as(u32, @bitCast(self.event.xresizerequest.width));
+                self.child_height = @as(u32, @bitCast(self.event.xresizerequest.height));
             },
             else => {},
         }

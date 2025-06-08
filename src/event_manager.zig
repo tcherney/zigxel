@@ -221,12 +221,14 @@ pub const EventManager = struct {
                 self.xlib.next_event();
                 switch (self.xlib.event_type) {
                     .KeyPress => {
+                        EVENT_LOG.info("Keypress\n", .{});
                         const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
                         if (self.key_down_callback != null) {
                             self.key_down_callback.?.call(key);
                         }
                     },
                     .KeyRelease => {
+                        EVENT_LOG.info("Keyrelease\n", .{});
                         const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
                         if (self.key_up_callback != null) {
                             self.key_up_callback.?.call(key);
@@ -236,6 +238,7 @@ pub const EventManager = struct {
                         }
                     },
                     .ButtonPress, .ButtonRelease, .MotionNotify => {
+                        EVENT_LOG.info("Mouse\n", .{});
                         if (self.mouse_event_callback != null) {
                             const x_ratio: f64 = @as(f64, @floatFromInt(self.xlib.mouse_state.x)) / @as(f64, @floatFromInt(self.xlib.child_width));
                             const adjusted_y = self.xlib.mouse_state.y - self.term_height_offset;
@@ -248,9 +251,19 @@ pub const EventManager = struct {
                     //TODO handle window changes
                     .ResizeRequest => {
                         term_size = try term.Term.get_Size(self.stdout.handle);
-                        if (self.window_change_callback != null) {}
+                        EVENT_LOG.info("Window change {any}\n", .{term_size});
+                        if (self.window_change_callback != null) {
+                            self.window_change_callback.?.call(.{
+                                .width = @truncate(term_size.width),
+                                .height = @truncate(term_size.height),
+                            });
+                        } else {
+                            EVENT_LOG.info("no callback\n", .{});
+                        }
                     },
-                    else => {},
+                    else => {
+                        EVENT_LOG.info("Unknown event\n", .{});
+                    },
                 }
             }
         }
