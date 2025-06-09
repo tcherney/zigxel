@@ -100,6 +100,8 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
         allocator: std.mem.Allocator = undefined,
         first_render: bool = true,
         stack: MatrixStack(graphics_type),
+        pixel_width: usize,
+        pixel_height: usize,
         pub const Point = common.Point(2, i32);
         pub const Rectangle = common.Rectangle;
         pub const PixelType: type = switch (color_type) {
@@ -111,7 +113,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
 
         pub fn init(allocator: std.mem.Allocator) Error!Self {
             const terminal = try term.Term.init(allocator);
-            var pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 2);
+            var pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 4);
             for (0..pixel_buffer.len) |i| {
                 if (color_type == .color_256) {
                     pixel_buffer[i] = 0;
@@ -119,7 +121,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                     pixel_buffer[i] = PixelType{};
                 }
             }
-            var last_frame = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 2);
+            var last_frame = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 4);
             for (0..last_frame.len) |i| {
                 if (color_type == .color_256) {
                     last_frame[i] = 0;
@@ -133,9 +135,11 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                 .pixel_buffer = pixel_buffer,
                 .last_frame = last_frame,
                 // need space for setting background and setting of foreground color for every pixel
-                .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width) + 200)),
+                .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width * 2) + 200)),
                 .text_to_render = std.ArrayList(Text).init(allocator),
                 .stack = try MatrixStack(graphics_type).init(allocator),
+                .pixel_width = terminal.size.width,
+                .pixel_height = terminal.size.height * 2,
             };
         }
         pub fn push(self: *Self) Error!void {
@@ -153,11 +157,12 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
         pub fn size_change(self: *Self, size: term.Size) Error!void {
             self.allocator.free(self.terminal_buffer);
             self.allocator.free(self.last_frame);
-            self.terminal.size.width = size.width;
-            self.terminal.size.height = size.height * 2;
-            self.terminal_buffer = try self.allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((self.terminal.size.height * self.terminal.size.width) + 200));
+            self.terminal.size = .{ .width = size.width, .height = size.height };
+            self.pixel_width = size.width;
+            self.pixel_height = size.height;
+            self.terminal_buffer = try self.allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((self.pixel_width * self.pixel_height) + 200));
             self.allocator.free(self.pixel_buffer);
-            self.pixel_buffer = try self.allocator.alloc(PixelType, self.terminal.size.height * self.terminal.size.width * 2);
+            self.pixel_buffer = try self.allocator.alloc(PixelType, self.pixel_width * self.pixel_height * 2);
             for (0..self.pixel_buffer.len) |i| {
                 if (color_type == .color_256) {
                     self.pixel_buffer[i] = 0;
@@ -249,7 +254,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
         pub fn draw_pixel_bg(self: *Self, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture, bgr: u8, bgg: u8, bgb: u8, custom_bg: bool) void {
             if (dest == null) {
                 const res_point = self.stack.apply(.{ .x = @floatFromInt(x), .y = @floatFromInt(y) });
-                if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(self.terminal.size.width)) or res_point.y >= @as(f64, @floatFromInt(self.terminal.size.height)) or res_point.y < 0) {
+                if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(self.pixel_width)) or res_point.y >= @as(f64, @floatFromInt(self.pixel_height)) or res_point.y < 0) {
                     return;
                 }
                 const x_indx: usize = @intFromFloat(res_point.x);
@@ -262,17 +267,17 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                         const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bgr)), @as(f32, @floatFromInt(bgg)), @as(f32, @floatFromInt(bgb)), @as(f32, @floatFromInt(p.get_a())) };
                         end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
                     } else {
-                        const bkgd = self.pixel_buffer[y_indx * self.terminal.size.width + x_indx];
+                        const bkgd = self.pixel_buffer[y_indx * self.pixel_width + x_indx];
                         const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.r)), @as(f32, @floatFromInt(bkgd.g)), @as(f32, @floatFromInt(bkgd.b)), 255.0 };
                         end_color += @as(@Vector(4, f32), @splat((1 - (@as(f32, @floatFromInt(p.get_a())) / max_pixel)))) * bkgd_vec;
                     }
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = @as(u8, @intFromFloat(end_color[0]));
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = @as(u8, @intFromFloat(end_color[1]));
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = @as(u8, @intFromFloat(end_color[2]));
+                    self.pixel_buffer[y_indx * self.pixel_width + x_indx].r = @as(u8, @intFromFloat(end_color[0]));
+                    self.pixel_buffer[y_indx * self.pixel_width + x_indx].g = @as(u8, @intFromFloat(end_color[1]));
+                    self.pixel_buffer[y_indx * self.pixel_width + x_indx].b = @as(u8, @intFromFloat(end_color[2]));
                 } else {
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = p.get_r();
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = p.get_g();
-                    self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = p.get_b();
+                    self.pixel_buffer[y_indx * self.pixel_width + x_indx].r = p.get_r();
+                    self.pixel_buffer[y_indx * self.pixel_width + x_indx].g = p.get_g();
+                    self.pixel_buffer[y_indx * self.pixel_width + x_indx].b = p.get_b();
                 }
             } else {
                 const res_point = self.stack.apply(.{ .x = @floatFromInt(x), .y = @floatFromInt(y) });
@@ -333,7 +338,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                     if (j < 0) {
                         tex_indx += width;
                         continue;
-                    } else if (j >= self.terminal.size.height) {
+                    } else if (j >= self.pixel_height) {
                         break;
                     }
                     var i: i32 = dest_rect.x;
@@ -342,7 +347,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                         if (res_point.x < 0) {
                             tex_indx += 1;
                             continue;
-                        } else if (res_point.x >= @as(f64, @floatFromInt(self.terminal.size.width))) {
+                        } else if (res_point.x >= @as(f64, @floatFromInt(self.pixel_width))) {
                             tex_indx += @as(usize, @intCast(@as(u32, @bitCast((dest_rect.x + width_i) - i))));
                             break;
                         }
@@ -354,7 +359,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                         var b: u8 = pixel_buffer[tex_indx].get_b();
                         if (pixel_buffer[tex_indx].get_a() != 255) {
                             const max_pixel = 255.0;
-                            const bkgd = self.pixel_buffer[j_usize * self.terminal.size.width + i_usize];
+                            const bkgd = self.pixel_buffer[j_usize * self.pixel_width + i_usize];
                             var end_color: @Vector(4, f32) = .{ @as(f32, @floatFromInt(r)), @as(f32, @floatFromInt(g)), @as(f32, @floatFromInt(b)), @as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) };
                             end_color *= @as(@Vector(4, f32), @splat((@as(f32, @floatFromInt(pixel_buffer[tex_indx].get_a())) / max_pixel)));
                             const bkgd_vec: @Vector(4, f32) = @Vector(4, f32){ @as(f32, @floatFromInt(bkgd.r)), @as(f32, @floatFromInt(bkgd.g)), @as(f32, @floatFromInt(bkgd.b)), 255.0 };
@@ -366,12 +371,12 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
 
                         switch (color_type) {
                             .color_256 => {
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize] = term.rgb_256(r, g, b);
+                                self.pixel_buffer[j_usize * self.pixel_width + i_usize] = term.rgb_256(r, g, b);
                             },
                             .color_true => {
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].r = r;
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].g = g;
-                                self.pixel_buffer[j_usize * self.terminal.size.width + i_usize].b = b;
+                                self.pixel_buffer[j_usize * self.pixel_width + i_usize].r = r;
+                                self.pixel_buffer[j_usize * self.pixel_width + i_usize].g = g;
+                                self.pixel_buffer[j_usize * self.pixel_width + i_usize].b = b;
                             },
                         }
 
@@ -444,19 +449,19 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
                 for (y..y + h) |j| {
                     for (x..x + w) |i| {
                         const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
-                        if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(self.terminal.size.width)) or res_point.y >= @as(f64, @floatFromInt(self.terminal.size.height)) or res_point.y < 0) {
+                        if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(self.pixel_width)) or res_point.y >= @as(f64, @floatFromInt(self.pixel_height)) or res_point.y < 0) {
                             continue;
                         }
                         const x_indx: usize = @intFromFloat(res_point.x);
                         const y_indx: usize = @intFromFloat(res_point.y);
                         switch (color_type) {
                             .color_256 => {
-                                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx] = color_indx;
+                                self.pixel_buffer[y_indx * self.pixel_width + x_indx] = color_indx;
                             },
                             .color_true => {
-                                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].r = r;
-                                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].g = g;
-                                self.pixel_buffer[y_indx * self.terminal.size.width + x_indx].b = b;
+                                self.pixel_buffer[y_indx * self.pixel_width + x_indx].r = r;
+                                self.pixel_buffer[y_indx * self.pixel_width + x_indx].g = g;
+                                self.pixel_buffer[y_indx * self.pixel_width + x_indx].b = b;
                             },
                         }
                     }
@@ -494,7 +499,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
         //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
         pub fn flip(self: *Self, dest: ?texture.Texture, bounds: ?Rectangle) Error!void {
             if (dest != null and bounds != null) {
-                if (bounds.?.width > @as(u32, @intCast(self.terminal.size.width)) or bounds.?.height > @as(u32, @intCast(self.terminal.size.height))) {
+                if (bounds.?.width > @as(u32, @intCast(self.pixel_width)) or bounds.?.height > @as(u32, @intCast(self.pixel_height))) {
                     return Error.TextureError;
                 } else {
                     var y: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.y))));
@@ -521,8 +526,8 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
 
             var j: usize = 0;
             var i: usize = 0;
-            const width = self.terminal.size.width;
-            const height = self.terminal.size.height * 2;
+            const width = self.pixel_width;
+            const height = self.pixel_height;
             var prev_fg_pixel: PixelType = self.pixel_buffer[j * width + i];
             var prev_bg_pixel: PixelType = self.pixel_buffer[(j + 1) * width + i];
             var dirty_pixel_buffer: [48]u8 = undefined;
@@ -665,7 +670,7 @@ pub fn Graphics(comptime graphics_type: GraphicsType, comptime color_type: Color
             if (self.text_to_render.items.len > 0) {
                 var text = self.text_to_render.pop();
                 while (text) |t| {
-                    if (t.y >= 0 and t.y < self.terminal.size.height) {
+                    if (t.y >= 0 and t.y < self.pixel_height) {
                         for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ "{d};{d}H", .{ @divFloor(t.y, 2) + 1, t.x + 1 })) |c| {
                             self.terminal_buffer[buffer_len] = c;
                             buffer_len += 1;

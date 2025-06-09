@@ -182,7 +182,7 @@ pub const Game = struct {
         self.lock.lock();
         GAME_LOG.info("changed height {d}\n", .{win_size.height});
         const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;
-        var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator) catch |err| {
+        var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel_height)), self.allocator) catch |err| {
             GAME_LOG.info("{any}\n", .{err});
             self.running = false;
             return;
@@ -370,7 +370,7 @@ pub const Game = struct {
         self.lock = std.Thread.Mutex{};
         self.e = try Engine(._2d, .color_true).init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET);
         GAME_LOG.info("starting height {d}\n", .{self.e.renderer.terminal.size.height});
-        self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.terminal.size.height)) + 10, @as(u32, @intCast(self.e.renderer.terminal.size.width)), @as(u32, @intCast(self.e.renderer.terminal.size.height)), self.allocator);
+        self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel_height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
         for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
             try self.pixels.append(null);
