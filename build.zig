@@ -76,6 +76,22 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("sprite", sprite_module);
 
+    const lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "libzigxel",
+        .root_module = engine_module,
+    });
+
+    if (builtin.target.os.tag == .linux) {
+        lib.addIncludePath(b.path("../../../linuxbrew/.linuxbrew/include"));
+        lib.linkSystemLibrary("X11");
+    }
+
+    // This declares intent for the library to be installed into the standard
+    // location when the user invokes the "install" step (the default step when
+    // running `zig build`).
+    b.installArtifact(lib);
+
     exe.linkLibC();
     //TODO need to change how we build the zigxel library so we actually link to it instead of rebuilding in other projects
     if (builtin.target.os.tag == .linux) {

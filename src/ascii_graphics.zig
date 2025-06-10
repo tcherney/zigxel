@@ -99,7 +99,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             self.allocator.free(self.terminal_buffer);
             self.allocator.free(self.last_frame);
             self.terminal.size.width = size.width;
-            self.terminal.size.height = size.height * 2;
+            self.terminal.size.height = size.height;
             self.terminal_buffer = try self.allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((self.terminal.size.height * self.terminal.size.width) + 200));
             self.allocator.free(self.pixel_buffer);
             self.allocator.free(self.ascii_buffer);
@@ -376,7 +376,7 @@ pub fn AsciiGraphics(comptime color_type: ColorMode) type {
             var j: usize = 0;
             var i: usize = 0;
             const width = self.terminal.size.width;
-            const height = self.terminal.size.height * 2;
+            const height = self.terminal.size.height;
             var prev_fg_pixel: PixelType = self.pixel_buffer[j * width + i];
             var prev_bg_pixel: PixelType = self.background_pixel_buffer[j * width + i];
             var dirty_pixel_buffer: [48]u8 = undefined;
