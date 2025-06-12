@@ -16,6 +16,7 @@ pub const std_options: std.Options = .{
         .{ .scope = .game, .level = .info },
         .{ .scope = .font, .level = .err },
         .{ .scope = .physics_pixel, .level = .info },
+        .{ .scope = .tui, .level = .info },
     },
 };
 

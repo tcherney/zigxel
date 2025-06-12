@@ -8,6 +8,7 @@ const game_object = @import("game_object.zig");
 const asset_manager = @import("asset_manager.zig");
 const _player = @import("player.zig");
 const _font = @import("font.zig");
+const _tui = @import("tui.zig");
 
 pub const Font = _font.Font;
 pub const World = @import("world.zig").World;
@@ -17,6 +18,7 @@ pub const GameObject = game_object.GameObject;
 pub const Texture = game_object.Texture;
 pub const AssetManager = asset_manager.AssetManager;
 pub const Engine = engine.Engine;
+pub const TUI = _tui.TUI(.pixel);
 const GAME_LOG = std.log.scoped(.game);
 
 const TERMINAL_HEIGHT_OFFSET = 70;
@@ -43,10 +45,11 @@ pub const Game = struct {
     player: ?Player = null,
     font_tex: *Texture = undefined,
     font_sprite: sprite.Sprite = undefined,
+    tui: TUI,
     const Self = @This();
     pub const Error = error{} || image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
     pub fn init(allocator: std.mem.Allocator) Error!Self {
-        var ret = Self{ .allocator = allocator };
+        var ret = Self{ .allocator = allocator, .tui = TUI.init(allocator) };
         try common.gen_rand();
         ret.placement_pixel = try ret.allocator.alloc(PhysicsPixel, 13);
         ret.placement_pixel[0] = PhysicsPixel.init(physic_pixel.PixelType.Sand, ret.starting_pos_x, ret.starting_pos_y);
@@ -72,6 +75,7 @@ pub const Game = struct {
                 self.allocator.destroy(self.pixels.items[i].?);
             }
         }
+        self.tui.deinit();
         self.pixels.deinit();
         self.current_world.deinit();
         self.allocator.free(self.placement_pixel);
@@ -364,6 +368,9 @@ pub const Game = struct {
         self.font_sprite.dest.x = self.current_world.viewport.x;
         self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
         try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
+        for (0..self.tui.buttons.items.len) |i| {
+            try self.tui.buttons.items[i].draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y);
+        }
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
@@ -385,6 +392,7 @@ pub const Game = struct {
         self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
+        try self.tui.add_button(self.e.renderer.pixel_width / 2, 0, 10, 2, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start");
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);
         self.e.on_render(Self, on_render, self);
