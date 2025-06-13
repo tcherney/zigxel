@@ -53,7 +53,7 @@ pub const WindowSize = struct {
     width: u32,
     height: u32,
 };
-pub const WindowChangeCallback = common.Callback(void);
+pub const WindowChangeCallback = common.CallbackNoData();
 pub const KeyChangeCallback = common.Callback(KEYS);
 pub const MouseChangeCallback = common.Callback(MouseEvent);
 
@@ -185,7 +185,7 @@ pub const EventManager = struct {
                                 @intFromEnum(win32.EventType.WINDOW_BUFFER_SIZE) => {
                                     if (self.window_change_callback != null) {
                                         EVENT_LOG.info("{any}\n", .{irInBuf[i].Event.WindowBufferSizeEvent.dwSize});
-                                        self.window_change_callback.?.call({});
+                                        self.window_change_callback.?.call();
                                     }
                                 },
                                 @intFromEnum(win32.EventType.MOUSE_EVENT) => {
@@ -252,7 +252,7 @@ pub const EventManager = struct {
                     .ResizeRequest => {
                         EVENT_LOG.info("Window change\n", .{});
                         if (self.window_change_callback != null) {
-                            self.window_change_callback.?.call({});
+                            self.window_change_callback.?.call();
                         }
                     },
                     else => {

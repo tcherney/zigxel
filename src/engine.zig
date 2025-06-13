@@ -55,7 +55,7 @@ pub fn Engine(comptime graphics_type: graphics.GraphicsType, comptime color_type
             try self.events.deinit();
         }
 
-        pub fn window_change(self: *Self, _: void) void {
+        pub fn window_change(self: *Self) void {
             self.window_changed = true;
         }
         //TODO multithreaded rendering?? can split target texture into multiple parts
