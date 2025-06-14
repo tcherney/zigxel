@@ -132,6 +132,9 @@ pub const Game = struct {
             self.old_mouse_x = @as(i32, @intCast(mouse_event.x)) + self.current_world.viewport.x;
             self.old_mouse_y = @as(i32, @intCast(mouse_event.y)) * 2 + self.current_world.viewport.y;
         }
+        if (mouse_event.clicked) {
+            self.tui.mouse_input(mouse_event.x, mouse_event.y);
+        }
         self.placement_pixel[self.placement_index].x = @as(i32, @intCast(mouse_event.x)) + self.current_world.viewport.x;
         self.placement_pixel[self.placement_index].y = @as(i32, @intCast(mouse_event.y)) * 2 + self.current_world.viewport.y;
         const mouse_diff_x = self.placement_pixel[self.placement_index].x - self.old_mouse_x;
@@ -325,6 +328,12 @@ pub const Game = struct {
             else => {},
         }
     }
+
+    pub fn on_start_clicked(self: *Self) void {
+        _ = self;
+        GAME_LOG.info("Start clicked\n", .{});
+    }
+
     var rotate_test: f64 = 0;
     var elapsed: u64 = 0;
     var flip: bool = false;
@@ -368,9 +377,7 @@ pub const Game = struct {
         self.font_sprite.dest.x = self.current_world.viewport.x;
         self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
         try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
-        for (0..self.tui.buttons.items.len) |i| {
-            try self.tui.buttons.items[i].draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y);
-        }
+        try self.tui.draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y);
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
@@ -392,7 +399,8 @@ pub const Game = struct {
         self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
-        try self.tui.add_button(self.e.renderer.pixel_width / 2, 0, 10, 2, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start");
+        try self.tui.add_button(self.e.renderer.pixel_width / 2, 0, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start");
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);
         self.e.on_render(Self, on_render, self);
