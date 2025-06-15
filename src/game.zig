@@ -46,6 +46,11 @@ pub const Game = struct {
     font_tex: *Texture = undefined,
     font_sprite: sprite.Sprite = undefined,
     tui: TUI,
+    state: State = .start,
+    pub const State = enum {
+        game,
+        start,
+    };
     const Self = @This();
     pub const Error = error{} || image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
     pub fn init(allocator: std.mem.Allocator) Error!Self {
@@ -127,170 +132,193 @@ pub const Game = struct {
     }
 
     pub fn on_mouse_change(self: *Self, mouse_event: engine.MouseEvent) void {
-        GAME_LOG.info("{any}\n", .{mouse_event});
+        GAME_LOG.info("{any} {any}\n", .{ self.state, mouse_event });
         if (self.old_mouse_x == -1 or self.old_mouse_y == -1) {
             self.old_mouse_x = @as(i32, @intCast(mouse_event.x)) + self.current_world.viewport.x;
             self.old_mouse_y = @as(i32, @intCast(mouse_event.y)) * 2 + self.current_world.viewport.y;
         }
-        if (mouse_event.clicked) {
-            self.tui.mouse_input(mouse_event.x, mouse_event.y);
-        }
-        self.placement_pixel[self.placement_index].x = @as(i32, @intCast(mouse_event.x)) + self.current_world.viewport.x;
-        self.placement_pixel[self.placement_index].y = @as(i32, @intCast(mouse_event.y)) * 2 + self.current_world.viewport.y;
-        const mouse_diff_x = self.placement_pixel[self.placement_index].x - self.old_mouse_x;
-        const mouse_diff_y = self.placement_pixel[self.placement_index].y - self.old_mouse_y;
-        self.old_mouse_x = self.placement_pixel[self.placement_index].x;
-        self.old_mouse_y = self.placement_pixel[self.placement_index].y;
-        if (mouse_event.clicked) {
-            GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-            self.lock.lock();
-            self.place_pixel() catch |err| {
-                GAME_LOG.info("{any}\n", .{err});
-                self.running = false;
-                return;
-            };
-            self.lock.unlock();
-        }
-        if (mouse_event.scroll_up) {
-            self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
-            self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].y = self.placement_pixel[self.placement_index].y;
-            self.placement_index = (self.placement_index + 1) % self.placement_pixel.len;
-        } else if (mouse_event.scroll_down) {
-            if (self.placement_index == 0) {
-                self.placement_pixel[self.placement_pixel.len - 1].x = self.placement_pixel[self.placement_index].x;
-                self.placement_pixel[self.placement_pixel.len - 1].y = self.placement_pixel[self.placement_index].y;
-                self.placement_index = self.placement_pixel.len - 1;
-            } else {
-                self.placement_pixel[(self.placement_index - 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
-                self.placement_pixel[(self.placement_index - 1) % self.placement_pixel.len].y = self.placement_pixel[self.placement_index].y;
-                self.placement_index = (self.placement_index - 1) % self.placement_pixel.len;
-            }
-        }
-        if (mouse_event.ctrl_pressed) {
-            GAME_LOG.info("{any} mouse {d} {d}\n", .{ mouse_event, mouse_diff_x, mouse_diff_y });
-            self.current_world.viewport.x += if (mouse_diff_x > 0) 1 else if (mouse_diff_x < 0) -1 else 0;
-            self.current_world.viewport.y += if (mouse_diff_y > 0) 1 else if (mouse_diff_y < 0) -1 else 0;
-            if (self.current_world.viewport.x < 0) {
-                self.current_world.viewport.x = 0;
-            }
-            if (self.current_world.viewport.y < 0) {
-                self.current_world.viewport.y = 0;
-            }
-            if (@as(u32, @bitCast(self.current_world.viewport.x)) + self.current_world.viewport.width > self.current_world.bounds.width) {
-                self.current_world.viewport.x = @as(i32, @bitCast(self.current_world.bounds.width - self.current_world.viewport.width));
-            }
-            if (@as(u32, @bitCast(self.current_world.viewport.y)) + self.current_world.viewport.height > self.current_world.bounds.height) {
-                self.current_world.viewport.y = @as(i32, @bitCast(self.current_world.bounds.height - self.current_world.viewport.height));
-            }
+        switch (self.state) {
+            .start => {
+                if (mouse_event.clicked) {
+                    GAME_LOG.info("Checking tui\n", .{});
+                    self.tui.mouse_input(mouse_event.x, mouse_event.y * 2);
+                }
+            },
+            .game => {
+                self.placement_pixel[self.placement_index].x = @as(i32, @intCast(mouse_event.x)) + self.current_world.viewport.x;
+                self.placement_pixel[self.placement_index].y = @as(i32, @intCast(mouse_event.y)) * 2 + self.current_world.viewport.y;
+                const mouse_diff_x = self.placement_pixel[self.placement_index].x - self.old_mouse_x;
+                const mouse_diff_y = self.placement_pixel[self.placement_index].y - self.old_mouse_y;
+                self.old_mouse_x = self.placement_pixel[self.placement_index].x;
+                self.old_mouse_y = self.placement_pixel[self.placement_index].y;
+                if (mouse_event.clicked) {
+                    GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
+                    self.lock.lock();
+                    self.place_pixel() catch |err| {
+                        GAME_LOG.info("{any}\n", .{err});
+                        self.running = false;
+                        return;
+                    };
+                    self.lock.unlock();
+                }
+                if (mouse_event.scroll_up) {
+                    self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
+                    self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].y = self.placement_pixel[self.placement_index].y;
+                    self.placement_index = (self.placement_index + 1) % self.placement_pixel.len;
+                } else if (mouse_event.scroll_down) {
+                    if (self.placement_index == 0) {
+                        self.placement_pixel[self.placement_pixel.len - 1].x = self.placement_pixel[self.placement_index].x;
+                        self.placement_pixel[self.placement_pixel.len - 1].y = self.placement_pixel[self.placement_index].y;
+                        self.placement_index = self.placement_pixel.len - 1;
+                    } else {
+                        self.placement_pixel[(self.placement_index - 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
+                        self.placement_pixel[(self.placement_index - 1) % self.placement_pixel.len].y = self.placement_pixel[self.placement_index].y;
+                        self.placement_index = (self.placement_index - 1) % self.placement_pixel.len;
+                    }
+                }
+                if (mouse_event.ctrl_pressed) {
+                    GAME_LOG.info("{any} mouse {d} {d}\n", .{ mouse_event, mouse_diff_x, mouse_diff_y });
+                    self.current_world.viewport.x += if (mouse_diff_x > 0) 1 else if (mouse_diff_x < 0) -1 else 0;
+                    self.current_world.viewport.y += if (mouse_diff_y > 0) 1 else if (mouse_diff_y < 0) -1 else 0;
+                    if (self.current_world.viewport.x < 0) {
+                        self.current_world.viewport.x = 0;
+                    }
+                    if (self.current_world.viewport.y < 0) {
+                        self.current_world.viewport.y = 0;
+                    }
+                    if (@as(u32, @bitCast(self.current_world.viewport.x)) + self.current_world.viewport.width > self.current_world.bounds.width) {
+                        self.current_world.viewport.x = @as(i32, @bitCast(self.current_world.bounds.width - self.current_world.viewport.width));
+                    }
+                    if (@as(u32, @bitCast(self.current_world.viewport.y)) + self.current_world.viewport.height > self.current_world.bounds.height) {
+                        self.current_world.viewport.y = @as(i32, @bitCast(self.current_world.bounds.height - self.current_world.viewport.height));
+                    }
+                }
+            },
         }
     }
     pub fn on_window_change(self: *Self, win_size: engine.WindowSize) void {
         GAME_LOG.info("on_window_change\n", .{});
         self.lock.lock();
         GAME_LOG.info("changed height {d}\n", .{win_size.height});
-        const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;
-        var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel_height)), self.allocator) catch |err| {
-            GAME_LOG.info("{any}\n", .{err});
-            self.running = false;
-            return;
-        };
-        var new_pixels: std.ArrayList(?*PhysicsPixel) = std.ArrayList(?*PhysicsPixel).init(self.allocator);
-        for (0..new_world.tex.width * new_world.tex.height) |i| {
-            if (i < self.pixels.items.len) {
-                new_pixels.append(self.pixels.items[i]) catch |err| {
+        switch (self.state) {
+            .start => {
+                //todo
+            },
+            .game => {
+                const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;
+                var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel_height)), self.allocator) catch |err| {
                     GAME_LOG.info("{any}\n", .{err});
                     self.running = false;
                     return;
                 };
-            } else {
-                new_pixels.append(null) catch |err| {
-                    GAME_LOG.info("{any}\n", .{err});
-                    self.running = false;
-                    return;
-                };
-            }
-        }
-        const pixels_to_delete: i64 = @as(i64, @bitCast(self.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
-        if (pixels_to_delete > 0) {
-            for (new_pixels.items.len..self.pixels.items.len) |i| {
-                if (self.pixels.items[i] != null) {
-                    self.allocator.destroy(self.pixels.items[i].?);
+                var new_pixels: std.ArrayList(?*PhysicsPixel) = std.ArrayList(?*PhysicsPixel).init(self.allocator);
+                for (0..new_world.tex.width * new_world.tex.height) |i| {
+                    if (i < self.pixels.items.len) {
+                        new_pixels.append(self.pixels.items[i]) catch |err| {
+                            GAME_LOG.info("{any}\n", .{err});
+                            self.running = false;
+                            return;
+                        };
+                    } else {
+                        new_pixels.append(null) catch |err| {
+                            GAME_LOG.info("{any}\n", .{err});
+                            self.running = false;
+                            return;
+                        };
+                    }
                 }
-            }
+                const pixels_to_delete: i64 = @as(i64, @bitCast(self.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
+                if (pixels_to_delete > 0) {
+                    for (new_pixels.items.len..self.pixels.items.len) |i| {
+                        if (self.pixels.items[i] != null) {
+                            self.allocator.destroy(self.pixels.items[i].?);
+                        }
+                    }
+                }
+                new_world.viewport.x = self.starting_pos_x;
+                new_world.viewport.y = self.starting_pos_y;
+                self.pixels.deinit();
+                self.current_world.deinit();
+                self.pixels = new_pixels;
+                self.current_world = new_world;
+                self.lock.unlock();
+            },
         }
-        new_world.viewport.x = self.starting_pos_x;
-        new_world.viewport.y = self.starting_pos_y;
-        self.pixels.deinit();
-        self.current_world.deinit();
-        self.pixels = new_pixels;
-        self.current_world = new_world;
-        self.lock.unlock();
     }
 
     pub fn on_key_down(self: *Self, key: engine.KEYS) void {
         GAME_LOG.info("{}\n", .{key});
-        if (key == engine.KEYS.KEY_q) {
-            self.running = false;
-        } else if (key == engine.KEYS.KEY_a) {
-            if (!self.player_mode) {
-                self.placement_pixel[self.placement_index].x -= 1;
-            } else {
-                self.player.?.move_left();
-            }
-        } else if (key == engine.KEYS.KEY_d) {
-            if (!self.player_mode) {
-                self.placement_pixel[self.placement_index].x += 1;
-            } else {
-                self.player.?.move_right();
-            }
-        } else if (key == engine.KEYS.KEY_w) {
-            if (!self.player_mode) {
-                self.placement_pixel[self.placement_index].y -= 1;
-            }
-            if (self.player_mode) {
-                self.player.?.jump();
-                flip = true;
-            }
-        } else if (key == engine.KEYS.KEY_s) {
-            if (!self.player_mode) {
-                self.placement_pixel[self.placement_index].y += 1;
-            }
-        } else if (key == engine.KEYS.KEY_SPACE) {
-            GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-            self.lock.lock();
-            self.place_pixel() catch |err| {
-                GAME_LOG.info("{any}\n", .{err});
-                self.running = false;
-                return;
-            };
-            self.lock.unlock();
-        } else if (key == engine.KEYS.KEY_i) {
-            if (self.current_world.viewport.y > 0) {
-                self.current_world.viewport.y -= 1;
-            }
-        } else if (key == engine.KEYS.KEY_k) {
-            if (@as(u32, @bitCast(self.current_world.viewport.y)) + self.current_world.viewport.height < self.current_world.bounds.height) {
-                self.current_world.viewport.y += 1;
-            }
-        } else if (key == engine.KEYS.KEY_j) {
-            if (self.current_world.viewport.x > 0) {
-                self.current_world.viewport.x -= 1;
-            }
-        } else if (key == engine.KEYS.KEY_l) {
-            if (@as(u32, @bitCast(self.current_world.viewport.x)) + self.current_world.viewport.width < self.current_world.bounds.width) {
-                self.current_world.viewport.x += 1;
-            }
-        } else if (key == engine.KEYS.KEY_z) {
-            self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
-            self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].y = self.placement_pixel[self.placement_index].y;
-            self.placement_index = (self.placement_index + 1) % self.placement_pixel.len;
-        } else if (key == engine.KEYS.KEY_p) {
-            self.current_world.print() catch |err| {
-                GAME_LOG.info("{any}\n", .{err});
-                self.running = false;
-            };
-        } else if (key == engine.KEYS.KEY_c) {
-            self.toggle_player_mode();
+        switch (self.state) {
+            .start => {
+                if (key == engine.KEYS.KEY_q) {
+                    self.running = false;
+                }
+            },
+            .game => {
+                if (key == engine.KEYS.KEY_q) {
+                    self.running = false;
+                } else if (key == engine.KEYS.KEY_a) {
+                    if (!self.player_mode) {
+                        self.placement_pixel[self.placement_index].x -= 1;
+                    } else {
+                        self.player.?.move_left();
+                    }
+                } else if (key == engine.KEYS.KEY_d) {
+                    if (!self.player_mode) {
+                        self.placement_pixel[self.placement_index].x += 1;
+                    } else {
+                        self.player.?.move_right();
+                    }
+                } else if (key == engine.KEYS.KEY_w) {
+                    if (!self.player_mode) {
+                        self.placement_pixel[self.placement_index].y -= 1;
+                    }
+                    if (self.player_mode) {
+                        self.player.?.jump();
+                        flip = true;
+                    }
+                } else if (key == engine.KEYS.KEY_s) {
+                    if (!self.player_mode) {
+                        self.placement_pixel[self.placement_index].y += 1;
+                    }
+                } else if (key == engine.KEYS.KEY_SPACE) {
+                    GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
+                    self.lock.lock();
+                    self.place_pixel() catch |err| {
+                        GAME_LOG.info("{any}\n", .{err});
+                        self.running = false;
+                        return;
+                    };
+                    self.lock.unlock();
+                } else if (key == engine.KEYS.KEY_i) {
+                    if (self.current_world.viewport.y > 0) {
+                        self.current_world.viewport.y -= 1;
+                    }
+                } else if (key == engine.KEYS.KEY_k) {
+                    if (@as(u32, @bitCast(self.current_world.viewport.y)) + self.current_world.viewport.height < self.current_world.bounds.height) {
+                        self.current_world.viewport.y += 1;
+                    }
+                } else if (key == engine.KEYS.KEY_j) {
+                    if (self.current_world.viewport.x > 0) {
+                        self.current_world.viewport.x -= 1;
+                    }
+                } else if (key == engine.KEYS.KEY_l) {
+                    if (@as(u32, @bitCast(self.current_world.viewport.x)) + self.current_world.viewport.width < self.current_world.bounds.width) {
+                        self.current_world.viewport.x += 1;
+                    }
+                } else if (key == engine.KEYS.KEY_z) {
+                    self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
+                    self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].y = self.placement_pixel[self.placement_index].y;
+                    self.placement_index = (self.placement_index + 1) % self.placement_pixel.len;
+                } else if (key == engine.KEYS.KEY_p) {
+                    self.current_world.print() catch |err| {
+                        GAME_LOG.info("{any}\n", .{err});
+                        self.running = false;
+                    };
+                } else if (key == engine.KEYS.KEY_c) {
+                    self.toggle_player_mode();
+                }
+            },
         }
     }
 
@@ -314,24 +342,31 @@ pub const Game = struct {
     }
 
     pub fn on_key_up(self: *Self, key: engine.KEYS) void {
-        switch (key) {
-            .KEY_a => {
-                if (self.player_mode) {
-                    self.player.?.stop_move_left();
+        switch (self.state) {
+            .start => {
+                //todo
+            },
+            .game => {
+                switch (key) {
+                    .KEY_a => {
+                        if (self.player_mode) {
+                            self.player.?.stop_move_left();
+                        }
+                    },
+                    .KEY_d => {
+                        if (self.player_mode) {
+                            self.player.?.stop_move_right();
+                        }
+                    },
+                    else => {},
                 }
             },
-            .KEY_d => {
-                if (self.player_mode) {
-                    self.player.?.stop_move_right();
-                }
-            },
-            else => {},
         }
     }
 
     pub fn on_start_clicked(self: *Self) void {
-        _ = self;
         GAME_LOG.info("Start clicked\n", .{});
+        self.state = .game;
     }
 
     var rotate_test: f64 = 0;
@@ -340,44 +375,49 @@ pub const Game = struct {
     var rect_rot: f64 = 0;
     pub fn on_render(self: *Self, dt: u64) !void {
         self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
-
-        for (self.pixels.items) |p| {
-            if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
-                self.e.renderer.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
-            }
-        }
-
-        if (self.player_mode) {
-            try self.e.renderer.push();
-            try self.e.renderer.translate(.{ .x = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x), .y = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y) });
-            try self.e.renderer.rotate(rotate_test);
-            if (elapsed > 12500000 and flip) {
-                rotate_test += 90;
-                if (rotate_test >= 360) {
-                    rotate_test = 0;
-                    flip = false;
+        switch (self.state) {
+            .start => {
+                try self.tui.draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y);
+            },
+            .game => {
+                for (self.pixels.items) |p| {
+                    if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
+                        self.e.renderer.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
+                    }
                 }
-                elapsed = 0;
-            } else {
-                elapsed += dt;
-            }
-            try self.e.renderer.translate(.{ .x = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x)), .y = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y)) });
-            self.player.?.draw(&self.e.renderer, self.current_world.tex);
-            self.e.renderer.pop();
+
+                if (self.player_mode) {
+                    try self.e.renderer.push();
+                    try self.e.renderer.translate(.{ .x = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x), .y = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y) });
+                    try self.e.renderer.rotate(rotate_test);
+                    if (elapsed > 12500000 and flip) {
+                        rotate_test += 90;
+                        if (rotate_test >= 360) {
+                            rotate_test = 0;
+                            flip = false;
+                        }
+                        elapsed = 0;
+                    } else {
+                        elapsed += dt;
+                    }
+                    try self.e.renderer.translate(.{ .x = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x)), .y = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y)) });
+                    self.player.?.draw(&self.e.renderer, self.current_world.tex);
+                    self.e.renderer.pop();
+                }
+                self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
+                // try self.e.renderer.push();
+                // try self.e.renderer.translate(.{ .x = @floatFromInt(self.placement_pixel[self.placement_index].x), .y = @floatFromInt(self.placement_pixel[self.placement_index].y) });
+                // try self.e.renderer.rotate(rect_rot);
+                // rect_rot += 1;
+                // if (rect_rot >= 360) rect_rot = 0;
+                // try self.e.renderer.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
+                // self.e.renderer.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
+                // self.e.renderer.pop();
+                self.font_sprite.dest.x = self.current_world.viewport.x;
+                self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
+                try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
+            },
         }
-        self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
-        // try self.e.renderer.push();
-        // try self.e.renderer.translate(.{ .x = @floatFromInt(self.placement_pixel[self.placement_index].x), .y = @floatFromInt(self.placement_pixel[self.placement_index].y) });
-        // try self.e.renderer.rotate(rect_rot);
-        // rect_rot += 1;
-        // if (rect_rot >= 360) rect_rot = 0;
-        // try self.e.renderer.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
-        // self.e.renderer.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
-        // self.e.renderer.pop();
-        self.font_sprite.dest.x = self.current_world.viewport.x;
-        self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
-        try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
-        try self.tui.draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y);
         try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
@@ -391,7 +431,7 @@ pub const Game = struct {
         }
         self.current_world.viewport.x = self.starting_pos_x;
         self.current_world.viewport.y = self.starting_pos_y;
-
+        self.state = .start;
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
@@ -399,7 +439,7 @@ pub const Game = struct {
         self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
-        try self.tui.add_button(self.e.renderer.pixel_width / 2, 0, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start");
+        try self.tui.add_button(self.e.renderer.pixel_width / 2, self.e.renderer.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start");
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);
@@ -416,29 +456,36 @@ pub const Game = struct {
             delta = timer.read();
             timer.reset();
             self.lock.lock();
-            for (0..self.pixels.items.len) |i| {
-                if (self.pixels.items[i] != null) {
-                    self.pixels.items[i].?.*.dirty = false;
-                }
-            }
-            const y_start = self.current_world.tex.height - 1;
-            const x_start = self.current_world.tex.width - 1;
-            var y = y_start;
-            if (self.player_mode) {
-                try self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
-            }
-            while (y >= 0) : (y -= 1) {
-                var x = x_start;
-                while (x >= 0) : (x -= 1) {
-                    var p = self.pixels.items[y * self.current_world.tex.width + x];
-                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.pixel_type != .Object) {
-                        //GAME_LOG.info("updating {any}\n", .{p.?});
-                        p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
-                        active_pixels = if (p.?.active) active_pixels + 1 else active_pixels;
+            switch (self.state) {
+                .game => {
+                    for (0..self.pixels.items.len) |i| {
+                        if (self.pixels.items[i] != null) {
+                            self.pixels.items[i].?.*.dirty = false;
+                        }
                     }
-                    if (x == 0) break;
-                }
-                if (y == 0) break;
+                    const y_start = self.current_world.tex.height - 1;
+                    const x_start = self.current_world.tex.width - 1;
+                    var y = y_start;
+                    if (self.player_mode) {
+                        try self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                    }
+                    while (y >= 0) : (y -= 1) {
+                        var x = x_start;
+                        while (x >= 0) : (x -= 1) {
+                            var p = self.pixels.items[y * self.current_world.tex.width + x];
+                            if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.pixel_type != .Object) {
+                                //GAME_LOG.info("updating {any}\n", .{p.?});
+                                p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                                active_pixels = if (p.?.active) active_pixels + 1 else active_pixels;
+                            }
+                            if (x == 0) break;
+                        }
+                        if (y == 0) break;
+                    }
+                },
+                else => {
+                    //todo
+                },
             }
             self.lock.unlock();
             delta = timer.read();

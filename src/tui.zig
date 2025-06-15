@@ -59,6 +59,7 @@ pub fn TUI(comptime graphics_type: GraphicsType) type {
             pub fn mouse_input(self: *const Button, x: i32, y: i32) void {
                 const x_usize = @as(usize, @bitCast(@as(i64, @intCast(x))));
                 const y_usize = @as(usize, @bitCast(@as(i64, @intCast(y))));
+                TUI_LOG.info("Checking if {d},{d} in {any}\n", .{ x, y, self });
                 if (x_usize >= self.x and x_usize <= self.x + self.width and y_usize >= self.y and y_usize <= self.y + self.height) {
                     self.on_click.?.call();
                 }
