@@ -18,7 +18,7 @@ pub const GameObject = game_object.GameObject;
 pub const Texture = game_object.Texture;
 pub const AssetManager = asset_manager.AssetManager;
 pub const Engine = engine.Engine;
-pub const TUI = _tui.TUI(.pixel);
+pub const TUI = engine.TUI(.pixel, Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
 const TERMINAL_HEIGHT_OFFSET = 70;
@@ -141,7 +141,7 @@ pub const Game = struct {
             .start => {
                 if (mouse_event.clicked) {
                     GAME_LOG.info("Checking tui\n", .{});
-                    self.tui.mouse_input(mouse_event.x, mouse_event.y * 2);
+                    self.tui.mouse_input(mouse_event.x, mouse_event.y * 2, self.state);
                 }
             },
             .game => {
@@ -377,7 +377,7 @@ pub const Game = struct {
         self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
         switch (self.state) {
             .start => {
-                try self.tui.draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y);
+                try self.tui.draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y, self.state);
             },
             .game => {
                 for (self.pixels.items) |p| {
@@ -439,7 +439,7 @@ pub const Game = struct {
         self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
-        try self.tui.add_button(self.e.renderer.pixel_width / 2, self.e.renderer.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start");
+        try self.tui.add_button(self.e.renderer.pixel_width / 2, self.e.renderer.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start", .start);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);

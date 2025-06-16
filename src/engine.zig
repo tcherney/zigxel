@@ -7,8 +7,10 @@ const term = @import("term");
 const common = @import("common");
 const texture = @import("texture.zig");
 const image = @import("image");
+const _tui = @import("tui.zig");
 
 pub const EventManager = event_manager.EventManager;
+pub const TUI = _tui.TUI;
 pub const Graphics = graphics.Graphics;
 pub const AsciiGraphics = ascii_graphics.AsciiGraphics;
 pub const Texture = texture.Texture;

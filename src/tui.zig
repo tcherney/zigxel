@@ -14,7 +14,7 @@ pub const Allocator = std.mem.Allocator;
 pub const Texture = texture.Texture;
 const TUI_LOG = std.log.scoped(.tui);
 
-pub fn TUI(comptime graphics_type: GraphicsType) type {
+pub fn TUI(comptime graphics_type: GraphicsType, comptime State: type) type {
     return struct {
         allocator: Allocator,
         items: std.ArrayList(Item),
@@ -30,9 +30,10 @@ pub fn TUI(comptime graphics_type: GraphicsType) type {
             text: []const u8,
             allocator: Allocator,
             on_click: ?OnClickCallback = null,
+            state: State,
             const OnClickCallback = common.CallbackNoData();
             pub const Error = error{} || Allocator.Error || ascii_graphics.Error || graphics.Error;
-            pub fn init(allocator: Allocator, x: usize, y: usize, width: ?usize, height: ?usize, border_color: Pixel, background_color: Pixel, text_color: Pixel, text: []const u8) Button.Error!Button {
+            pub fn init(allocator: Allocator, x: usize, y: usize, width: ?usize, height: ?usize, border_color: Pixel, background_color: Pixel, text_color: Pixel, text: []const u8, state: State) Button.Error!Button {
                 const h = if (height != null) height.? else 2;
                 const w = if (width != null) width.? else text.len + 2;
                 return .{
@@ -45,6 +46,7 @@ pub fn TUI(comptime graphics_type: GraphicsType) type {
                     .background_color = background_color,
                     .text_color = text_color,
                     .text = try allocator.dupe(u8, text),
+                    .state = state,
                 };
             }
 
@@ -90,9 +92,11 @@ pub fn TUI(comptime graphics_type: GraphicsType) type {
                     inline else => |*item| item.set_on_click(CONTEXT_TYPE, func, context),
                 }
             }
-            pub fn draw(self: *Item, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) Item.Error!void {
+            pub fn draw(self: *Item, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) Item.Error!void {
                 switch (self.*) {
-                    inline else => |*item| try item.draw(renderer, dest, viewport_x, viewport_y),
+                    inline else => |*item| {
+                        if (state == item.state) try item.draw(renderer, dest, viewport_x, viewport_y);
+                    },
                 }
             }
             pub fn deinit(self: *Item) void {
@@ -115,23 +119,24 @@ pub fn TUI(comptime graphics_type: GraphicsType) type {
             }
             self.items.deinit();
         }
-        pub fn mouse_input(self: *Self, x: i32, y: i32) void {
+        pub fn mouse_input(self: *Self, x: i32, y: i32, state: State) void {
             for (0..self.items.items.len) |i| {
                 switch (self.items.items[i]) {
                     .button => |button| {
+                        if (state != button.state or button.on_click == null) continue;
                         button.mouse_input(x, y);
                     },
                 }
             }
         }
-        pub fn add_button(self: *Self, x: usize, y: usize, width: ?usize, height: ?usize, border_color: Pixel, background_color: Pixel, text_color: Pixel, text: []const u8) Error!void {
-            try self.items.append(.{ .button = try Button.init(self.allocator, x, y, width, height, border_color, background_color, text_color, text) });
+        pub fn add_button(self: *Self, x: usize, y: usize, width: ?usize, height: ?usize, border_color: Pixel, background_color: Pixel, text_color: Pixel, text: []const u8, state: State) Error!void {
+            try self.items.append(.{ .button = try Button.init(self.allocator, x, y, width, height, border_color, background_color, text_color, text, state) });
             TUI_LOG.info("Button {any}\n", .{self.items.items[self.items.items.len - 1]});
         }
 
-        pub fn draw(self: *Self, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) Error!void {
+        pub fn draw(self: *Self, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) Error!void {
             for (0..self.items.items.len) |i| {
-                try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y);
+                try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y, state);
             }
         }
     };
