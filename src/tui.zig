@@ -34,7 +34,7 @@ pub fn TUI(comptime graphics_type: GraphicsType, comptime State: type) type {
             const OnClickCallback = common.CallbackNoData();
             pub const Error = error{} || Allocator.Error || ascii_graphics.Error || graphics.Error;
             pub fn init(allocator: Allocator, x: usize, y: usize, width: ?usize, height: ?usize, border_color: Pixel, background_color: Pixel, text_color: Pixel, text: []const u8, state: State) Button.Error!Button {
-                const h = if (height != null) height.? else 2;
+                const h = if (height != null) height.? else if (graphics_type == .pixel) 2 else 1;
                 const w = if (width != null) width.? else text.len + 2;
                 return .{
                     .allocator = allocator,
@@ -80,7 +80,19 @@ pub fn TUI(comptime graphics_type: GraphicsType, comptime State: type) type {
                     const mid_y = self.y + (self.height / 2);
                     try renderer.draw_text(self.text, @as(i32, @intCast(@as(i64, @bitCast(mid_x)))), @as(i32, @intCast(@as(i64, @bitCast(mid_y)))), self.text_color.get_r(), self.text_color.get_g(), self.text_color.get_b());
                 } else {
-                    //TODO
+                    const mid_x = self.x + (self.width / 2) - (self.text.len / 2);
+                    const mid_y = self.y + (self.height / 2);
+                    var curr_char: usize = 0;
+                    for (viewport_y_usize + self.y..viewport_y_usize + self.y + self.height) |i| {
+                        for (viewport_x_usize + self.x..viewport_x_usize + self.x + self.width) |j| {
+                            if (j >= mid_x and i >= mid_y and curr_char < self.text.len) {
+                                renderer.draw_symbol_bg(@as(i32, @intCast(@as(i64, @bitCast(j)))), @as(i32, @intCast(@as(i64, @bitCast(i)))), self.text[curr_char], self.text_color, dest, self.background_color.get_r(), self.background_color.get_g(), self.background_color.get_b());
+                                curr_char += 1;
+                            } else {
+                                renderer.draw_symbol_bg(@as(i32, @intCast(@as(i64, @bitCast(j)))), @as(i32, @intCast(@as(i64, @bitCast(i)))), ' ', self.background_color, dest, self.background_color.get_r(), self.background_color.get_g(), self.background_color.get_b());
+                            }
+                        }
+                    }
                 }
             }
         };
