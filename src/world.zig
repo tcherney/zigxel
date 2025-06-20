@@ -34,7 +34,7 @@ pub const World = struct {
     //TODO world generation
 
     pub fn print(self: *Self) Error!void {
-        try self.tex.image_core().write_BMP("world.bmp");
+        try texture.image_core.write_BMP(self.allocator, self.tex.pixel_buffer, self.tex.width, self.tex.height, "world.bmp");
     }
 
     pub fn deinit(self: *Self) void {

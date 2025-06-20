@@ -15,7 +15,7 @@ const LOWER_PX = "▄";
 
 const GRAPHICS_LOG = std.log.scoped(.ascii_graphics);
 //TODO add camera matrix for basic 3d support
-pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Error;
+pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Image.Error;
 pub fn AsciiGraphics(comptime color_type: ColorMode) type {
     return struct {
         terminal: term.Term = undefined,

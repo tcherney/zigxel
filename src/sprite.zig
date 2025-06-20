@@ -62,7 +62,7 @@ pub const Sprite = struct {
             }
         }
 
-        const scaled_buffer = try image.ImageCore.init(self.allocator, self.src.width, self.src.height, src_buffer).nearest_neighbor(self.dest.width, self.dest.height);
+        const scaled_buffer = try image.image_core.nearest_neighbor(self.allocator, src_buffer, self.src.width, self.src.height, self.dest.width, self.dest.height);
         self.scaled_buffer = scaled_buffer;
         if (free_mem) {
             self.allocator.free(src_buffer);

@@ -236,7 +236,7 @@ pub const Font = struct {
                 }
             }
         }
-        try tex.?.image_core().write_BMP("string.bmp");
+        try _texture.image_core.write_BMP(self.allocator, tex.?.pixel_buffer, tex.?.width, tex.?.height, "string.bmp");
         return tex.?;
     }
 
@@ -322,7 +322,7 @@ pub const Font = struct {
             edges.deinit();
             const f_name = ".bmp";
             var buff_name: [16]u8 = undefined;
-            try tex.image_core().write_BMP(try std.fmt.bufPrint(&buff_name, "{d}{s}", .{ num_chars, f_name }));
+            try _texture.image_core.write_BMP(self.allocator, tex.pixel_buffer, tex.width, tex.height, try std.fmt.bufPrint(&buff_name, "{d}{s}", .{ num_chars, f_name }));
             num_chars += 1;
             return tex;
         } else return Error.CharNotSupported;

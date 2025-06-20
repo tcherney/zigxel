@@ -90,7 +90,7 @@ fn MatrixStack(comptime T: GraphicsType) type {
 
 const PIXEL_RENDERER_LOG = std.log.scoped(.pixel_renderer);
 //TODO add camera matrix for basic 3d support
-pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Error;
+pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Image.Error;
 pub const Graphics = struct {
     ascii_based: bool = false,
     terminal: term.Term = undefined,

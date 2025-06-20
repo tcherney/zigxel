@@ -52,7 +52,7 @@ pub const Game = struct {
         start,
     };
     const Self = @This();
-    pub const Error = error{} || image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
+    pub const Error = error{} || image.Image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
     pub fn init(allocator: std.mem.Allocator) Error!Self {
         var ret = Self{ .allocator = allocator, .tui = TUI.init(allocator) };
         try common.gen_rand();

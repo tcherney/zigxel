@@ -2,7 +2,7 @@ const std = @import("std");
 const image = @import("image");
 
 pub const Pixel = image.Pixel;
-
+pub const image_core = image.image_core;
 const TEXTURE_LOG = std.log.scoped(.texture);
 
 pub const Texture = struct {
@@ -16,7 +16,7 @@ pub const Texture = struct {
     alpha_index: ?u8 = null,
     loaded: bool = false,
     const Self = @This();
-    pub const Error = error{} || std.mem.Allocator.Error || image.Error || std.posix.GetRandomError;
+    pub const Error = error{} || std.mem.Allocator.Error || image.Image.Error || std.posix.GetRandomError;
     pub fn init(allocator: std.mem.Allocator) Self {
         return Self{ .allocator = allocator };
     }
@@ -92,16 +92,12 @@ pub const Texture = struct {
         self.height = height;
     }
 
-    pub fn image_core(self: *Self) image.ImageCore {
-        return image.ImageCore.init(self.allocator, self.width, self.height, self.pixel_buffer);
-    }
-
     pub fn set_alpha(self: *Self, alpha_index: u8) void {
         self.alpha_index = alpha_index;
     }
 
     fn nearest_neighbor(self: *Self, width: u32, height: u32) Error!void {
-        const new_buffer = try self.image_core().nearest_neighbor(width, height);
+        const new_buffer = try image_core.nearest_neighbor(self.allocator, self.pixel_buffer, self.width, self.height, width, height);
 
         self.width = width;
         self.height = height;
@@ -110,13 +106,13 @@ pub const Texture = struct {
     }
 
     pub fn gaussian_blur(self: *Self, sigma: f32) Error!void {
-        const blurred_buffer = try self.image_core().gaussian_blur(sigma);
+        const blurred_buffer = try image_core.gaussian_blur(self.allocator, self.pixel_buffer, self.width, self.height, sigma);
         self.allocator.free(self.pixel_buffer);
         self.pixel_buffer = blurred_buffer;
     }
 
     fn bicubic(self: *Self, width: u32, height: u32) Error!void {
-        const data_copy = try self.image_core().bicubic(width, height);
+        const data_copy = try image_core.bicubic(self.allocator, self.pixel_buffer, self.width, self.height, width, height);
         self.width = width;
         self.height = height;
         self.allocator.free(self.pixel_buffer);
@@ -124,7 +120,7 @@ pub const Texture = struct {
     }
 
     fn bilinear(self: *Self, width: u32, height: u32) Error!void {
-        const data_copy = try self.image_core().bilinear(width, height);
+        const data_copy = try image_core.bilinear(self.allocator, self.pixel_buffer, self.width, self.height, width, height);
         self.width = width;
         self.height = height;
         self.allocator.free(self.pixel_buffer);
