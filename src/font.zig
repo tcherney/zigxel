@@ -156,7 +156,7 @@ pub const Font = struct {
         return edges;
     }
 
-    //TODO figure out kerning
+    //TODO figure out kerning, see if we cant figure out minimums that make rendering at smaller sizes feasible
     pub fn texture_from_string(self: *Self, str: []const u8) Error!*Texture {
         var tex: ?*Texture = null;
         var baseline_y: u32 = 0;

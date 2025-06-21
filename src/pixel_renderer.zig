@@ -4,6 +4,7 @@ const texture = @import("texture.zig");
 const common = @import("common");
 const sprite = @import("sprite.zig");
 const image = @import("image");
+const graphics_enums = @import("graphics_enums.zig");
 
 //https://www.compart.com/en/unicode/U+2580
 const UPPER_PX = "▀";
@@ -12,12 +13,10 @@ const LOWER_PX = "▄";
 //▀█▄
 //TODO need to fix graphics assumtion about the height provided from the terminal lib
 //TODO terminal lib should just give the height in rows
-pub const GraphicsType = enum { _2d, _3d };
-pub const ColorMode = enum {
-    color_256,
-    color_true,
-};
+pub const GraphicsType = graphics_enums.GraphicsType;
+pub const ColorMode = graphics_enums.ColorMode;
 pub const Allocator = std.mem.Allocator;
+pub const PixelType = graphics_enums.PixelType;
 
 fn MatrixStack(comptime T: GraphicsType) type {
     return struct {
@@ -26,12 +25,10 @@ fn MatrixStack(comptime T: GraphicsType) type {
         const Mat: type = switch (T) {
             ._2d => image.Mat(3, f64),
             ._3d => image.Mat(4, f64),
-            else => unreachable,
         };
         const MatPoint: type = switch (T) {
             ._2d => common.Point(2, f64),
             ._3d => common.Point(3, f64),
-            else => unreachable,
         };
         pub const Self = @This();
         pub fn init(allocator: std.mem.Allocator) Error!Self {
@@ -59,7 +56,6 @@ fn MatrixStack(comptime T: GraphicsType) type {
                     self.stack.items[self.stack.items.len - 1] = self.stack.items[self.stack.items.len - 1].mul(try Mat.translate(p.x, p.y));
                 },
                 ._3d => unreachable,
-                else => unreachable,
             }
         }
         pub fn rotate(self: *Self, degrees: f64) Error!void {
@@ -68,7 +64,6 @@ fn MatrixStack(comptime T: GraphicsType) type {
                     self.stack.items[self.stack.items.len - 1] = self.stack.items[self.stack.items.len - 1].mul(try Mat.rotate(.z, degrees));
                 },
                 ._3d => unreachable,
-                else => unreachable,
             }
         }
         //TODO can probably improve this by splitting the result pixels instead of just rounding
@@ -82,7 +77,6 @@ fn MatrixStack(comptime T: GraphicsType) type {
                     const res = self.stack.getLast().mul_v(.{ p.x, p.y, p.z, 1.0 });
                     return .{ .x = @round(res[0]), .y = @round(res[1]), .z = @round(res[2]) };
                 },
-                else => unreachable,
             }
         }
     };
@@ -91,7 +85,7 @@ fn MatrixStack(comptime T: GraphicsType) type {
 const PIXEL_RENDERER_LOG = std.log.scoped(.pixel_renderer);
 //TODO add camera matrix for basic 3d support
 pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Image.Error;
-pub const Graphics = struct {
+pub const PixelRenderer = struct {
     ascii_based: bool = false,
     terminal: term.Term = undefined,
     pixel_buffer: []PixelType = undefined,
@@ -100,7 +94,7 @@ pub const Graphics = struct {
     text_to_render: std.ArrayList(Text) = undefined,
     allocator: std.mem.Allocator = undefined,
     first_render: bool = true,
-    stack: MatrixStack(MatrixStackType),
+    stack: MatrixStackType,
     pixel_width: usize,
     pixel_height: usize,
     graphics_type: GraphicsType,
@@ -110,15 +104,22 @@ pub const Graphics = struct {
     pub const MatrixStackType = union(enum) {
         _2d: MatrixStack(._2d),
         _3d: MatrixStack(._3d),
+        pub fn apply(self: *MatrixStackType, p: MatPoint) MatPoint {
+            switch (self.*) {
+                ._2d => |*stack| {
+                    return .{ ._2d = stack.apply(p._2d) };
+                },
+                ._3d => |*stack| {
+                    return .{ ._3d = stack.apply(p._3d) };
+                },
+            }
+        }
     };
     pub const MatPoint = union(enum) {
         _2d: common.Point(2, f64),
         _3d: common.Point(3, f64),
     };
-    pub const PixelType = union(enum) {
-        color_256: u8,
-        color_true: struct { r: u8 = 0, g: u8 = 0, b: u8 = 0 },
-    };
+
     const Self = @This();
     pub const Text = struct { x: i32, y: i32, r: u8, g: u8, b: u8, value: []const u8 };
 
@@ -127,17 +128,17 @@ pub const Graphics = struct {
         var pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 4);
         for (0..pixel_buffer.len) |i| {
             if (color_type == .color_256) {
-                pixel_buffer[i].color_256 = 0;
+                pixel_buffer[i] = .{ .color_256 = 0 };
             } else {
-                pixel_buffer[i].color_true = .{};
+                pixel_buffer[i] = .{ .color_true = .{} };
             }
         }
         var last_frame = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 4);
         for (0..last_frame.len) |i| {
             if (color_type == .color_256) {
-                last_frame[i].color_256 = 0;
+                last_frame[i] = .{ .color_256 = 0 };
             } else {
-                last_frame[i].color_true = .{};
+                last_frame[i] = .{ .color_true = .{} };
             }
         }
         return Self{
@@ -148,7 +149,10 @@ pub const Graphics = struct {
             // need space for setting background and setting of foreground color for every pixel
             .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width * 2) + 200)),
             .text_to_render = std.ArrayList(Text).init(allocator),
-            .stack = try MatrixStack(graphics_type).init(allocator),
+            .stack = switch (graphics_type) {
+                ._2d => .{ ._2d = try MatrixStack(._2d).init(allocator) },
+                ._3d => .{ ._3d = try MatrixStack(._3d).init(allocator) },
+            },
             .pixel_width = terminal.size.width,
             .pixel_height = terminal.size.height * 2,
             .color_type = color_type,
@@ -162,11 +166,10 @@ pub const Graphics = struct {
     }
     pub fn pop(self: *Self) void {
         switch (self.stack) {
-            inline else => |*stack| try stack.pop(),
+            inline else => |*stack| stack.pop(),
         }
     }
     pub fn translate(self: *Self, p: MatPoint) Error!void {
-        try self.stack.translate(p);
         switch (self.stack) {
             ._2d => |*stack| {
                 try stack.translate(p._2d);
@@ -181,6 +184,7 @@ pub const Graphics = struct {
             inline else => |*stack| try stack.rotate(degrees),
         }
     }
+
     pub fn size_change(self: *Self, size: term.Size) Error!void {
         self.allocator.free(self.terminal_buffer);
         self.allocator.free(self.last_frame);
@@ -192,9 +196,9 @@ pub const Graphics = struct {
         self.pixel_buffer = try self.allocator.alloc(PixelType, self.pixel_width * self.pixel_height * 2);
         for (0..self.pixel_buffer.len) |i| {
             if (self.color_type == .color_256) {
-                self.pixel_buffer[i].color_256 = 0;
+                self.pixel_buffer[i] = .{ .color_256 = 0 };
             } else {
-                self.pixel_buffer[i].color_true = .{};
+                self.pixel_buffer[i] = .{ .color_true = .{} };
             }
         }
         self.last_frame = try self.allocator.alloc(PixelType, self.pixel_buffer.len);
@@ -210,7 +214,9 @@ pub const Graphics = struct {
         try self.terminal.deinit();
         self.allocator.free(self.last_frame);
         self.text_to_render.deinit();
-        self.stack.deinit();
+        switch (self.stack) {
+            inline else => |*stack| stack.deinit(),
+        }
     }
 
     pub fn set_bg(self: *Self, r: u8, g: u8, b: u8, dest: ?texture.Texture) void {
@@ -280,7 +286,7 @@ pub const Graphics = struct {
 
     pub fn draw_pixel_bg(self: *Self, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture, bgr: u8, bgg: u8, bgb: u8, custom_bg: bool) void {
         if (dest == null) {
-            const res_point = self.stack.apply(.{ .x = @floatFromInt(x), .y = @floatFromInt(y) });
+            const res_point = self.stack.apply(.{ ._2d = .{ .x = @floatFromInt(x), .y = @floatFromInt(y) } })._2d;
             if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(self.pixel_width)) or res_point.y >= @as(f64, @floatFromInt(self.pixel_height)) or res_point.y < 0) {
                 return;
             }
@@ -307,7 +313,7 @@ pub const Graphics = struct {
                 self.pixel_buffer[y_indx * self.pixel_width + x_indx].color_true.b = p.get_b();
             }
         } else {
-            const res_point = self.stack.apply(.{ .x = @floatFromInt(x), .y = @floatFromInt(y) });
+            const res_point = self.stack.apply(.{ ._2d = .{ .x = @floatFromInt(x), .y = @floatFromInt(y) } })._2d;
             if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(dest.?.width)) or res_point.y >= @as(f64, @floatFromInt(dest.?.height)) or res_point.y < 0) {
                 return;
             }
@@ -370,7 +376,7 @@ pub const Graphics = struct {
                 }
                 var i: i32 = dest_rect.x;
                 while (i < (dest_rect.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
-                    const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
+                    const res_point = self.stack.apply(.{ ._2d = .{ .x = @floatFromInt(i), .y = @floatFromInt(j) } })._2d;
                     if (res_point.x < 0) {
                         tex_indx += 1;
                         continue;
@@ -421,7 +427,7 @@ pub const Graphics = struct {
                 }
                 var i: i32 = dest_rect.x;
                 while (i < (dest_rect.x + src_width_i) and tex_indx < pixel_buffer.len) : (i += 1) {
-                    const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
+                    const res_point = self.stack.apply(.{ ._2d = .{ .x = @floatFromInt(i), .y = @floatFromInt(j) } })._2d;
                     if (res_point.x < 0) {
                         tex_indx += 1;
                         continue;
@@ -475,7 +481,7 @@ pub const Graphics = struct {
             const color_indx = term.rgb_256(r, g, b);
             for (y..y + h) |j| {
                 for (x..x + w) |i| {
-                    const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
+                    const res_point = self.stack.apply(.{ ._2d = .{ .x = @floatFromInt(i), .y = @floatFromInt(j) } })._2d;
                     if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(self.pixel_width)) or res_point.y >= @as(f64, @floatFromInt(self.pixel_height)) or res_point.y < 0) {
                         continue;
                     }
@@ -497,7 +503,7 @@ pub const Graphics = struct {
             const color_indx = term.rgb_256(r, g, b);
             for (y..y + h) |j| {
                 for (x..x + w) |i| {
-                    const res_point = self.stack.apply(.{ .x = @floatFromInt(i), .y = @floatFromInt(j) });
+                    const res_point = self.stack.apply(.{ ._2d = .{ .x = @floatFromInt(i), .y = @floatFromInt(j) } })._2d;
                     if (res_point.x < 0 or res_point.x >= @as(f64, @floatFromInt(dest.?.width)) or res_point.y >= @as(f64, @floatFromInt(dest.?.height)) or res_point.y < 0) {
                         continue;
                     }
@@ -595,14 +601,14 @@ pub const Graphics = struct {
                 if (!self.first_render) {
                     switch (self.color_type) {
                         .color_256 => {
-                            if (fg_pixel.color_256 == last_fg_pixel.color_256 and bg_pixel.color_256 == last_bg_pixel.color_256) {
+                            if (fg_pixel.eql(last_fg_pixel) and bg_pixel.eql(last_bg_pixel)) {
                                 continue;
                             }
                             self.last_frame[j * width + i] = fg_pixel;
                             self.last_frame[(j + 1) * width + i] = bg_pixel;
                         },
                         .color_true => {
-                            if (fg_pixel.color_true.r == last_fg_pixel.color_true.r and bg_pixel.color_true.r == last_bg_pixel.color_true.r and fg_pixel.color_true.g == last_fg_pixel.color_true.g and bg_pixel.color_true.g == last_bg_pixel.color_true.g and fg_pixel.color_true.b == last_fg_pixel.color_true.b and bg_pixel.color_true.b == last_bg_pixel.color_true.b) {
+                            if (fg_pixel.eql(last_fg_pixel) and bg_pixel.eql(last_bg_pixel)) {
                                 continue;
                             }
                             self.last_frame[j * width + i].color_true.r = fg_pixel.color_true.r;
@@ -622,20 +628,20 @@ pub const Graphics = struct {
 
                 switch (self.color_type) {
                     .color_256 => {
-                        if (bg_pixel.color_256 == prev_fg_pixel.color_256 and fg_pixel.color_256 == prev_bg_pixel.color_256) {
+                        if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel)) {
                             for (LOWER_PX) |c| {
                                 self.terminal_buffer[buffer_len] = c;
                                 buffer_len += 1;
                             }
                         } else {
-                            if (prev_fg_pixel.color_256 != fg_pixel.color_256) {
+                            if (!prev_fg_pixel.eql(fg_pixel)) {
                                 prev_fg_pixel.color_256 = fg_pixel.color_256;
                                 for (term.FG[fg_pixel.color_256]) |c| {
                                     self.terminal_buffer[buffer_len] = c;
                                     buffer_len += 1;
                                 }
                             }
-                            if (prev_bg_pixel.color_256 != bg_pixel.color_256) {
+                            if (!prev_bg_pixel.eql(bg_pixel)) {
                                 prev_bg_pixel.color_256 = bg_pixel.color_256;
                                 for (term.BG[bg_pixel.color_256]) |c| {
                                     self.terminal_buffer[buffer_len] = c;
@@ -643,7 +649,7 @@ pub const Graphics = struct {
                                 }
                             }
 
-                            if (fg_pixel.color_256 == bg_pixel.color_256) {
+                            if (fg_pixel.eql(bg_pixel)) {
                                 self.terminal_buffer[buffer_len] = ' ';
                                 buffer_len += 1;
                             } else {
@@ -655,13 +661,13 @@ pub const Graphics = struct {
                         }
                     },
                     .color_true => {
-                        if (bg_pixel.color_true.r == prev_fg_pixel.color_true.r and fg_pixel.color_true.r == prev_bg_pixel.color_true.r and bg_pixel.color_true.g == prev_fg_pixel.color_true.g and fg_pixel.color_true.g == prev_bg_pixel.color_true.g and bg_pixel.color_true.b == prev_fg_pixel.color_true.b and fg_pixel.color_true.b == prev_bg_pixel.color_true.b) {
+                        if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel)) {
                             for (LOWER_PX) |c| {
                                 self.terminal_buffer[buffer_len] = c;
                                 buffer_len += 1;
                             }
                         } else {
-                            if (prev_fg_pixel.color_true.r != fg_pixel.color_true.r or prev_fg_pixel.color_true.g != fg_pixel.color_true.g or prev_fg_pixel.color_true.b != fg_pixel.color_true.b) {
+                            if (!prev_fg_pixel.eql(fg_pixel)) {
                                 prev_fg_pixel.color_true.r = fg_pixel.color_true.r;
                                 prev_fg_pixel.color_true.g = fg_pixel.color_true.g;
                                 prev_fg_pixel.color_true.b = fg_pixel.color_true.b;
@@ -670,7 +676,7 @@ pub const Graphics = struct {
                                     buffer_len += 1;
                                 }
                             }
-                            if (prev_bg_pixel.color_true.r != bg_pixel.color_true.r or prev_bg_pixel.color_true.g != bg_pixel.color_true.g or prev_bg_pixel.color_true.b != bg_pixel.color_true.b) {
+                            if (!prev_bg_pixel.eql(bg_pixel)) {
                                 prev_bg_pixel.color_true.r = bg_pixel.color_true.r;
                                 prev_bg_pixel.color_true.g = bg_pixel.color_true.g;
                                 prev_bg_pixel.color_true.b = bg_pixel.color_true.b;
@@ -680,7 +686,7 @@ pub const Graphics = struct {
                                 }
                             }
 
-                            if (fg_pixel.color_true.r == bg_pixel.color_true.r and fg_pixel.color_true.g == bg_pixel.color_true.g and fg_pixel.color_true.b == bg_pixel.color_true.b) {
+                            if (fg_pixel.eql(bg_pixel)) {
                                 self.terminal_buffer[buffer_len] = ' ';
                                 buffer_len += 1;
                             } else {
@@ -705,9 +711,9 @@ pub const Graphics = struct {
 
                     switch (self.color_type) {
                         .color_256 => {
-                            const fg_pixel: PixelType = term.rgb_256(t.r, t.g, t.b);
+                            const fg_pixel: PixelType = .{ .color_256 = term.rgb_256(t.r, t.g, t.b) };
 
-                            if (prev_fg_pixel.color_256 != fg_pixel.color_256) {
+                            if (!prev_fg_pixel.eql(fg_pixel)) {
                                 prev_fg_pixel = fg_pixel;
                                 for (term.FG[fg_pixel.color_256]) |c| {
                                     self.terminal_buffer[buffer_len] = c;
@@ -717,7 +723,7 @@ pub const Graphics = struct {
 
                             for (t.value, 0..) |c, z| {
                                 const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
-                                if (prev_bg_pixel.color_256 != bg_pixel.color_256) {
+                                if (!prev_bg_pixel.eql(bg_pixel)) {
                                     prev_bg_pixel = bg_pixel;
                                     for (term.BG[bg_pixel.color_256]) |ci| {
                                         self.terminal_buffer[buffer_len] = ci;
@@ -741,7 +747,7 @@ pub const Graphics = struct {
 
                             for (t.value, 0..) |c, z| {
                                 const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
-                                if (prev_bg_pixel.color_true.r != bg_pixel.color_true.r or prev_bg_pixel.color_true.g != bg_pixel.color_true.g or prev_bg_pixel.color_true.b != bg_pixel.color_true.b) {
+                                if (!prev_bg_pixel.eql(bg_pixel)) {
                                     prev_bg_pixel.color_true.r = bg_pixel.color_true.r;
                                     prev_bg_pixel.color_true.g = bg_pixel.color_true.g;
                                     prev_bg_pixel.color_true.b = bg_pixel.color_true.b;

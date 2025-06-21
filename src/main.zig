@@ -14,8 +14,10 @@ pub const std_options: std.Options = .{
         .{ .scope = .graphics, .level = .err },
         .{ .scope = .ttf, .level = .err },
         .{ .scope = .game, .level = .info },
-        .{ .scope = .font, .level = .err },
+        .{ .scope = .font, .level = .info },
         .{ .scope = .physics_pixel, .level = .info },
+        .{ .scope = .pixel_renderer, .level = .info },
+        .{ .scope = .ascii_renderer, .level = .info },
         .{ .scope = .tui, .level = .info },
     },
 };

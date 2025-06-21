@@ -2,6 +2,7 @@ const std = @import("std");
 const physics_pixel = @import("physics_pixel.zig");
 const texture = @import("texture.zig");
 
+pub const PixelRenderer = @import("pixel_renderer.zig").PixelRenderer;
 pub const Texture = texture.Texture;
 pub const PhysicsPixel = physics_pixel.PhysicsPixel;
 
@@ -153,7 +154,7 @@ pub const GameObject = struct {
     }
 
     //TODO MORE STATUS EFFECTS
-    pub fn draw(self: *Self, graphics: anytype, dest: ?Texture) void {
+    pub fn draw(self: *Self, renderer: *PixelRenderer, dest: ?Texture) void {
         switch (self.status) {
             .Wet => {
                 if (self.background_buffer.status != .Wet) {
@@ -169,7 +170,7 @@ pub const GameObject = struct {
                     if (p.pixel_type == .Object) {
                         const temp = p.pixel.get_a();
                         p.pixel.set_a(128);
-                        graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
+                        renderer.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
                         p.pixel.set_a(temp);
                     }
                 }
@@ -188,7 +189,7 @@ pub const GameObject = struct {
                     if (p.pixel_type == .Object) {
                         const temp = p.pixel.get_a();
                         p.pixel.set_a(128);
-                        graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
+                        renderer.draw_pixel_bg(p.x, p.y, p.pixel, dest, self.background_buffer.a[i].get_r(), self.background_buffer.a[i].get_g(), self.background_buffer.a[i].get_b(), true);
                         p.pixel.set_a(temp);
                     }
                 }
@@ -196,7 +197,7 @@ pub const GameObject = struct {
             .None => {
                 for (self.pixels) |p| {
                     if (p.pixel_type == .Object) {
-                        graphics.draw_pixel_bg(p.x, p.y, p.pixel, dest, 0, 0, 0, false);
+                        renderer.draw_pixel_bg(p.x, p.y, p.pixel, dest, 0, 0, 0, false);
                     }
                 }
             },

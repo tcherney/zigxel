@@ -18,7 +18,7 @@ pub const GameObject = game_object.GameObject;
 pub const Texture = game_object.Texture;
 pub const AssetManager = asset_manager.AssetManager;
 pub const Engine = engine.Engine;
-pub const TUI = engine.TUI(.pixel, Game.State);
+pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
 const TERMINAL_HEIGHT_OFFSET = 70;
@@ -26,7 +26,7 @@ const TERMINAL_WIDTH_OFFSET = 30;
 
 pub const Game = struct {
     running: bool = true,
-    e: Engine(._2d, .color_true) = undefined,
+    e: Engine = undefined,
     fps_buffer: [64]u8 = undefined,
     world_width: u32 = 1920,
     starting_pos_x: i32 = 1920 / 2,
@@ -54,7 +54,7 @@ pub const Game = struct {
     const Self = @This();
     pub const Error = error{} || image.Image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
     pub fn init(allocator: std.mem.Allocator) Error!Self {
-        var ret = Self{ .allocator = allocator, .tui = TUI.init(allocator) };
+        var ret = Self{ .allocator = allocator, .tui = TUI.init(allocator, .pixel) };
         try common.gen_rand();
         ret.placement_pixel = try ret.allocator.alloc(PhysicsPixel, 13);
         ret.placement_pixel[0] = PhysicsPixel.init(physic_pixel.PixelType.Sand, ret.starting_pos_x, ret.starting_pos_y);
@@ -206,7 +206,7 @@ pub const Game = struct {
             },
             .game => {
                 const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;
-                var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel_height)), self.allocator) catch |err| {
+                var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) catch |err| {
                     GAME_LOG.info("{any}\n", .{err});
                     self.running = false;
                     return;
@@ -374,7 +374,7 @@ pub const Game = struct {
     var flip: bool = false;
     var rect_rot: f64 = 0;
     pub fn on_render(self: *Self, dt: u64) !void {
-        self.e.renderer.set_bg(0, 0, 0, self.current_world.tex);
+        self.e.renderer.pixel.set_bg(0, 0, 0, self.current_world.tex);
         switch (self.state) {
             .start => {
                 try self.tui.draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y, self.state);
@@ -382,14 +382,14 @@ pub const Game = struct {
             .game => {
                 for (self.pixels.items) |p| {
                     if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
-                        self.e.renderer.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
+                        self.e.renderer.pixel.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
                     }
                 }
 
                 if (self.player_mode) {
-                    try self.e.renderer.push();
-                    try self.e.renderer.translate(.{ .x = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x), .y = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y) });
-                    try self.e.renderer.rotate(rotate_test);
+                    try self.e.renderer.pixel.push();
+                    try self.e.renderer.pixel.translate(.{ ._2d = .{ .x = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x), .y = @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y) } });
+                    try self.e.renderer.pixel.rotate(rotate_test);
                     if (elapsed > 12500000 and flip) {
                         rotate_test += 90;
                         if (rotate_test >= 360) {
@@ -400,31 +400,31 @@ pub const Game = struct {
                     } else {
                         elapsed += dt;
                     }
-                    try self.e.renderer.translate(.{ .x = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x)), .y = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y)) });
-                    self.player.?.draw(&self.e.renderer, self.current_world.tex);
-                    self.e.renderer.pop();
+                    try self.e.renderer.pixel.translate(.{ ._2d = .{ .x = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].x)), .y = -@as(f64, @floatFromInt(self.player.?.go.pixels[self.player.?.go.pixels.len / 2].y)) } });
+                    self.player.?.draw(&self.e.renderer.pixel, self.current_world.tex);
+                    self.e.renderer.pixel.pop();
                 }
-                self.e.renderer.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
-                // try self.e.renderer.push();
-                // try self.e.renderer.translate(.{ .x = @floatFromInt(self.placement_pixel[self.placement_index].x), .y = @floatFromInt(self.placement_pixel[self.placement_index].y) });
-                // try self.e.renderer.rotate(rect_rot);
+                self.e.renderer.pixel.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
+                // try self.e.renderer.pixel.push();
+                // try self.e.renderer.pixel.translate(.{ .x = @floatFromInt(self.placement_pixel[self.placement_index].x), .y = @floatFromInt(self.placement_pixel[self.placement_index].y) });
+                // try self.e.renderer.pixel.rotate(rect_rot);
                 // rect_rot += 1;
                 // if (rect_rot >= 360) rect_rot = 0;
-                // try self.e.renderer.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
-                // self.e.renderer.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
-                // self.e.renderer.pop();
+                // try self.e.renderer.pixel.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
+                // self.e.renderer.pixel.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
+                // self.e.renderer.pixel.pop();
                 self.font_sprite.dest.x = self.current_world.viewport.x;
                 self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
-                try self.e.renderer.draw_sprite(self.font_sprite, self.current_world.tex);
+                try self.e.renderer.pixel.draw_sprite(self.font_sprite, self.current_world.tex);
             },
         }
-        try self.e.renderer.flip(self.current_world.tex, self.current_world.viewport);
+        try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
-        self.e = try Engine(._2d, .color_true).init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET);
-        GAME_LOG.info("starting height {d}\n", .{self.e.renderer.terminal.size.height});
-        self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel_height)), self.allocator);
+        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true);
+        GAME_LOG.info("starting height {d}\n", .{self.e.renderer.pixel.terminal.size.height});
+        self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
         for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
             try self.pixels.append(null);
@@ -435,11 +435,11 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
-        try font.load("envy.ttf", 16, &self.e.renderer);
+        try font.load("envy.ttf", 24, &self.e.renderer.pixel);
         self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
-        try self.tui.add_button(self.e.renderer.pixel_width / 2, self.e.renderer.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start", .start);
+        try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, self.e.renderer.pixel.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start", .start);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);

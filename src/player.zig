@@ -2,6 +2,7 @@ const std = @import("std");
 const game_object = @import("game_object.zig");
 const physics_pixel = @import("physics_pixel.zig");
 
+pub const PixelRenderer = @import("pixel_renderer.zig").PixelRenderer;
 pub const GameObject = game_object.GameObject;
 
 pub const Player = struct {
@@ -45,8 +46,8 @@ pub const Player = struct {
         try self.go.update(pixels, xlimit, ylimit);
     }
 
-    pub fn draw(self: *Self, graphics: anytype, dest: ?game_object.Texture) void {
-        self.go.draw(graphics, dest);
+    pub fn draw(self: *Self, renderer: *PixelRenderer, dest: ?game_object.Texture) void {
+        self.go.draw(renderer, dest);
     }
 
     pub fn deinit(self: *Self) void {
