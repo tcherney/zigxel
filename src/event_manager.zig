@@ -244,7 +244,7 @@ pub const EventManager = struct {
                             const adjusted_y = self.xlib.mouse_state.y - self.term_height_offset;
                             const y_ratio: f64 = if (adjusted_y > 0) @as(f64, @floatFromInt(adjusted_y)) / @as(f64, @floatFromInt(self.xlib.child_height)) else 0;
                             const x: f64 = x_ratio * @as(f64, @floatFromInt(term_size.width)) - @as(f64, @floatFromInt(self.xlib.child_border_width));
-                            const y: f64 = y_ratio * @as(f64, @floatFromInt(term_size.height / 2));
+                            const y: f64 = y_ratio * @as(f64, @floatFromInt(term_size.height));
                             self.mouse_event_callback.?.call(.{ .x = @intFromFloat(x), .y = @intFromFloat(y), .clicked = self.xlib.mouse_state.button1, .scroll_up = self.xlib.mouse_state.button4, .scroll_down = self.xlib.mouse_state.button5, .ctrl_pressed = try self.xlib.is_mod_pressed(.ControlMask) });
                         }
                     },

@@ -10,6 +10,7 @@ pub const Allocator = std.mem.Allocator;
 pub const Texture = texture.Texture;
 const TUI_LOG = std.log.scoped(.tui);
 
+//TODO add more elements (textfields??) add key navigation (keeping track of current selected element)
 pub fn TUI(comptime State: type) type {
     return struct {
         allocator: Allocator,

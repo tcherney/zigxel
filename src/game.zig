@@ -21,7 +21,7 @@ pub const Engine = engine.Engine;
 pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
-const TERMINAL_HEIGHT_OFFSET = 70;
+const TERMINAL_HEIGHT_OFFSET = 35;
 const TERMINAL_WIDTH_OFFSET = 30;
 
 pub const Game = struct {
@@ -252,6 +252,8 @@ pub const Game = struct {
             .start => {
                 if (key == engine.KEYS.KEY_q) {
                     self.running = false;
+                } else if (key == engine.KEYS.KEY_SPACE) {
+                    self.state = .game;
                 }
             },
             .game => {

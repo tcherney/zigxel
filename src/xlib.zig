@@ -100,6 +100,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         if (self.event_type == .ButtonPress and self.pointer_grabbed and self.last_child != self.event.xbutton.subwindow) {
             XLIB_LOG.info("ungrabbing pointer\n", .{});
             _ = c.XUngrabPointer(self.display, c.CurrentTime);
+            _ = c.XUngrabKeyboard(self.display, c.CurrentTime);
             _ = c.XGrabButton(self.display, c.AnyButton, c.AnyModifier, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0);
             self.pointer_grabbed = false;
         } else if (self.event_type == .ButtonPress and !self.pointer_grabbed and (self.last_child == self.event.xbutton.subwindow or self.last_child == self.window)) {
@@ -118,6 +119,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
                 XLIB_LOG.info("grabbing pointer\n", .{});
                 self.pointer_grabbed = true;
                 _ = c.XUngrabButton(self.display, c.AnyButton, c.AnyModifier, self.window);
+                _ = c.XGrabKeyboard(self.display, self.window, 1, c.GrabModeAsync, c.GrabModeAsync, c.CurrentTime);
                 _ = c.XGrabPointer(self.display, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0, c.CurrentTime);
             }
         }
@@ -132,6 +134,7 @@ pub const Xlib = if (builtin.os.tag == .linux) struct {
         if (self.pointer_grabbed and child_y < self.term_height_offset or child_x >= (@as(i32, @bitCast(self.child_width)) - self.term_width_offset)) {
             XLIB_LOG.info("UNgrabbing pointer\n", .{});
             _ = c.XUngrabPointer(self.display, c.CurrentTime);
+            _ = c.XUngrabKeyboard(self.display, c.CurrentTime);
             _ = c.XGrabButton(self.display, c.AnyButton, c.AnyModifier, self.window, 0, c.ButtonPressMask | c.ButtonReleaseMask | c.PointerMotionMask, c.GrabModeSync, c.GrabModeAsync, 0, 0);
             self.pointer_grabbed = false;
             return;
