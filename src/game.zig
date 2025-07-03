@@ -438,7 +438,7 @@ pub const Game = struct {
         try self.assets.load("basic", "basic0.png");
         var font: Font = Font.init(self.allocator);
         try font.load("envy.ttf", 24, &self.e.renderer.pixel);
-        self.font_tex = try font.texture_from_string("quick, brown fox jumps over the lazy dog");
+        self.font_tex = try font.texture_from_string("Welcome");
         self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
         font.deinit();
         try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, self.e.renderer.pixel.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start", .start);
