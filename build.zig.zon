@@ -18,6 +18,9 @@
             .hash = "N-V-__8AAJl1DwBezhYo_VE6f53mPVm00R-Fk28NPW7P14EQ",
             .lazy = true,
         },
+        .zig_wasm = .{
+            .path = "../zig-wasm",
+        },
     },
 
     .paths = .{

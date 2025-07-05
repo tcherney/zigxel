@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const game = @import("game.zig");
 pub const std_options: std.Options = .{
     .log_level = .err,
@@ -36,13 +37,21 @@ pub fn myLogFn(
     nosuspend stderr.print(prefix ++ format, args) catch return;
 }
 
+pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
 pub fn main() !void {
+    var allocator: std.mem.Allocator = undefined;
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+    if (!WASM) {
+        allocator = gpa.allocator();
+    } else {
+        allocator = std.heap.c_allocator;
+    }
     var app = try game.Game.init(allocator);
     try app.run();
     try app.deinit();
-    if (gpa.deinit() == .leak) {
-        std.log.warn("Leaked!\n", .{});
+    if (!WASM) {
+        if (gpa.deinit() == .leak) {
+            std.log.warn("Leaked!\n", .{});
+        }
     }
 }

@@ -98,14 +98,14 @@ pub const EventManager = struct {
         if (self.running) {
             self.running = false;
             self.main_thread.join();
-            try self.cook();
         }
+        try self.cook();
     }
 
     fn cook(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             _ = std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, self.original_termios);
-        } else {
+        } else if (builtin.os.tag == .linux) {
             if (std.c.tcsetattr(self.stdin.handle, .FLUSH, &self.original_termios) == 1) {
                 return Error.PosixInit;
             }
@@ -131,7 +131,7 @@ pub const EventManager = struct {
             if (std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, raw) != std.os.windows.TRUE) {
                 return Error.WindowsInit;
             }
-        } else {
+        } else if (builtin.os.tag == .linux) {
             self.original_termios = try std.posix.tcgetattr(self.stdin.handle);
             var raw = self.original_termios;
             raw.lflag.ECHO = false;
@@ -153,10 +153,112 @@ pub const EventManager = struct {
         }
     }
 
-    pub fn start(self: *Self) Error!void {
+    pub fn start(self: *Self, single_thread: bool) Error!void {
         try self.raw_mode();
-        self.running = true;
-        self.main_thread = try std.Thread.spawn(.{}, event_loop, .{self});
+        if (!single_thread) {
+            self.running = true;
+            self.main_thread = try std.Thread.spawn(.{}, event_loop, .{self});
+        }
+    }
+
+    pub fn handle_events(self: *Self) Error!void {
+        if (builtin.os.tag == .windows) {
+            var irInBuf: [128]win32.INPUT_RECORD = undefined;
+            var numRead: u32 = undefined;
+            _ = win32.GetNumberOfConsoleInputEvents(self.stdin.handle, &numRead);
+            if (numRead > 0) {
+                if (win32.ReadConsoleInputW(self.stdin.handle, &irInBuf, 128, &numRead) != std.os.windows.TRUE) {
+                    return Error.WindowsRead;
+                } else {
+                    //EVENT_LOG.info("{any}\n", .{irInBuf});
+                    for (0..numRead) |i| {
+                        EVENT_LOG.info("{any}\n", .{irInBuf[i].EventType});
+                        switch (irInBuf[i].EventType) {
+                            @intFromEnum(win32.EventType.KEY_EVENT) => {
+                                if (self.key_down_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.TRUE) {
+                                    self.key_down_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                } else if (self.key_up_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.FALSE) {
+                                    self.key_up_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                } else if (self.key_press_callback != null and irInBuf[i].Event.KeyEvent.bKeyDown == std.os.windows.FALSE) {
+                                    self.key_press_callback.?.call(@enumFromInt(irInBuf[i].Event.KeyEvent.uChar.AsciiChar));
+                                }
+                            },
+                            @intFromEnum(win32.EventType.WINDOW_BUFFER_SIZE) => {
+                                if (self.window_change_callback != null) {
+                                    EVENT_LOG.info("{any}\n", .{irInBuf[i].Event.WindowBufferSizeEvent.dwSize});
+                                    self.window_change_callback.?.call();
+                                }
+                            },
+                            @intFromEnum(win32.EventType.MOUSE_EVENT) => {
+                                if (self.mouse_event_callback != null) {
+                                    EVENT_LOG.info("{any}\n", .{irInBuf[i].Event.MouseEvent});
+                                    self.mouse_event_callback.?.call(.{
+                                        .x = irInBuf[i].Event.MouseEvent.dwMousePosition.X,
+                                        .y = irInBuf[i].Event.MouseEvent.dwMousePosition.Y,
+                                        .clicked = (irInBuf[i].Event.MouseEvent.dwButtonState & 0x01) != 0,
+                                        .scroll_up = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10000000) != 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
+                                        .scroll_down = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10000000) == 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
+                                        .ctrl_pressed = irInBuf[i].Event.MouseEvent.dwControlKeyState & 0x08 != 0,
+                                    });
+                                }
+                            },
+                            //TODO ARROW KEYS
+                            //TODO potenial to use  https://learn.microsoft.com/en-us/windows/console/setcurrentconsolefontex https://learn.microsoft.com/en-us/windows/console/getcurrentconsolefontex for zoom
+                            //TODO handle non key events
+                            else => {},
+                        }
+                    }
+                }
+            }
+        } else {
+            EVENT_LOG.info("Initializing x11\n", .{});
+            self.xlib = Xlib.init(self.term_width_offset, self.term_height_offset);
+            EVENT_LOG.info("x11 initialized\n", .{});
+            defer self.xlib.deinit();
+            EVENT_LOG.info("Grabbing next xevent\n", .{});
+            self.xlib.next_event();
+            switch (self.xlib.event_type) {
+                .KeyPress => {
+                    EVENT_LOG.info("Keypress\n", .{});
+                    const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
+                    if (self.key_down_callback != null) {
+                        self.key_down_callback.?.call(key);
+                    }
+                },
+                .KeyRelease => {
+                    EVENT_LOG.info("Keyrelease\n", .{});
+                    const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
+                    if (self.key_up_callback != null) {
+                        self.key_up_callback.?.call(key);
+                    }
+                    if (self.key_press_callback != null) {
+                        self.key_press_callback.?.call(key);
+                    }
+                },
+                .ButtonPress, .ButtonRelease, .MotionNotify => {
+                    EVENT_LOG.info("Mouse\n", .{});
+                    if (self.mouse_event_callback != null) {
+                        const term_size = try term.Term.get_Size(self.stdout.handle);
+                        const x_ratio: f64 = @as(f64, @floatFromInt(self.xlib.mouse_state.x)) / @as(f64, @floatFromInt(self.xlib.child_width));
+                        const adjusted_y = self.xlib.mouse_state.y - self.term_height_offset;
+                        const y_ratio: f64 = if (adjusted_y > 0) @as(f64, @floatFromInt(adjusted_y)) / @as(f64, @floatFromInt(self.xlib.child_height)) else 0;
+                        const x: f64 = x_ratio * @as(f64, @floatFromInt(term_size.width)) - @as(f64, @floatFromInt(self.xlib.child_border_width));
+                        const y: f64 = y_ratio * @as(f64, @floatFromInt(term_size.height));
+                        self.mouse_event_callback.?.call(.{ .x = @intFromFloat(x), .y = @intFromFloat(y), .clicked = self.xlib.mouse_state.button1, .scroll_up = self.xlib.mouse_state.button4, .scroll_down = self.xlib.mouse_state.button5, .ctrl_pressed = try self.xlib.is_mod_pressed(.ControlMask) });
+                    }
+                },
+                //TODO handle window changes
+                .ResizeRequest => {
+                    EVENT_LOG.info("Window change\n", .{});
+                    if (self.window_change_callback != null) {
+                        self.window_change_callback.?.call();
+                    }
+                },
+                else => {
+                    EVENT_LOG.info("Unknown event\n", .{});
+                },
+            }
+        }
     }
 
     fn event_loop(self: *Self) Error!void {

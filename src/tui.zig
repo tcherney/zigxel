@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const graphics = @import("graphics.zig");
 const common = @import("common");
 const texture = @import("texture.zig");
@@ -9,6 +10,8 @@ pub const Pixel = common.Pixel;
 pub const Allocator = std.mem.Allocator;
 pub const Texture = texture.Texture;
 const TUI_LOG = std.log.scoped(.tui);
+
+pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
 
 //TODO add more elements (textfields??) add key navigation (keeping track of current selected element)
 pub fn TUI(comptime State: type) type {
@@ -58,8 +61,8 @@ pub fn TUI(comptime State: type) type {
             }
 
             pub fn mouse_input(self: *const Button, x: i32, y: i32) void {
-                const x_usize = @as(usize, @bitCast(@as(i64, @intCast(x))));
-                const y_usize = @as(usize, @bitCast(@as(i64, @intCast(y))));
+                const x_usize = if (WASM) @as(usize, @bitCast(x)) else @as(usize, @bitCast(@as(i64, @intCast(x))));
+                const y_usize = if (WASM) @as(usize, @bitCast(y)) else @as(usize, @bitCast(@as(i64, @intCast(y))));
                 TUI_LOG.info("Checking if {d},{d} in {any}\n", .{ x, y, self });
                 if (x_usize >= self.x and x_usize <= self.x + self.width and y_usize >= self.y and y_usize <= self.y + self.height) {
                     self.on_click.?.call();
@@ -67,28 +70,34 @@ pub fn TUI(comptime State: type) type {
             }
 
             pub fn draw(self: *Button, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) Button.Error!void {
-                const viewport_x_usize = @as(usize, @bitCast(@as(i64, @intCast(viewport_x))));
-                const viewport_y_usize = @as(usize, @bitCast(@as(i64, @intCast(viewport_y))));
+                const viewport_x_usize = if (WASM) @as(usize, @bitCast(viewport_x)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_x))));
+                const viewport_y_usize = if (WASM) @as(usize, @bitCast(viewport_y)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_y))));
                 if (self.renderer_type == .pixel) {
                     for (viewport_y_usize + self.y..viewport_y_usize + self.y + self.height) |i| {
+                        const i_i32 = if (WASM) @as(i32, @bitCast(i)) else @as(i32, @intCast(@as(i64, @bitCast(i))));
                         for (viewport_x_usize + self.x..viewport_x_usize + self.x + self.width) |j| {
-                            renderer.pixel.draw_pixel(@as(i32, @intCast(@as(i64, @bitCast(j)))), @as(i32, @intCast(@as(i64, @bitCast(i)))), self.background_color, dest);
+                            const j_i32 = if (WASM) @as(i32, @bitCast(j)) else @as(i32, @intCast(@as(i64, @bitCast(j))));
+                            renderer.pixel.draw_pixel(j_i32, i_i32, self.background_color, dest);
                         }
                     }
                     const mid_x = self.x + (self.width / 2) - (self.text.len / 2);
                     const mid_y = self.y + (self.height / 2);
-                    try renderer.pixel.draw_text(self.text, @as(i32, @intCast(@as(i64, @bitCast(mid_x)))), @as(i32, @intCast(@as(i64, @bitCast(mid_y)))), self.text_color.get_r(), self.text_color.get_g(), self.text_color.get_b());
+                    const mix_x_i32 = if (WASM) @as(i32, @bitCast(mid_x)) else @as(i32, @intCast(@as(i64, @bitCast(mid_x))));
+                    const mid_y_i32 = if (WASM) @as(i32, @bitCast(mid_y)) else @as(i32, @intCast(@as(i64, @bitCast(mid_y))));
+                    try renderer.pixel.draw_text(self.text, mix_x_i32, mid_y_i32, self.text_color.get_r(), self.text_color.get_g(), self.text_color.get_b());
                 } else {
                     const mid_x = self.x + (self.width / 2) - (self.text.len / 2);
                     const mid_y = self.y + (self.height / 2);
                     var curr_char: usize = 0;
                     for (viewport_y_usize + self.y..viewport_y_usize + self.y + self.height) |i| {
+                        const i_i32 = if (WASM) @as(i32, @bitCast(i)) else @as(i32, @intCast(@as(i64, @bitCast(i))));
                         for (viewport_x_usize + self.x..viewport_x_usize + self.x + self.width) |j| {
+                            const j_i32 = if (WASM) @as(i32, @bitCast(j)) else @as(i32, @intCast(@as(i64, @bitCast(j))));
                             if (j >= mid_x and i >= mid_y and curr_char < self.text.len) {
-                                renderer.ascii.draw_symbol_bg(@as(i32, @intCast(@as(i64, @bitCast(j)))), @as(i32, @intCast(@as(i64, @bitCast(i)))), self.text[curr_char], self.text_color, dest, self.background_color.get_r(), self.background_color.get_g(), self.background_color.get_b());
+                                renderer.ascii.draw_symbol_bg(j_i32, i_i32, self.text[curr_char], self.text_color, dest, self.background_color.get_r(), self.background_color.get_g(), self.background_color.get_b());
                                 curr_char += 1;
                             } else {
-                                renderer.ascii.draw_symbol_bg(@as(i32, @intCast(@as(i64, @bitCast(j)))), @as(i32, @intCast(@as(i64, @bitCast(i)))), ' ', self.background_color, dest, self.background_color.get_r(), self.background_color.get_g(), self.background_color.get_b());
+                                renderer.ascii.draw_symbol_bg(j_i32, i_i32, ' ', self.background_color, dest, self.background_color.get_r(), self.background_color.get_g(), self.background_color.get_b());
                             }
                         }
                     }

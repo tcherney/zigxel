@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const engine = @import("engine.zig");
 const common = @import("common");
 const image = @import("image");
@@ -21,6 +22,8 @@ pub const Engine = engine.Engine;
 pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
+pub const SINGLE_THREADED = true;
+pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
 const TERMINAL_HEIGHT_OFFSET = 35;
 const TERMINAL_WIDTH_OFFSET = 30;
 
@@ -153,13 +156,17 @@ pub const Game = struct {
                 self.old_mouse_y = self.placement_pixel[self.placement_index].y;
                 if (mouse_event.clicked) {
                     GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-                    self.lock.lock();
+                    if (!SINGLE_THREADED and !WASM) {
+                        self.lock.lock();
+                    }
                     self.place_pixel() catch |err| {
                         GAME_LOG.info("{any}\n", .{err});
                         self.running = false;
                         return;
                     };
-                    self.lock.unlock();
+                    if (!SINGLE_THREADED and !WASM) {
+                        self.lock.unlock();
+                    }
                 }
                 if (mouse_event.scroll_up) {
                     self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
@@ -198,7 +205,9 @@ pub const Game = struct {
     }
     pub fn on_window_change(self: *Self, win_size: engine.WindowSize) void {
         GAME_LOG.info("on_window_change\n", .{});
-        self.lock.lock();
+        if (!SINGLE_THREADED and !WASM) {
+            self.lock.lock();
+        }
         GAME_LOG.info("changed height {d}\n", .{win_size.height});
         switch (self.state) {
             .start => {
@@ -227,7 +236,7 @@ pub const Game = struct {
                         };
                     }
                 }
-                const pixels_to_delete: i64 = @as(i64, @bitCast(self.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
+                const pixels_to_delete = if (WASM) @as(i32, @bitCast(self.pixels.items.len)) - @as(i32, @bitCast(new_pixels.items.len)) else @as(i64, @bitCast(self.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
                 if (pixels_to_delete > 0) {
                     for (new_pixels.items.len..self.pixels.items.len) |i| {
                         if (self.pixels.items[i] != null) {
@@ -241,7 +250,9 @@ pub const Game = struct {
                 self.current_world.deinit();
                 self.pixels = new_pixels;
                 self.current_world = new_world;
-                self.lock.unlock();
+                if (!SINGLE_THREADED and !WASM) {
+                    self.lock.unlock();
+                }
             },
         }
     }
@@ -285,13 +296,17 @@ pub const Game = struct {
                     }
                 } else if (key == engine.KEYS.KEY_SPACE) {
                     GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-                    self.lock.lock();
+                    if (!SINGLE_THREADED and !WASM) {
+                        self.lock.lock();
+                    }
                     self.place_pixel() catch |err| {
                         GAME_LOG.info("{any}\n", .{err});
                         self.running = false;
                         return;
                     };
-                    self.lock.unlock();
+                    if (!SINGLE_THREADED and !WASM) {
+                        self.lock.unlock();
+                    }
                 } else if (key == engine.KEYS.KEY_i) {
                     if (self.current_world.viewport.y > 0) {
                         self.current_world.viewport.y -= 1;
@@ -435,12 +450,14 @@ pub const Game = struct {
         self.current_world.viewport.y = self.starting_pos_y;
         self.state = .start;
         self.assets = AssetManager.init(self.allocator);
-        try self.assets.load("basic", "basic0.png");
-        var font: Font = Font.init(self.allocator);
-        try font.load("envy.ttf", 24, &self.e.renderer.pixel);
-        self.font_tex = try font.texture_from_string("Welcome");
-        self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
-        font.deinit();
+        if (!WASM) {
+            try self.assets.load("basic", "basic0.png");
+            var font: Font = Font.init(self.allocator);
+            try font.load("envy.ttf", 24, &self.e.renderer.pixel);
+            self.font_tex = try font.texture_from_string("Welcome");
+            self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
+            font.deinit();
+        }
         try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, self.e.renderer.pixel.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start", .start);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
         self.e.on_key_down(Self, on_key_down, self);
@@ -450,15 +467,25 @@ pub const Game = struct {
         self.e.on_window_change(Self, on_window_change, self);
         self.e.set_fps(60);
         try self.e.start();
-
         var timer: std.time.Timer = try std.time.Timer.start();
         var delta: u64 = 0;
         var active_pixels: u64 = 0;
         while (self.running) {
             delta = timer.read();
             timer.reset();
-            self.lock.lock();
+            if (!SINGLE_THREADED and !WASM) {
+                self.lock.lock();
+            }
             switch (self.state) {
+                .start => {
+                    if (WASM or SINGLE_THREADED) {
+                        try self.on_render(delta);
+                    }
+                    if (SINGLE_THREADED) {
+                        std.debug.print("handling events\n", .{});
+                        try self.e.events.handle_events();
+                    }
+                },
                 .game => {
                     for (0..self.pixels.items.len) |i| {
                         if (self.pixels.items[i] != null) {
@@ -484,12 +511,17 @@ pub const Game = struct {
                         }
                         if (y == 0) break;
                     }
-                },
-                else => {
-                    //todo
+                    if (WASM or SINGLE_THREADED) {
+                        try self.on_render(delta);
+                    }
+                    if (SINGLE_THREADED) {
+                        try self.e.events.handle_events();
+                    }
                 },
             }
-            self.lock.unlock();
+            if (!SINGLE_THREADED and !WASM) {
+                self.lock.unlock();
+            }
             delta = timer.read();
             timer.reset();
             const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));

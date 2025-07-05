@@ -24,6 +24,9 @@ pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Ti
 pub const WindowChangeCallback = common.Callback(WindowSize);
 pub const ENGINE_LOG = std.log.scoped(.engine);
 
+pub const SINGLE_THREADED = true;
+pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
+
 pub const Engine = struct {
     renderer: Graphics = undefined,
     events: EventManager = undefined,
@@ -42,8 +45,10 @@ pub const Engine = struct {
 
     pub fn deinit(self: *Self) Error!void {
         self.stop();
-        if (self.render_callback != null) {
-            self.render_thread.join();
+        if (!WASM and !SINGLE_THREADED) {
+            if (self.render_callback != null) {
+                self.render_thread.join();
+            }
         }
         try self.renderer.deinit();
         try self.events.deinit();
@@ -109,12 +114,14 @@ pub const Engine = struct {
                 ENGINE_LOG.info("Window size {d}x{d}\n", .{ renderer.terminal.size.width, renderer.terminal.size.height });
             },
         }
-        self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
-        self.running = true;
-        if (self.render_callback) |_| {
-            self.render_thread = try std.Thread.spawn(.{}, render_loop, .{self});
+        if (!WASM and !SINGLE_THREADED) {
+            self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
+            self.running = true;
+            if (self.render_callback) |_| {
+                self.render_thread = try std.Thread.spawn(.{}, render_loop, .{self});
+            }
         }
-        try self.events.start();
+        try self.events.start(SINGLE_THREADED);
     }
 
     pub fn on_key_down(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const _ttf = @import("ttf.zig");
 const _texture = @import("texture.zig");
 const common = @import("common");
@@ -12,6 +13,7 @@ pub const Pixel = _texture.Pixel;
 var num_chars: usize = 0;
 
 const FONT_LOG = std.log.scoped(.font);
+pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
 
 pub const Font = struct {
     ttf: TTF = undefined,
@@ -263,9 +265,10 @@ pub const Font = struct {
             var active_edges: std.ArrayList(Edge) = std.ArrayList(Edge).init(self.allocator);
             var first_edge: usize = 0;
             for (0..height) |i| {
+                const i_i32 = if (WASM) @as(i32, @bitCast(i)) else @as(i32, @intCast(@as(i64, @bitCast(i))));
                 while (first_edge < edges.items.len) {
                     const edge = edges.items[first_edge];
-                    if (@min(edge.p0.y, edge.p1.y) <= @as(i32, @intCast(@as(i64, @bitCast(i))))) {
+                    if (@min(edge.p0.y, edge.p1.y) <= i_i32) {
                         try active_edges.append(edge);
                         first_edge += 1;
                     } else {
@@ -275,7 +278,7 @@ pub const Font = struct {
                 var j: usize = 0;
                 while (j < active_edges.items.len) {
                     const edge = active_edges.items[j];
-                    if (@max(edge.p0.y, edge.p1.y) <= @as(i32, @intCast(@as(i64, @bitCast(i))))) {
+                    if (@max(edge.p0.y, edge.p1.y) <= i_i32) {
                         _ = active_edges.orderedRemove(j);
                     } else {
                         j += 1;
@@ -295,18 +298,21 @@ pub const Font = struct {
                 std.mem.sort(Edge, active_edges.items, {}, Edge.sort_x);
                 var winding: i32 = 0;
                 var curr_edge: usize = 0;
-                for (@as(usize, @bitCast(@as(i64, @intCast(active_edges.items[0].x))))..@as(usize, @bitCast(@as(i64, @intCast(active_edges.items[active_edges.items.len - 1].x + 1))))) |x| {
-                    while (curr_edge != active_edges.items.len and active_edges.items[curr_edge].x < @as(i32, @intCast(@as(i64, @bitCast(x))))) {
-                        if (active_edges.items[curr_edge].p0.y <= @as(i32, @intCast(@as(i64, @bitCast(i)))) and active_edges.items[curr_edge].p1.y > @as(i32, @intCast(@as(i64, @bitCast(i))))) {
+                const start_usize = if (WASM) @as(usize, @bitCast(active_edges.items[0].x)) else @as(usize, @bitCast(@as(i64, @intCast(active_edges.items[0].x))));
+                const end_usize = if (WASM) @as(usize, @bitCast(active_edges.items[active_edges.items.len - 1].x + 1)) else @as(usize, @bitCast(@as(i64, @intCast(active_edges.items[active_edges.items.len - 1].x + 1))));
+                for (start_usize..end_usize) |x| {
+                    const x_i32 = if (WASM) @as(i32, @bitCast(x)) else @as(i32, @intCast(@as(i64, @bitCast(x))));
+                    while (curr_edge != active_edges.items.len and active_edges.items[curr_edge].x < x_i32) {
+                        if (active_edges.items[curr_edge].p0.y <= i_i32 and active_edges.items[curr_edge].p1.y > i_i32) {
                             winding -= 1;
-                        } else if (active_edges.items[curr_edge].p1.y <= @as(i32, @intCast(@as(i64, @bitCast(i)))) and active_edges.items[curr_edge].p0.y > @as(i32, @intCast(@as(i64, @bitCast(i))))) {
+                        } else if (active_edges.items[curr_edge].p1.y <= i_i32 and active_edges.items[curr_edge].p0.y > i_i32) {
                             winding += 1;
                         }
                         curr_edge += 1;
                     }
 
                     if (winding != 0) {
-                        graphics.draw_pixel(@as(i32, @intCast(@as(i64, @bitCast(x)))), @as(i32, @intCast(@as(i64, @bitCast(i)))), self.color, tex.*);
+                        graphics.draw_pixel(x_i32, i_i32, self.color, tex.*);
                     }
                 }
             }
