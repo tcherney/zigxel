@@ -12,6 +12,7 @@ pub const EventManager = event_manager.EventManager;
 pub const TUI = _tui.TUI;
 pub const Graphics = graphics.Graphics;
 pub const GraphicsType = graphics.GraphicsType;
+pub const TerminalType = graphics.TerminalType;
 pub const ColorMode = graphics.ColorMode;
 pub const RendererType = graphics.RendererType;
 pub const Texture = texture.Texture;
@@ -24,8 +25,8 @@ pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Ti
 pub const WindowChangeCallback = common.Callback(WindowSize);
 pub const ENGINE_LOG = std.log.scoped(.engine);
 
-pub const SINGLE_THREADED = true;
-pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
+pub const SINGLE_THREADED: bool = true;
+pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 
 pub const Engine = struct {
     renderer: Graphics = undefined,
@@ -39,8 +40,8 @@ pub const Engine = struct {
     window_change_size: term.Size = undefined,
     window_change_callback: ?WindowChangeCallback = null,
     const Self = @This();
-    pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode) Error!Self {
-        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type), .events = EventManager.init(term_width_offset, term_height_offset) };
+    pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType) Error!Self {
+        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, terminal_type), .events = EventManager.init(term_width_offset, term_height_offset) };
     }
 
     pub fn deinit(self: *Self) Error!void {
@@ -121,7 +122,9 @@ pub const Engine = struct {
                 self.render_thread = try std.Thread.spawn(.{}, render_loop, .{self});
             }
         }
-        try self.events.start(SINGLE_THREADED);
+        if (!WASM) {
+            try self.events.start(SINGLE_THREADED);
+        }
     }
 
     pub fn on_key_down(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {

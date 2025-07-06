@@ -8,6 +8,7 @@ const graphics_enums = @import("graphics_enums.zig");
 
 pub const ColorMode = graphics_enums.ColorMode;
 pub const PixelType = graphics_enums.PixelType;
+pub const TerminalType = graphics_enums.TerminalType;
 
 const UPPER_PX = "▀";
 const LOWER_PX = "▄";
@@ -26,13 +27,15 @@ pub const AsciiRenderer = struct {
     allocator: std.mem.Allocator = undefined,
     first_render: bool = true,
     color_type: ColorMode,
+    terminal_type: TerminalType,
     pub const Point = common.Point(2, i32);
     pub const Rectangle = common.Rectangle;
     const Self = @This();
     pub const Text = struct { x: i32, y: i32, r: u8, g: u8, b: u8, value: []const u8 };
 
-    pub fn init(allocator: std.mem.Allocator, color_type: ColorMode) Error!Self {
-        const terminal = try term.Term.init(allocator);
+    pub fn init(allocator: std.mem.Allocator, color_type: ColorMode, terminal_type: TerminalType) Error!Self {
+        var terminal = try term.Term.init(allocator);
+        if (terminal_type == .native) try terminal.on();
         var pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 2);
         for (0..pixel_buffer.len) |i| {
             if (color_type == .color_256) {
@@ -86,6 +89,7 @@ pub const AsciiRenderer = struct {
             .color_type = color_type,
             // need space for setting background and setting of foreground color for every pixel
             .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width) + 200)),
+            .terminal_type = terminal_type,
         };
     }
 
@@ -138,7 +142,7 @@ pub const AsciiRenderer = struct {
     pub fn deinit(self: *Self) Error!void {
         self.allocator.free(self.pixel_buffer);
         self.allocator.free(self.terminal_buffer);
-        try self.terminal.deinit();
+        if (self.terminal_type == .native) try self.terminal.off();
         self.allocator.free(self.last_frame);
         self.allocator.free(self.ascii_buffer);
         self.allocator.free(self.ascii_last_frame);

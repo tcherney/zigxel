@@ -22,8 +22,8 @@ pub const Engine = engine.Engine;
 pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
-pub const SINGLE_THREADED = true;
-pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
+pub const SINGLE_THREADED: bool = true;
+pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
 const TERMINAL_WIDTH_OFFSET = 30;
 
@@ -90,9 +90,11 @@ pub const Game = struct {
         if (self.player != null) {
             self.player.?.deinit();
         }
-        self.font_tex.deinit();
-        self.font_sprite.deinit();
-        self.allocator.destroy(self.font_tex);
+        if (!WASM) {
+            self.font_tex.deinit();
+            self.font_sprite.deinit();
+            self.allocator.destroy(self.font_tex);
+        }
     }
 
     pub fn place_pixel(self: *Self) !void {
@@ -430,16 +432,18 @@ pub const Game = struct {
                 // try self.e.renderer.pixel.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
                 // self.e.renderer.pixel.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
                 // self.e.renderer.pixel.pop();
-                self.font_sprite.dest.x = self.current_world.viewport.x;
-                self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
-                try self.e.renderer.pixel.draw_sprite(self.font_sprite, self.current_world.tex);
+                if (!WASM) {
+                    self.font_sprite.dest.x = self.current_world.viewport.x;
+                    self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
+                    try self.e.renderer.pixel.draw_sprite(self.font_sprite, self.current_world.tex);
+                }
             },
         }
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
     }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
-        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true);
+        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native);
         GAME_LOG.info("starting height {d}\n", .{self.e.renderer.pixel.terminal.size.height});
         self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
@@ -478,11 +482,12 @@ pub const Game = struct {
             }
             switch (self.state) {
                 .start => {
+                    std.debug.print("Moving the button\n", .{});
+                    self.tui.items.items[self.tui.items.items.len - 1].button.y += 1;
                     if (WASM or SINGLE_THREADED) {
                         try self.on_render(delta);
                     }
-                    if (SINGLE_THREADED) {
-                        std.debug.print("handling events\n", .{});
+                    if (SINGLE_THREADED and !WASM) {
                         try self.e.events.handle_events();
                     }
                 },
@@ -514,7 +519,7 @@ pub const Game = struct {
                     if (WASM or SINGLE_THREADED) {
                         try self.on_render(delta);
                     }
-                    if (SINGLE_THREADED) {
+                    if (SINGLE_THREADED and !WASM) {
                         try self.e.events.handle_events();
                     }
                 },
@@ -530,6 +535,7 @@ pub const Game = struct {
                 std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
             }
             active_pixels = 0;
+            self.running = false;
         }
     }
 };

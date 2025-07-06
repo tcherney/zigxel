@@ -5,6 +5,7 @@ const graphics_enums = @import("graphics_enums.zig");
 
 pub const GraphicsType = graphics_enums.GraphicsType;
 pub const RendererType = graphics_enums.RendererType;
+pub const TerminalType = graphics_enums.TerminalType;
 pub const ColorMode = graphics_enums.ColorMode;
 pub const PixelRenderer = pixel_renderer.PixelRenderer;
 pub const AsciiRenderer = ascii_renderer.AsciiRenderer;
@@ -14,16 +15,16 @@ pub const Error = ascii_renderer.Error || pixel_renderer.Error;
 pub const Graphics = union(enum) {
     pixel: PixelRenderer,
     ascii: AsciiRenderer,
-    pub fn init(allocator: std.mem.Allocator, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode) Error!Graphics {
+    pub fn init(allocator: std.mem.Allocator, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType) Error!Graphics {
         switch (renderer_type) {
             .pixel => {
                 return .{
-                    .pixel = try PixelRenderer.init(allocator, graphics_type, color_type),
+                    .pixel = try PixelRenderer.init(allocator, graphics_type, color_type, terminal_type),
                 };
             },
             .ascii => {
                 return .{
-                    .ascii = try AsciiRenderer.init(allocator, color_type),
+                    .ascii = try AsciiRenderer.init(allocator, color_type, terminal_type),
                 };
             },
         }

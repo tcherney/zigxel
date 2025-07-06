@@ -13,7 +13,7 @@ pub const Pixel = _texture.Pixel;
 var num_chars: usize = 0;
 
 const FONT_LOG = std.log.scoped(.font);
-pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
+pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 
 pub const Font = struct {
     ttf: TTF = undefined,

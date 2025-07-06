@@ -4,6 +4,7 @@ pub const ColorMode = enum {
     color_true,
 };
 pub const GraphicsType = enum { _2d, _3d };
+pub const TerminalType = enum { wasm, native };
 
 pub const PixelType = union(enum) {
     color_256: u8,

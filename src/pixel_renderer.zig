@@ -17,6 +17,7 @@ pub const GraphicsType = graphics_enums.GraphicsType;
 pub const ColorMode = graphics_enums.ColorMode;
 pub const Allocator = std.mem.Allocator;
 pub const PixelType = graphics_enums.PixelType;
+pub const TerminalType = graphics_enums.TerminalType;
 
 fn MatrixStack(comptime T: GraphicsType) type {
     return struct {
@@ -99,6 +100,7 @@ pub const PixelRenderer = struct {
     pixel_height: usize,
     graphics_type: GraphicsType,
     color_type: ColorMode,
+    terminal_type: TerminalType,
     pub const Point = common.Point(2, i32);
     pub const Rectangle = common.Rectangle;
     pub const MatrixStackType = union(enum) {
@@ -123,8 +125,9 @@ pub const PixelRenderer = struct {
     const Self = @This();
     pub const Text = struct { x: i32, y: i32, r: u8, g: u8, b: u8, value: []const u8 };
 
-    pub fn init(allocator: std.mem.Allocator, graphics_type: GraphicsType, color_type: ColorMode) Error!Self {
-        const terminal = try term.Term.init(allocator);
+    pub fn init(allocator: std.mem.Allocator, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType) Error!Self {
+        var terminal = try term.Term.init(allocator);
+        if (terminal_type == .native) try terminal.on();
         var pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 4);
         for (0..pixel_buffer.len) |i| {
             if (color_type == .color_256) {
@@ -157,6 +160,7 @@ pub const PixelRenderer = struct {
             .pixel_height = terminal.size.height * 2,
             .color_type = color_type,
             .graphics_type = graphics_type,
+            .terminal_type = terminal_type,
         };
     }
     pub fn push(self: *Self) Error!void {
@@ -211,7 +215,7 @@ pub const PixelRenderer = struct {
     pub fn deinit(self: *Self) Error!void {
         self.allocator.free(self.pixel_buffer);
         self.allocator.free(self.terminal_buffer);
-        try self.terminal.deinit();
+        if (self.terminal_type == .native) try self.terminal.off();
         self.allocator.free(self.last_frame);
         self.text_to_render.deinit();
         switch (self.stack) {

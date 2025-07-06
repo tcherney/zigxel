@@ -87,7 +87,13 @@ pub const EventManager = struct {
         else => std.posix.termios,
     };
     pub fn init(term_width_offset: i32, term_height_offset: i32) EventManager {
-        return EventManager{ .stdin = std.io.getStdIn(), .stdout = std.io.getStdOut(), .term_width_offset = term_width_offset, .term_height_offset = term_height_offset };
+        return EventManager{
+            .stdin = std.io.getStdIn(),
+            .stdout = std.io.getStdOut(),
+            .term_width_offset = term_width_offset,
+            .term_height_offset = term_height_offset,
+            .running = false,
+        };
     }
 
     pub fn deinit(self: *Self) Error!void {
@@ -210,7 +216,7 @@ pub const EventManager = struct {
                     }
                 }
             }
-        } else {
+        } else if (builtin.os.tag == .linux) {
             EVENT_LOG.info("Initializing x11\n", .{});
             self.xlib = Xlib.init(self.term_width_offset, self.term_height_offset);
             EVENT_LOG.info("x11 initialized\n", .{});
@@ -312,7 +318,7 @@ pub const EventManager = struct {
                     }
                 }
             }
-        } else {
+        } else if (builtin.os.tag == .linux) {
             EVENT_LOG.info("Initializing x11\n", .{});
             self.xlib = Xlib.init(self.term_width_offset, self.term_height_offset);
             EVENT_LOG.info("x11 initialized\n", .{});

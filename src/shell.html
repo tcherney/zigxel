@@ -137,7 +137,7 @@
       var statusElement = document.getElementById("status");
       var progressElement = document.getElementById("progress");
       var spinnerElement = document.getElementById("spinner");
-      var term = new Terminal({ cols: 150, rows: 55 });
+      var term = new Terminal({ cols: 150, rows: 58 });
       term.open(document.getElementById("output"));
 
       var Module = {
@@ -151,7 +151,7 @@
             //text = text.replace(/</g, "&lt;");
             //text = text.replace(/>/g, "&gt;");
             //text = text.replace('\n', '<br>', 'g');
-            //console.log(text);
+            console.log(text);
 
             term.write(text + "\r\n");
             //element.scrollTop = element.scrollHeight; // focus on bottom
