@@ -7,6 +7,7 @@ const sprite = @import("sprite.zig");
 const physic_pixel = @import("physics_pixel.zig");
 const game_object = @import("game_object.zig");
 const asset_manager = @import("asset_manager.zig");
+const emcc = @import("emcc.zig");
 const _player = @import("player.zig");
 const _font = @import("font.zig");
 const _tui = @import("tui.zig");
@@ -50,6 +51,9 @@ pub const Game = struct {
     font_sprite: sprite.Sprite = undefined,
     tui: TUI,
     state: State = .start,
+    timer: std.time.Timer = undefined,
+    delta: u64 = undefined,
+    active_pixels: u64 = undefined,
     pub const State = enum {
         game,
         start,
@@ -441,6 +445,84 @@ pub const Game = struct {
         }
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
     }
+
+    pub fn main_loop(delta: f64, ctx: *anyopaque) callconv(.c) bool {
+        //std.debug.print("start main loop\n", .{});
+        const self: *Self = @ptrCast(@alignCast(ctx));
+
+        if (!SINGLE_THREADED and !WASM) {
+            self.lock.lock();
+        }
+        switch (self.state) {
+            .start => {
+                //self.tui.items.items[self.tui.items.items.len - 1].button.y += 1;
+                if (WASM or SINGLE_THREADED) {
+                    self.on_render(@intFromFloat(delta)) catch |err| {
+                        GAME_LOG.info("Error: {any}\n", .{err});
+                        return false;
+                    };
+                }
+                if (SINGLE_THREADED and !WASM) {
+                    self.e.events.handle_events() catch |err| {
+                        GAME_LOG.info("Error: {any}\n", .{err});
+                        return false;
+                    };
+                }
+            },
+            .game => {
+                for (0..self.pixels.items.len) |i| {
+                    if (self.pixels.items[i] != null) {
+                        self.pixels.items[i].?.*.dirty = false;
+                    }
+                }
+                const y_start = self.current_world.tex.height - 1;
+                const x_start = self.current_world.tex.width - 1;
+                var y = y_start;
+                if (self.player_mode) {
+                    self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
+                        GAME_LOG.info("Error: {any}\n", .{err});
+                        return false;
+                    };
+                }
+                while (y >= 0) : (y -= 1) {
+                    var x = x_start;
+                    while (x >= 0) : (x -= 1) {
+                        var p = self.pixels.items[y * self.current_world.tex.width + x];
+                        if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.pixel_type != .Object) {
+                            //GAME_LOG.info("updating {any}\n", .{p.?});
+                            p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                            self.active_pixels = if (p.?.active) self.active_pixels + 1 else self.active_pixels;
+                        }
+                        if (x == 0) break;
+                    }
+                    if (y == 0) break;
+                }
+                if (WASM or SINGLE_THREADED) {
+                    self.on_render(@intFromFloat(delta)) catch |err| {
+                        GAME_LOG.info("Error: {any}\n", .{err});
+                        return false;
+                    };
+                }
+                if (SINGLE_THREADED and !WASM) {
+                    self.e.events.handle_events() catch |err| {
+                        GAME_LOG.info("Error: {any}\n", .{err});
+                        return false;
+                    };
+                }
+            },
+        }
+        if (!SINGLE_THREADED and !WASM) {
+            self.lock.unlock();
+        }
+
+        self.active_pixels = 0;
+        //std.debug.print("end main loop\n", .{});
+        if (WASM) {
+            //emcc.EmsdkWrapper.emscripten_sleep(16);
+
+        }
+        return true;
+    }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native);
@@ -452,7 +534,7 @@ pub const Game = struct {
         }
         self.current_world.viewport.x = self.starting_pos_x;
         self.current_world.viewport.y = self.starting_pos_y;
-        self.state = .start;
+        self.state = if (WASM) .game else .start;
         self.assets = AssetManager.init(self.allocator);
         if (!WASM) {
             try self.assets.load("basic", "basic0.png");
@@ -471,71 +553,31 @@ pub const Game = struct {
         self.e.on_window_change(Self, on_window_change, self);
         self.e.set_fps(60);
         try self.e.start();
-        var timer: std.time.Timer = try std.time.Timer.start();
-        var delta: u64 = 0;
-        var active_pixels: u64 = 0;
-        while (self.running) {
-            delta = timer.read();
-            timer.reset();
-            if (!SINGLE_THREADED and !WASM) {
-                self.lock.lock();
-            }
-            switch (self.state) {
-                .start => {
-                    std.debug.print("Moving the button\n", .{});
-                    self.tui.items.items[self.tui.items.items.len - 1].button.y += 1;
-                    if (WASM or SINGLE_THREADED) {
-                        try self.on_render(delta);
-                    }
-                    if (SINGLE_THREADED and !WASM) {
-                        try self.e.events.handle_events();
-                    }
-                },
-                .game => {
-                    for (0..self.pixels.items.len) |i| {
-                        if (self.pixels.items[i] != null) {
-                            self.pixels.items[i].?.*.dirty = false;
-                        }
-                    }
-                    const y_start = self.current_world.tex.height - 1;
-                    const x_start = self.current_world.tex.width - 1;
-                    var y = y_start;
-                    if (self.player_mode) {
-                        try self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
-                    }
-                    while (y >= 0) : (y -= 1) {
-                        var x = x_start;
-                        while (x >= 0) : (x -= 1) {
-                            var p = self.pixels.items[y * self.current_world.tex.width + x];
-                            if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.pixel_type != .Object) {
-                                //GAME_LOG.info("updating {any}\n", .{p.?});
-                                p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
-                                active_pixels = if (p.?.active) active_pixels + 1 else active_pixels;
-                            }
-                            if (x == 0) break;
-                        }
-                        if (y == 0) break;
-                    }
-                    if (WASM or SINGLE_THREADED) {
-                        try self.on_render(delta);
-                    }
-                    if (SINGLE_THREADED and !WASM) {
-                        try self.e.events.handle_events();
-                    }
-                },
-            }
-            if (!SINGLE_THREADED and !WASM) {
-                self.lock.unlock();
-            }
-            delta = timer.read();
-            timer.reset();
-            const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));
-            //GAME_LOG.info("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
-            if (time_to_sleep > 0) {
-                std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
-            }
-            active_pixels = 0;
+        self.timer = try std.time.Timer.start();
+        self.delta = 0;
+        self.active_pixels = 0;
+        self.place_pixel() catch |err| {
+            GAME_LOG.info("{any}\n", .{err});
             self.running = false;
+            return;
+        };
+        if (WASM) {
+            //var ptr: *anyopaque = self;
+            //emcc.EmsdkWrapper.emscripten_set_main_loop_arg(main_loop, self, 0 ,0);
+            emcc.EmsdkWrapper.emscripten_request_animation_frame_loop(main_loop, self);
+        } else {
+            while (self.running) {
+                self.delta = self.timer.read();
+                self.timer.reset();
+                main_loop(@floatFromInt(self.delta), self);
+                self.delta = self.timer.read();
+                self.timer.reset();
+                const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(self.delta));
+                //GAME_LOG.info("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
+                if (time_to_sleep > 0) {
+                    std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
+                }
+            }
         }
     }
 };

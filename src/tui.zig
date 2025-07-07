@@ -151,6 +151,7 @@ pub fn TUI(comptime State: type) type {
             }
         }
         pub fn add_button(self: *Self, x: usize, y: usize, width: ?usize, height: ?usize, border_color: Pixel, background_color: Pixel, text_color: Pixel, text: []const u8, state: State) Error!void {
+            //TODO find out why my text ptr is getting clobbered in wasm
             try self.items.append(.{ .button = try Button.init(self.allocator, x, y, width, height, border_color, background_color, text_color, text, state, self.renderer_type) });
             TUI_LOG.info("Button {any}\n", .{self.items.items[self.items.items.len - 1]});
         }

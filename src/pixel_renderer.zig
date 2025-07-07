@@ -530,7 +530,8 @@ pub const PixelRenderer = struct {
 
     pub fn draw_text(self: *Self, value: []const u8, x: i32, y: i32, r: u8, g: u8, b: u8) Error!void {
         //GRAPHICS_LOG.debug("{s} with len {d}\n", .{ value, value.len });
-        try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
+        std.debug.print("duping {any}\n", .{value});
+        try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = try self.allocator.dupe(u8, value) });
     }
 
     //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
@@ -591,7 +592,7 @@ pub const PixelRenderer = struct {
 
         if (self.first_render) {
             PIXEL_RENDERER_LOG.debug("first render\n", .{});
-            try self.terminal.out(term.CURSOR_HOME);
+            if (self.terminal_type == .native) try self.terminal.out(term.CURSOR_HOME);
         }
         //GRAPHICS_LOG.debug("width height {d} {d}\n", .{ width, height });
         // each pixel is an index into the possible 256 colors
@@ -748,7 +749,6 @@ pub const PixelRenderer = struct {
                                     buffer_len += 1;
                                 }
                             }
-
                             for (t.value, 0..) |c, z| {
                                 const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
                                 if (!prev_bg_pixel.eql(bg_pixel)) {
@@ -773,7 +773,7 @@ pub const PixelRenderer = struct {
         if (buffer_len > 0) {
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
             try self.terminal.out(term.COLOR_RESET);
-            try self.terminal.out(term.CURSOR_HIDE);
+            if (self.terminal_type == .native) try self.terminal.out(term.CURSOR_HIDE) else try self.terminal.out("\n");
         }
     }
 };

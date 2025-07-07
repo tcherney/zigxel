@@ -95,11 +95,12 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
             "-sUSE_GLFW=3",
             "-sSTACK_OVERFLOW_CHECK=1",
             "-sEXPORTED_RUNTIME_METHODS=['requestFullscreen']",
-            "-sASYNCIFY",
+            //"-sASYNCIFY",
+            "-sNO_EXIT_RUNTIME",
             "-sUSE_OFFSET_CONVERTER",
             "-sINITIAL_MEMORY=167772160",
             "-O0",
-            "--emrun",
+            //"--emrun",
             "-sSINGLE_FILE",
         });
         if (preload_file != null) {
@@ -127,3 +128,15 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
     }
     return Error.MissingDependency;
 }
+
+pub const EmsdkWrapper = struct {
+    const c = @cImport({
+        @cInclude("emscripten/emscripten.h");
+        @cInclude("emscripten/html5.h");
+    });
+    pub extern fn emscripten_set_main_loop(*const fn () callconv(.C) void, c_int, c_int) void;
+    pub extern fn emscripten_set_main_loop_arg(*const fn (*anyopaque) callconv(.C) void, *anyopaque, c_int, c_int) void;
+    pub extern fn emscripten_sleep(c_uint) void;
+    pub extern fn emscripten_request_animation_frame_loop(*const fn (f64, *anyopaque) callconv(.C) bool, *anyopaque) void;
+    pub extern fn emscripten_run_script([]const u8) void;
+};

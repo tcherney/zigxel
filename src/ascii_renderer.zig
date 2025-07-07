@@ -4,6 +4,7 @@ const texture = @import("texture.zig");
 const common = @import("common");
 const sprite = @import("sprite.zig");
 const image = @import("image");
+const emcc = @import("emcc.zig");
 const graphics_enums = @import("graphics_enums.zig");
 
 pub const ColorMode = graphics_enums.ColorMode;
@@ -405,7 +406,7 @@ pub const AsciiRenderer = struct {
 
         if (self.first_render) {
             ASCII_RENDERER_LOG.debug("first render\n", .{});
-            try self.terminal.out(term.CURSOR_HOME);
+            //try self.terminal.out(term.CURSOR_HOME);
         }
         //GRAPHICS_LOG.debug("width height {d} {d}\n", .{ width, height });
         // each pixel is an index into the possible 256 colors
