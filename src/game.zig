@@ -23,7 +23,7 @@ pub const Engine = engine.Engine;
 pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
-pub const SINGLE_THREADED: bool = true;
+pub const SINGLE_THREADED: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
 const TERMINAL_WIDTH_OFFSET = 30;
@@ -397,6 +397,7 @@ pub const Game = struct {
     var flip: bool = false;
     var rect_rot: f64 = 0;
     pub fn on_render(self: *Self, dt: u64) !void {
+        std.debug.print("starting render\n", .{});
         self.e.renderer.pixel.set_bg(0, 0, 0, self.current_world.tex);
         switch (self.state) {
             .start => {
@@ -444,15 +445,17 @@ pub const Game = struct {
             },
         }
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
+        std.debug.print("ending render\n", .{});
     }
 
     pub fn main_loop(delta: f64, ctx: *anyopaque) callconv(.c) bool {
-        //std.debug.print("start main loop\n", .{});
+        std.debug.print("starting main loop\n", .{});
         const self: *Self = @ptrCast(@alignCast(ctx));
 
         if (!SINGLE_THREADED and !WASM) {
             self.lock.lock();
         }
+
         switch (self.state) {
             .start => {
                 //self.tui.items.items[self.tui.items.items.len - 1].button.y += 1;
@@ -473,6 +476,7 @@ pub const Game = struct {
                 for (0..self.pixels.items.len) |i| {
                     if (self.pixels.items[i] != null) {
                         self.pixels.items[i].?.*.dirty = false;
+                        std.debug.print("{d} pixel {any}\n", .{ i, self.pixels.items[i] });
                     }
                 }
                 const y_start = self.current_world.tex.height - 1;
@@ -516,25 +520,27 @@ pub const Game = struct {
         }
 
         self.active_pixels = 0;
-        //std.debug.print("end main loop\n", .{});
+        std.debug.print("end main loop\n", .{});
         if (WASM) {
             //emcc.EmsdkWrapper.emscripten_sleep(16);
 
         }
-        return true;
+        return false;
     }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native);
         GAME_LOG.info("starting height {d}\n", .{self.e.renderer.pixel.terminal.size.height});
-        self.current_world = try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
+        self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
         for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
             try self.pixels.append(null);
         }
-        self.current_world.viewport.x = self.starting_pos_x;
-        self.current_world.viewport.y = self.starting_pos_y;
-        self.state = if (WASM) .game else .start;
+        if (!WASM) {
+            self.current_world.viewport.x = self.starting_pos_x;
+            self.current_world.viewport.y = self.starting_pos_y;
+        }
+        self.state = if (WASM) .start else .start;
         self.assets = AssetManager.init(self.allocator);
         if (!WASM) {
             try self.assets.load("basic", "basic0.png");
@@ -544,7 +550,7 @@ pub const Game = struct {
             self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
             font.deinit();
         }
-        try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, self.e.renderer.pixel.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start", .start);
+        try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, self.e.renderer.pixel.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, self.assets.strings[@intFromEnum(AssetManager.StringIndex.START)], .start);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);
@@ -552,15 +558,17 @@ pub const Game = struct {
         self.e.on_mouse_change(Self, on_mouse_change, self);
         self.e.on_window_change(Self, on_window_change, self);
         self.e.set_fps(60);
+        std.debug.print("starting\n", .{});
         try self.e.start();
+        std.debug.print("started\n", .{});
         self.timer = try std.time.Timer.start();
         self.delta = 0;
         self.active_pixels = 0;
-        self.place_pixel() catch |err| {
-            GAME_LOG.info("{any}\n", .{err});
-            self.running = false;
-            return;
-        };
+        // self.place_pixel() catch |err| {
+        //     GAME_LOG.info("{any}\n", .{err});
+        //     self.running = false;
+        //     return;
+        // };
         if (WASM) {
             //var ptr: *anyopaque = self;
             //emcc.EmsdkWrapper.emscripten_set_main_loop_arg(main_loop, self, 0 ,0);
@@ -569,7 +577,7 @@ pub const Game = struct {
             while (self.running) {
                 self.delta = self.timer.read();
                 self.timer.reset();
-                main_loop(@floatFromInt(self.delta), self);
+                const cont = main_loop(@floatFromInt(self.delta), self);
                 self.delta = self.timer.read();
                 self.timer.reset();
                 const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(self.delta));
@@ -577,6 +585,7 @@ pub const Game = struct {
                 if (time_to_sleep > 0) {
                     std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
                 }
+                if (!cont) break;
             }
         }
     }

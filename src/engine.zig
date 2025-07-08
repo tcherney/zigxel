@@ -25,7 +25,7 @@ pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Ti
 pub const WindowChangeCallback = common.Callback(WindowSize);
 pub const ENGINE_LOG = std.log.scoped(.engine);
 
-pub const SINGLE_THREADED: bool = true;
+pub const SINGLE_THREADED: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 
 pub const Engine = struct {

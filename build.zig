@@ -65,7 +65,6 @@ pub fn build(b: *std.Build) !void {
     const imglib = b.dependency("imglib", .{});
     const termlib = b.dependency("terminal", .{});
     const commonlib = b.dependency("common", .{});
-    const emcclib = b.dependency("zig_wasm", .{});
 
     const engine_module = b.addModule("engine", .{
         .root_source_file = b.path("src/engine.zig"),
@@ -93,7 +92,6 @@ pub fn build(b: *std.Build) !void {
         .name = "libzigxel",
         .root_module = engine_module,
     });
-    engine_module.addImport("emcc", emcclib.module("emcc"));
     engine_module.addImport("image", imglib.module("image"));
     engine_module.addImport("term", termlib.module("term"));
     engine_module.addImport("common", commonlib.module("common"));
@@ -107,13 +105,11 @@ pub fn build(b: *std.Build) !void {
         lib.addIncludePath(b.path("../../../linuxbrew/.linuxbrew/include"));
         lib.linkSystemLibrary("X11");
     }
-    lib.linkLibrary(emcclib.artifact("zig-wasm"));
 
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
     b.installArtifact(lib);
-
     if (target.result.os.tag == .emscripten) {
         const wasm_mod = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
@@ -217,7 +213,6 @@ pub fn build(b: *std.Build) !void {
             }), // this line was added
         });
         //DEPS
-        exe.root_module.addImport("emcc", emcclib.module("emcc"));
         exe.root_module.addImport("image", imglib.module("image"));
         exe.root_module.addImport("term", termlib.module("term"));
         exe.root_module.addImport("common", commonlib.module("common"));

@@ -46,15 +46,13 @@ pub fn TUI(comptime State: type) type {
                     .border_color = border_color,
                     .background_color = background_color,
                     .text_color = text_color,
-                    .text = try allocator.dupe(u8, text),
+                    .text = text,
                     .state = state,
                     .renderer_type = renderer_type,
                 };
             }
 
-            pub fn deinit(self: *Button) void {
-                self.allocator.free(self.text);
-            }
+            pub fn deinit(_: *Button) void {}
 
             pub fn set_on_click(self: *Button, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
                 self.on_click = OnClickCallback.init(CONTEXT_TYPE, func, context);

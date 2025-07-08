@@ -530,8 +530,8 @@ pub const PixelRenderer = struct {
 
     pub fn draw_text(self: *Self, value: []const u8, x: i32, y: i32, r: u8, g: u8, b: u8) Error!void {
         //GRAPHICS_LOG.debug("{s} with len {d}\n", .{ value, value.len });
-        std.debug.print("duping {any}\n", .{value});
-        try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = try self.allocator.dupe(u8, value) });
+        std.debug.print("drawing {any}\n", .{value});
+        try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
     }
 
     //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
@@ -561,7 +561,7 @@ pub const PixelRenderer = struct {
             }
         }
         var buffer_len: usize = 0;
-
+        //std.debug.print("pixels {any}\n", .{self.pixel_buffer});
         var j: usize = 0;
         var i: usize = 0;
         const width = self.pixel_width;
@@ -633,7 +633,7 @@ pub const PixelRenderer = struct {
 
                 switch (self.color_type) {
                     .color_256 => {
-                        if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel)) {
+                        if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel) and !fg_pixel.eql(bg_pixel)) {
                             for (LOWER_PX) |c| {
                                 self.terminal_buffer[buffer_len] = c;
                                 buffer_len += 1;
@@ -666,7 +666,7 @@ pub const PixelRenderer = struct {
                         }
                     },
                     .color_true => {
-                        if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel)) {
+                        if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel) and !fg_pixel.eql(bg_pixel)) {
                             for (LOWER_PX) |c| {
                                 self.terminal_buffer[buffer_len] = c;
                                 buffer_len += 1;
@@ -705,6 +705,7 @@ pub const PixelRenderer = struct {
                 }
             }
         }
+        //std.debug.print("pretext {s}\n", .{self.terminal_buffer[0..buffer_len]});
         if (self.text_to_render.items.len > 0) {
             var text = self.text_to_render.pop();
             while (text) |t| {

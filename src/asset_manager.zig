@@ -7,7 +7,13 @@ pub const Image = image.Image;
 
 pub const AssetManager = struct {
     textures: std.StringHashMap(Texture),
+    strings: []const []const u8 = &[_][]const u8{
+        "Start",
+    },
     allocator: std.mem.Allocator,
+    pub const StringIndex = enum(usize) {
+        START = 0,
+    };
     const Self = @This();
     pub const Error = error{TextureNotLoaded} || Texture.Error || std.mem.Allocator.Error || image.Image.Error;
     pub fn init(allocator: std.mem.Allocator) Self {
