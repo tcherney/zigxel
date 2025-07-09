@@ -44,7 +44,7 @@ pub fn main() !void {
     if (!WASM) {
         allocator = gpa.allocator();
     } else {
-        allocator = std.heap.raw_c_allocator;
+        allocator = std.heap.c_allocator;
     }
     var app = try game.Game.init(allocator);
     try app.run();

@@ -33,8 +33,8 @@ pub const Game = struct {
     e: Engine = undefined,
     fps_buffer: [64]u8 = undefined,
     world_width: u32 = 1920,
-    starting_pos_x: i32 = 1920 / 2,
-    starting_pos_y: i32 = 10,
+    starting_pos_x: i32 = if (WASM) 0 else 1920 / 2,
+    starting_pos_y: i32 = if (WASM) 0 else 10,
     placement_pixel: []PhysicsPixel = undefined,
     placement_index: usize = 0,
     current_world: World = undefined,
@@ -397,13 +397,17 @@ pub const Game = struct {
     var flip: bool = false;
     var rect_rot: f64 = 0;
     pub fn on_render(self: *Self, dt: u64) !void {
-        std.debug.print("starting render\n", .{});
+        std.debug.print("starting render in {any}\n", .{self.state});
+        std.debug.print("set bg {any} {any} {any}\n", .{ self.current_world.tex.width, self.current_world.tex.height, self.current_world.tex.pixel_buffer.len });
         self.e.renderer.pixel.set_bg(0, 0, 0, self.current_world.tex);
+        std.debug.print("end set bg {any}\n", .{self.state});
         switch (self.state) {
             .start => {
+                std.debug.print("drawing tui {any} \n", .{self.state});
                 try self.tui.draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y, self.state);
             },
             .game => {
+                std.debug.print("drawing world {any} \n", .{self.state});
                 for (self.pixels.items) |p| {
                     if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
                         self.e.renderer.pixel.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
@@ -448,10 +452,9 @@ pub const Game = struct {
         std.debug.print("ending render\n", .{});
     }
 
-    pub fn main_loop(delta: f64, ctx: *anyopaque) callconv(.c) bool {
-        std.debug.print("starting main loop\n", .{});
+    pub fn main_loop(ctx: *anyopaque) callconv(.c) void {
         const self: *Self = @ptrCast(@alignCast(ctx));
-
+        std.debug.print("starting main loop in {any} {any}\n", .{ self.state, WASM });
         if (!SINGLE_THREADED and !WASM) {
             self.lock.lock();
         }
@@ -460,15 +463,15 @@ pub const Game = struct {
             .start => {
                 //self.tui.items.items[self.tui.items.items.len - 1].button.y += 1;
                 if (WASM or SINGLE_THREADED) {
-                    self.on_render(@intFromFloat(delta)) catch |err| {
+                    self.on_render(self.delta) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
-                        return false;
+                        return;
                     };
                 }
                 if (SINGLE_THREADED and !WASM) {
                     self.e.events.handle_events() catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
-                        return false;
+                        return;
                     };
                 }
             },
@@ -485,7 +488,7 @@ pub const Game = struct {
                 if (self.player_mode) {
                     self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
-                        return false;
+                        return;
                     };
                 }
                 while (y >= 0) : (y -= 1) {
@@ -502,15 +505,15 @@ pub const Game = struct {
                     if (y == 0) break;
                 }
                 if (WASM or SINGLE_THREADED) {
-                    self.on_render(@intFromFloat(delta)) catch |err| {
+                    self.on_render(self.delta) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
-                        return false;
+                        return;
                     };
                 }
                 if (SINGLE_THREADED and !WASM) {
                     self.e.events.handle_events() catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
-                        return false;
+                        return;
                     };
                 }
             },
@@ -522,10 +525,9 @@ pub const Game = struct {
         self.active_pixels = 0;
         std.debug.print("end main loop\n", .{});
         if (WASM) {
-            //emcc.EmsdkWrapper.emscripten_sleep(16);
-
+            emcc.EmsdkWrapper.emscripten_sleep(16);
         }
-        return false;
+        //return true;
     }
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
@@ -536,11 +538,11 @@ pub const Game = struct {
         for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
             try self.pixels.append(null);
         }
-        if (!WASM) {
-            self.current_world.viewport.x = self.starting_pos_x;
-            self.current_world.viewport.y = self.starting_pos_y;
-        }
-        self.state = if (WASM) .start else .start;
+
+        self.current_world.viewport.x = self.starting_pos_x;
+        self.current_world.viewport.y = self.starting_pos_y;
+
+        self.state = if (WASM) .game else .start;
         self.assets = AssetManager.init(self.allocator);
         if (!WASM) {
             try self.assets.load("basic", "basic0.png");
@@ -558,34 +560,46 @@ pub const Game = struct {
         self.e.on_mouse_change(Self, on_mouse_change, self);
         self.e.on_window_change(Self, on_window_change, self);
         self.e.set_fps(60);
+        //std.debug.print("current world {any}\n", .{self.current_world});
         std.debug.print("starting\n", .{});
         try self.e.start();
         std.debug.print("started\n", .{});
         self.timer = try std.time.Timer.start();
         self.delta = 0;
         self.active_pixels = 0;
-        // self.place_pixel() catch |err| {
-        //     GAME_LOG.info("{any}\n", .{err});
-        //     self.running = false;
-        //     return;
-        // };
-        if (WASM) {
+        self.place_pixel() catch |err| {
+            GAME_LOG.info("{any}\n", .{err});
+            self.running = false;
+            return;
+        };
+        const time_to_place = std.time.ns_per_s;
+        var time_elapsed: u64 = 0;
+        if (false) {
             //var ptr: *anyopaque = self;
-            //emcc.EmsdkWrapper.emscripten_set_main_loop_arg(main_loop, self, 0 ,0);
-            emcc.EmsdkWrapper.emscripten_request_animation_frame_loop(main_loop, self);
+            emcc.EmsdkWrapper.emscripten_set_main_loop_arg(main_loop, self, 0, 0);
+            //emcc.EmsdkWrapper.emscripten_request_animation_frame_loop(main_loop, self);
         } else {
             while (self.running) {
                 self.delta = self.timer.read();
                 self.timer.reset();
-                const cont = main_loop(@floatFromInt(self.delta), self);
+                main_loop(self);
                 self.delta = self.timer.read();
+                time_elapsed += self.delta;
+                std.debug.print("time elapsed {any} out of {any}\n", .{ time_elapsed, time_to_place });
+                if (time_elapsed > time_to_place) {
+                    self.place_pixel() catch |err| {
+                        GAME_LOG.info("{any}\n", .{err});
+                        self.running = false;
+                        return;
+                    };
+                    time_elapsed = 0;
+                }
                 self.timer.reset();
                 const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(self.delta));
                 //GAME_LOG.info("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
                 if (time_to_sleep > 0) {
                     std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
                 }
-                if (!cont) break;
             }
         }
     }

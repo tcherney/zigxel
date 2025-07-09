@@ -234,12 +234,17 @@ pub const PixelRenderer = struct {
                 }
             }
         } else {
-            const bg_color_indx = term.rgb_256(r, g, b);
-            for (0..dest.?.pixel_buffer.len) |i| {
-                if (self.color_type == .color_256) {
+            if (self.color_type == .color_256) {
+                const bg_color_indx = term.rgb_256(r, g, b);
+                for (0..dest.?.pixel_buffer.len) |i| {
                     dest.?.pixel_buffer[i].set_r(bg_color_indx);
-                } else {
-                    dest.?.pixel_buffer[i] = texture.Pixel.init(r, g, b, null);
+                }
+            } else {
+                for (0..dest.?.pixel_buffer.len) |i| {
+                    dest.?.pixel_buffer[i].set_r(r);
+                    dest.?.pixel_buffer[i].set_g(g);
+                    dest.?.pixel_buffer[i].set_b(b);
+                    dest.?.pixel_buffer[i].set_a(255);
                 }
             }
         }
@@ -592,7 +597,7 @@ pub const PixelRenderer = struct {
 
         if (self.first_render) {
             PIXEL_RENDERER_LOG.debug("first render\n", .{});
-            if (self.terminal_type == .native) try self.terminal.out(term.CURSOR_HOME);
+            try self.terminal.out(term.CURSOR_HOME);
         }
         //GRAPHICS_LOG.debug("width height {d} {d}\n", .{ width, height });
         // each pixel is an index into the possible 256 colors
@@ -774,7 +779,8 @@ pub const PixelRenderer = struct {
         if (buffer_len > 0) {
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
             try self.terminal.out(term.COLOR_RESET);
-            if (self.terminal_type == .native) try self.terminal.out(term.CURSOR_HIDE) else try self.terminal.out("\n");
+            try self.terminal.out(term.CURSOR_HIDE);
+            if (self.terminal_type == .wasm) try self.terminal.out("\n");
         }
     }
 };

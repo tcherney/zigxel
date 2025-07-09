@@ -155,7 +155,7 @@
             //text = text.replace('\n', '<br>', 'g');
             console.log(text);
 
-            term.write(text + "\r\n");
+            term.write(text.replaceAll("\n", "\r\n"));
             //element.scrollTop = element.scrollHeight; // focus on bottom
           };
         })(),
