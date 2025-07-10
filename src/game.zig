@@ -397,17 +397,17 @@ pub const Game = struct {
     var flip: bool = false;
     var rect_rot: f64 = 0;
     pub fn on_render(self: *Self, dt: u64) !void {
-        std.debug.print("starting render in {any}\n", .{self.state});
-        std.debug.print("set bg {any} {any} {any}\n", .{ self.current_world.tex.width, self.current_world.tex.height, self.current_world.tex.pixel_buffer.len });
+        //std.debug.print("starting render in {any}\n", .{self.state});
+        //std.debug.print("set bg {any} {any} {any}\n", .{ self.current_world.tex.width, self.current_world.tex.height, self.current_world.tex.pixel_buffer.len });
         self.e.renderer.pixel.set_bg(0, 0, 0, self.current_world.tex);
-        std.debug.print("end set bg {any}\n", .{self.state});
+        //std.debug.print("end set bg {any}\n", .{self.state});
         switch (self.state) {
             .start => {
-                std.debug.print("drawing tui {any} \n", .{self.state});
+                //std.debug.print("drawing tui {any} \n", .{self.state});
                 try self.tui.draw(&self.e.renderer, self.current_world.tex, self.current_world.viewport.x, self.current_world.viewport.y, self.state);
             },
             .game => {
-                std.debug.print("drawing world {any} \n", .{self.state});
+                //std.debug.print("drawing world {any} \n", .{self.state});
                 for (self.pixels.items) |p| {
                     if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
                         self.e.renderer.pixel.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
@@ -449,12 +449,12 @@ pub const Game = struct {
             },
         }
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
-        std.debug.print("ending render\n", .{});
+        //std.debug.print("ending render\n", .{});
     }
 
     pub fn main_loop(ctx: *anyopaque) callconv(.c) void {
         const self: *Self = @ptrCast(@alignCast(ctx));
-        std.debug.print("starting main loop in {any} {any}\n", .{ self.state, WASM });
+        //std.debug.print("starting main loop in {any} {any}\n", .{ self.state, WASM });
         if (!SINGLE_THREADED and !WASM) {
             self.lock.lock();
         }
@@ -479,7 +479,7 @@ pub const Game = struct {
                 for (0..self.pixels.items.len) |i| {
                     if (self.pixels.items[i] != null) {
                         self.pixels.items[i].?.*.dirty = false;
-                        std.debug.print("{d} pixel {any}\n", .{ i, self.pixels.items[i] });
+                        //std.debug.print("{d} pixel {any}\n", .{ i, self.pixels.items[i] });
                     }
                 }
                 const y_start = self.current_world.tex.height - 1;
@@ -523,12 +523,34 @@ pub const Game = struct {
         }
 
         self.active_pixels = 0;
-        std.debug.print("end main loop\n", .{});
+        //std.debug.print("end main loop\n", .{});
         if (WASM) {
             emcc.EmsdkWrapper.emscripten_sleep(16);
         }
         //return true;
     }
+
+    pub fn em_click_handler(event_type: c_int, event: ?*const emcc.EmsdkWrapper.EmscriptenMouseEvent, ctx: ?*anyopaque) callconv(.C) bool {
+        std.debug.print("event_type {any}\n", .{event_type});
+        std.debug.print("event {any}\n", .{event});
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        const width = 1350;
+        const height = 693;
+        const scale_x: f64 = @as(f64, @floatFromInt(event.?.targetX)) / @as(f64, @floatFromInt(width));
+        const scale_y: f64 = @as(f64, @floatFromInt(event.?.targetY)) / @as(f64, @floatFromInt(height));
+        const res_x: i16 = @intFromFloat(scale_x * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_width)));
+        const res_y: i16 = @intFromFloat(scale_y * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_height)));
+        self.on_mouse_change(.{
+            .x = res_x,
+            .y = res_y,
+            .clicked = true,
+            .scroll_up = false,
+            .scroll_down = false,
+            .ctrl_pressed = false,
+        });
+        return true;
+    }
+
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native);
@@ -572,34 +594,36 @@ pub const Game = struct {
             self.running = false;
             return;
         };
-        const time_to_place = std.time.ns_per_s;
-        var time_elapsed: u64 = 0;
-        if (false) {
+        // const time_to_place = std.time.ns_per_s;
+        // var time_elapsed: u64 = 0;
+        if (WASM) {
             //var ptr: *anyopaque = self;
-            emcc.EmsdkWrapper.emscripten_set_main_loop_arg(main_loop, self, 0, 0);
+            //emcc.EmsdkWrapper.emscripten_set_main_loop_arg(main_loop, self, 0, 0);
             //emcc.EmsdkWrapper.emscripten_request_animation_frame_loop(main_loop, self);
-        } else {
-            while (self.running) {
-                self.delta = self.timer.read();
-                self.timer.reset();
-                main_loop(self);
-                self.delta = self.timer.read();
-                time_elapsed += self.delta;
-                std.debug.print("time elapsed {any} out of {any}\n", .{ time_elapsed, time_to_place });
-                if (time_elapsed > time_to_place) {
-                    self.place_pixel() catch |err| {
-                        GAME_LOG.info("{any}\n", .{err});
-                        self.running = false;
-                        return;
-                    };
-                    time_elapsed = 0;
-                }
-                self.timer.reset();
-                const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(self.delta));
-                //GAME_LOG.info("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
-                if (time_to_sleep > 0) {
-                    std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
-                }
+            std.debug.print("setting handler\n", .{});
+            const res = emcc.EmsdkWrapper.emscripten_set_click_callback("#output-container", self, true, em_click_handler);
+            std.debug.print("result {any}\n", .{res});
+        }
+        while (self.running) {
+            self.delta = self.timer.read();
+            self.timer.reset();
+            main_loop(self);
+            self.delta = self.timer.read();
+            // time_elapsed += self.delta;
+            // std.debug.print("time elapsed {any} out of {any}\n", .{ time_elapsed, time_to_place });
+            // if (time_elapsed > time_to_place) {
+            //     self.place_pixel() catch |err| {
+            //         GAME_LOG.info("{any}\n", .{err});
+            //         self.running = false;
+            //         return;
+            //     };
+            //     time_elapsed = 0;
+            // }
+            self.timer.reset();
+            const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(self.delta));
+            //GAME_LOG.info("time to sleep {d}, active pixels {d}\n", .{ time_to_sleep, active_pixels });
+            if (time_to_sleep > 0) {
+                std.time.sleep(@as(u64, @bitCast(time_to_sleep)));
             }
         }
     }

@@ -135,9 +135,35 @@ pub const EmsdkWrapper = struct {
         @cInclude("emscripten/emscripten.h");
         @cInclude("emscripten/html5.h");
     });
+    // pub const EmscriptenMouseEvent = struct {
+    //     timestamp: c_longdouble,
+    //     screenX: c_int,
+    //     screenY: c_int,
+    //     clientX: c_int,
+    //     clientY: c_int,
+    //     ctrlKey: bool,
+    //     shiftKey: bool,
+    //     altKey: bool,
+    //     metaKey: bool,
+    //     button: c_ushort,
+    //     buttons: c_ushort,
+    //     movementX: c_int,
+    //     movementY: c_int,
+    //     targetX: c_int,
+    //     targetY: c_int,
+    //     canvasX: c_int,
+    //     canvasY: c_int,
+    //     padding: c_int,
+    // };
+    pub const EmscriptenMouseEvent = c.EmscriptenMouseEvent;
     pub extern fn emscripten_set_main_loop(*const fn () callconv(.C) void, c_int, c_int) void;
     pub extern fn emscripten_set_main_loop_arg(*const fn (*anyopaque) callconv(.C) void, *anyopaque, c_int, c_int) void;
     pub extern fn emscripten_sleep(c_uint) void;
     pub extern fn emscripten_request_animation_frame_loop(*const fn (f64, *anyopaque) callconv(.C) bool, *anyopaque) void;
     pub extern fn emscripten_run_script([]const u8) void;
+    pub fn emscripten_set_click_callback(target: [*:0]const u8, ctx: *anyopaque, use_capture: bool, handler: ?*const fn (c_int, ?*const EmscriptenMouseEvent, ?*anyopaque) callconv(.C) bool) c_int {
+        //_ = target;
+        //const window: [*:0]const u8 = @ptrFromInt(2);
+        return c.emscripten_set_click_callback(target, ctx, use_capture, handler);
+    }
 };

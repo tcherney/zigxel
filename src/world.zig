@@ -12,10 +12,8 @@ pub const World = struct {
     const Self = @This();
     pub const Error = error{} || Texture.Error;
     pub fn init(w_width: u32, w_height: u32, v_width: u32, v_height: u32, allocator: std.mem.Allocator) Error!Self {
-        std.debug.print("building word {any} {any} {any} {any}\n", .{ w_width, w_height, v_width, v_height });
         var world_tex = Texture.init(allocator);
         try world_tex.rect(w_width, w_height, 0, 0, 0, 255);
-        std.debug.print("world rect {any}\n", .{world_tex});
         return Self{
             .tex = world_tex,
             .bounds = common.Rectangle{
