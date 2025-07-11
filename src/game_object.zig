@@ -103,6 +103,7 @@ pub const GameObject = struct {
 
     fn check_left_bounds(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) bool {
         for (self.pixels) |p| {
+            if (p.pixel_type != .Object) continue;
             if (p.y < 0 or p.x - 1 < 0) {
                 return true;
             }
@@ -116,6 +117,7 @@ pub const GameObject = struct {
 
     fn check_bottom_bounds(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) bool {
         for (self.pixels) |p| {
+            if (p.pixel_type != .Object) continue;
             if (p.y + 1 < 0 or p.x < 0) {
                 return true;
             }
@@ -129,6 +131,7 @@ pub const GameObject = struct {
 
     fn check_right_bounds(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) bool {
         for (self.pixels) |p| {
+            if (p.pixel_type != .Object) continue;
             if (p.y < 0 or p.x + 1 < 0) {
                 return true;
             }
@@ -142,6 +145,7 @@ pub const GameObject = struct {
 
     fn check_top_bounds(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) bool {
         for (self.pixels) |p| {
+            if (p.pixel_type != .Object) continue;
             if (p.y - 1 < 0 or p.x < 0) {
                 continue;
             }

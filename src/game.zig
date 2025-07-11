@@ -32,8 +32,8 @@ pub const Game = struct {
     running: bool = true,
     e: Engine = undefined,
     fps_buffer: [64]u8 = undefined,
-    world_width: u32 = 1920,
-    starting_pos_x: i32 = if (WASM) 0 else 1920 / 2,
+    world_width: u32 = 5000,
+    starting_pos_x: i32 = if (WASM) 0 else 5000 / 2,
     starting_pos_y: i32 = if (WASM) 0 else 10,
     placement_pixel: []PhysicsPixel = undefined,
     placement_index: usize = 0,
@@ -451,7 +451,7 @@ pub const Game = struct {
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
         //std.debug.print("ending render\n", .{});
     }
-
+    //TODO add mouse down and mouse up handling along with touch for wasm where on down starts placing pixels and keeps placing until its released
     pub fn main_loop(ctx: *anyopaque) callconv(.c) void {
         const self: *Self = @ptrCast(@alignCast(ctx));
         //std.debug.print("starting main loop in {any} {any}\n", .{ self.state, WASM });
@@ -535,15 +535,15 @@ pub const Game = struct {
         std.debug.print("event {any}\n", .{event});
         const self: *Self = @ptrCast(@alignCast(ctx));
         const width = 1350;
-        const height = 693;
+        const height = 607;
         const scale_x: f64 = @as(f64, @floatFromInt(event.?.targetX)) / @as(f64, @floatFromInt(width));
         const scale_y: f64 = @as(f64, @floatFromInt(event.?.targetY)) / @as(f64, @floatFromInt(height));
         const res_x: i16 = @intFromFloat(scale_x * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_width)));
-        const res_y: i16 = @intFromFloat(scale_y * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_height)));
+        const res_y: i16 = @intFromFloat((scale_y * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_height))) / 2);
         self.on_mouse_change(.{
             .x = res_x,
             .y = res_y,
-            .clicked = true,
+            .clicked = (event.?.buttons & 0x03) > 0,
             .scroll_up = false,
             .scroll_down = false,
             .ctrl_pressed = false,
@@ -551,10 +551,27 @@ pub const Game = struct {
         return true;
     }
 
+    pub fn em_wheel_handler(event_type: c_int, event: ?*const emcc.EmsdkWrapper.EmscriptenWheelEvent, ctx: ?*anyopaque) callconv(.C) bool {
+        std.debug.print("event_type {any}\n", .{event_type});
+        std.debug.print("event {any}\n", .{event});
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        const scroll_up = event.?.deltaY < 0;
+        self.on_mouse_change(.{
+            .x = @truncate(self.placement_pixel[self.placement_index].x),
+            .y = @truncate(@divFloor(self.placement_pixel[self.placement_index].y, 2)),
+            .clicked = (event.?.mouse.buttons & 0x03) > 0,
+            .scroll_up = scroll_up,
+            .scroll_down = !scroll_up,
+            .ctrl_pressed = false,
+        });
+        return true;
+    }
+    //TODO add touch controls then test on phone
+
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native);
-        GAME_LOG.info("starting height {d}\n", .{self.e.renderer.pixel.terminal.size.height});
+        GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
         for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
@@ -564,7 +581,7 @@ pub const Game = struct {
         self.current_world.viewport.x = self.starting_pos_x;
         self.current_world.viewport.y = self.starting_pos_y;
 
-        self.state = if (WASM) .game else .start;
+        self.state = .game;
         self.assets = AssetManager.init(self.allocator);
         if (!WASM) {
             try self.assets.load("basic", "basic0.png");
@@ -574,7 +591,10 @@ pub const Game = struct {
             self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, self.font_tex);
             font.deinit();
         }
-        try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, self.e.renderer.pixel.pixel_height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, self.assets.strings[@intFromEnum(AssetManager.StringIndex.START)], .start);
+        const tui_adjust = self.e.renderer.pixel.terminal.size.height % 2 == 1;
+        var button_y = (self.e.renderer.pixel.pixel_height / 2);
+        if (tui_adjust) button_y -= 1;
+        try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, button_y, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, self.assets.strings[@intFromEnum(AssetManager.StringIndex.START)], .start);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
         self.e.on_key_down(Self, on_key_down, self);
         self.e.on_key_up(Self, on_key_up, self);
@@ -589,20 +609,17 @@ pub const Game = struct {
         self.timer = try std.time.Timer.start();
         self.delta = 0;
         self.active_pixels = 0;
-        self.place_pixel() catch |err| {
-            GAME_LOG.info("{any}\n", .{err});
-            self.running = false;
-            return;
-        };
         // const time_to_place = std.time.ns_per_s;
         // var time_elapsed: u64 = 0;
         if (WASM) {
             //var ptr: *anyopaque = self;
             //emcc.EmsdkWrapper.emscripten_set_main_loop_arg(main_loop, self, 0, 0);
             //emcc.EmsdkWrapper.emscripten_request_animation_frame_loop(main_loop, self);
-            std.debug.print("setting handler\n", .{});
-            const res = emcc.EmsdkWrapper.emscripten_set_click_callback("#output-container", self, true, em_click_handler);
+            std.debug.print("setting handlers\n", .{});
+            var res = emcc.EmsdkWrapper.emscripten_set_mousedown_callback("#output-container", self, true, em_click_handler);
+            res = emcc.EmsdkWrapper.emscripten_set_mousemove_callback("#output-container", self, true, em_click_handler);
             std.debug.print("result {any}\n", .{res});
+            res = emcc.EmsdkWrapper.emscripten_set_wheel_callback("#output-container", self, true, em_wheel_handler);
         }
         while (self.running) {
             self.delta = self.timer.read();

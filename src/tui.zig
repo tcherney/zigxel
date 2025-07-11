@@ -71,7 +71,8 @@ pub fn TUI(comptime State: type) type {
                 const viewport_x_usize = if (WASM) @as(usize, @bitCast(viewport_x)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_x))));
                 const viewport_y_usize = if (WASM) @as(usize, @bitCast(viewport_y)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_y))));
                 if (self.renderer_type == .pixel) {
-                    for (viewport_y_usize + self.y..viewport_y_usize + self.y + self.height) |i| {
+                    const y_start = viewport_y_usize + self.y;
+                    for (y_start..y_start + self.height) |i| {
                         const i_i32 = if (WASM) @as(i32, @bitCast(i)) else @as(i32, @intCast(@as(i64, @bitCast(i))));
                         for (viewport_x_usize + self.x..viewport_x_usize + self.x + self.width) |j| {
                             const j_i32 = if (WASM) @as(i32, @bitCast(j)) else @as(i32, @intCast(@as(i64, @bitCast(j))));
