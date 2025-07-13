@@ -551,6 +551,30 @@ pub const Game = struct {
         return true;
     }
 
+    pub fn em_touch_handler(event_type: c_int, event: ?*const emcc.EmsdkWrapper.EmscriptenTouchEvent, ctx: ?*anyopaque) callconv(.C) bool {
+        std.debug.print("event_type {any}\n", .{event_type});
+        std.debug.print("event {any}\n", .{event});
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        if (event.?.numTouches > 0) {
+            const width = 1350;
+            const height = 607;
+            const scale_x: f64 = @as(f64, @floatFromInt(event.?.touches[0].targetX)) / @as(f64, @floatFromInt(width));
+            const scale_y: f64 = @as(f64, @floatFromInt(event.?.touches[0].targetY)) / @as(f64, @floatFromInt(height));
+            const res_x: i16 = @intFromFloat(scale_x * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_width)));
+            const res_y: i16 = @intFromFloat((scale_y * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_height))) / 2);
+            self.on_mouse_change(.{
+                .x = res_x,
+                .y = res_y,
+                .clicked = event.?.numTouches == 1,
+                .scroll_up = event.?.numTouches == 2,
+                .scroll_down = event.?.numTouches == 3,
+                .ctrl_pressed = false,
+            });
+        }
+
+        return true;
+    }
+
     pub fn em_wheel_handler(event_type: c_int, event: ?*const emcc.EmsdkWrapper.EmscriptenWheelEvent, ctx: ?*anyopaque) callconv(.C) bool {
         std.debug.print("event_type {any}\n", .{event_type});
         std.debug.print("event {any}\n", .{event});
@@ -618,6 +642,8 @@ pub const Game = struct {
             std.debug.print("setting handlers\n", .{});
             var res = emcc.EmsdkWrapper.emscripten_set_mousedown_callback("#output-container", self, true, em_click_handler);
             res = emcc.EmsdkWrapper.emscripten_set_mousemove_callback("#output-container", self, true, em_click_handler);
+            res = emcc.EmsdkWrapper.emscripten_set_touchstart_callback("#output-container", self, true, em_touch_handler);
+            res = emcc.EmsdkWrapper.emscripten_set_touchmove_callback("#output-container", self, true, em_touch_handler);
             std.debug.print("result {any}\n", .{res});
             res = emcc.EmsdkWrapper.emscripten_set_wheel_callback("#output-container", self, true, em_wheel_handler);
         }
