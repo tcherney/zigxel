@@ -2,54 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const emcc = @import("src/emcc.zig");
 
-fn createEmsdkStep(b: *std.Build, emsdk: *std.Build.Dependency) *std.Build.Step.Run {
-    if (builtin.os.tag == .windows) {
-        return b.addSystemCommand(&.{emsdk.path("emsdk.bat").getPath(b)});
-    } else {
-        return b.addSystemCommand(&.{emsdk.path("emsdk").getPath(b)});
-    }
-}
-
-fn emSdkSetupStep(b: *std.Build, emsdk: *std.Build.Dependency) !?*std.Build.Step.Run {
-    const dot_emsc_path = emsdk.path(".emscripten").getPath(b);
-    std.debug.print("path {s}\n", .{dot_emsc_path});
-    const dot_emsc_exists = !std.meta.isError(std.fs.accessAbsolute(dot_emsc_path, .{}));
-
-    if (!dot_emsc_exists) {
-        std.debug.print("path exists\n", .{});
-        const emsdk_install = createEmsdkStep(b, emsdk);
-        emsdk_install.addArgs(&.{ "install", "latest" });
-        const emsdk_activate = createEmsdkStep(b, emsdk);
-        emsdk_activate.addArgs(&.{ "activate", "latest" });
-        emsdk_activate.step.dependOn(&emsdk_install.step);
-        return emsdk_activate;
-    } else {
-        return null;
-    }
-}
-
-fn emscriptenRunStep(b: *std.Build, emsdk: *std.Build.Dependency, examplePath: []const u8) !*std.Build.Step.Run {
-    const dot_emsc_path = emsdk.path("upstream/emscripten/cache/sysroot/include").getPath(b);
-    // If compiling on windows , use emrun.bat.
-    const emrunExe = switch (builtin.os.tag) {
-        .windows => "emrun.bat",
-        else => "emrun",
-    };
-    var emrun_run_arg = try b.allocator.alloc(u8, dot_emsc_path.len + emrunExe.len + 1);
-    defer b.allocator.free(emrun_run_arg);
-
-    if (b.sysroot == null) {
-        emrun_run_arg = try std.fmt.bufPrint(emrun_run_arg, "{s}", .{emrunExe});
-    } else {
-        emrun_run_arg = try std.fmt.bufPrint(emrun_run_arg, "{s}" ++ std.fs.path.sep_str ++ "{s}", .{ dot_emsc_path, emrunExe });
-    }
-    const run_cmd = b.addSystemCommand(&.{ emrun_run_arg, examplePath });
-    return run_cmd;
-}
-
-const emccOutputDir = "zig-out" ++ std.fs.path.sep_str ++ "htmlout" ++ std.fs.path.sep_str;
-const emccOutputFile = "index.html";
-
 pub fn build(b: *std.Build) !void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
@@ -120,89 +72,7 @@ pub fn build(b: *std.Build) !void {
         wasm_mod.addImport("term", termlib.module("term"));
         wasm_mod.addImport("common", commonlib.module("common"));
         wasm_mod.addImport("engine", engine_module);
-
         _ = try emcc.Build(b, lib, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", null);
-        // //TODO https://github.com/raysan5/raylib/blob/master/build.zig
-        // const wasm_mod = b.createModule(.{
-        //     // `root_source_file` is the Zig "entry point" of the module. If a module
-        //     // only contains e.g. external object files, you can make this `null`.
-        //     // In this case the main source file is merely a path, however, in more
-        //     // complicated build scripts, this could be a generated file.
-        //     .root_source_file = b.path("src/main.zig"),
-        //     .target = target,
-        //     .optimize = optimize,
-        // });
-        // wasm_mod.addImport("image", imglib.module("image"));
-        // wasm_mod.addImport("term", termlib.module("term"));
-        // wasm_mod.addImport("common", commonlib.module("common"));
-        // wasm_mod.addImport("engine", engine_module);
-        // const wasmlib = b.addLibrary(.{ .name = "libzigxelwasm", .linkage = .static, .root_module = wasm_mod });
-        // wasmlib.linkLibC();
-        // wasmlib.linkLibrary(lib);
-        // if (b.lazyDependency("emsdk", .{})) |dep| {
-        //     if (try emSdkSetupStep(b, dep)) |emSdkStep| {
-        //         wasmlib.step.dependOn(&emSdkStep.step);
-        //     }
-        //     wasmlib.addIncludePath(dep.path("upstream/emscripten/cache/sysroot/include"));
-        // }
-        // b.installArtifact(wasmlib);
-        // const exe_lib = b.addStaticLibrary(.{
-        //     .name = "zigxel",
-        //     .target = target,
-        //     .optimize = optimize,
-        // });
-        // exe_lib.linkLibC();
-        // exe_lib.linkLibrary(wasmlib);
-
-        // // Include emscripten for cross compilation
-        // if (b.lazyDependency("emsdk", .{})) |emsdk_dep| {
-        //     if (try emSdkSetupStep(b, emsdk_dep)) |emSdkStep| {
-        //         exe_lib.step.dependOn(&emSdkStep.step);
-        //     }
-        //     exe_lib.addIncludePath(emsdk_dep.path("upstream/emscripten/cache/sysroot/include"));
-        //     // Create the output directory because emcc can't do it.
-        //     const emccOutputDirExample = b.pathJoin(&.{ emccOutputDir, "zigxel", std.fs.path.sep_str });
-        //     const mkdir_command = switch (builtin.os.tag) {
-        //         .windows => b.addSystemCommand(&.{ "cmd.exe", "/c", "if", "not", "exist", emccOutputDirExample, "mkdir", emccOutputDirExample }),
-        //         else => b.addSystemCommand(&.{ "mkdir", "-p", emccOutputDirExample }),
-        //     };
-        //     const emcc_exe = switch (builtin.os.tag) {
-        //         .windows => "emcc.bat",
-        //         else => "emcc",
-        //     };
-        //     const emcc_exe_path = b.pathJoin(&.{ emsdk_dep.path("upstream/emscripten").getPath(b), emcc_exe });
-        //     const emcc_command = b.addSystemCommand(&[_][]const u8{emcc_exe_path});
-        //     emcc_command.step.dependOn(&mkdir_command.step);
-        //     const emccOutputDirExampleWithFile = b.pathJoin(&.{ emccOutputDir, "zigxel", std.fs.path.sep_str, emccOutputFile });
-        //     emcc_command.addArgs(&[_][]const u8{
-        //         "-o",
-        //         emccOutputDirExampleWithFile,
-        //         "-sFULL-ES3=1",
-        //         "-sUSE_GLFW=3",
-        //         "-sSTACK_OVERFLOW_CHECK=1",
-        //         "-sEXPORTED_RUNTIME_METHODS=['requestFullscreen']",
-        //         "-sASYNCIFY",
-        //         "-O0",
-        //         "--emrun",
-        //         "--preload-file",
-        //         //module_resources,
-        //         "--shell-file",
-        //         b.path("src/shell.html").getPath(b),
-        //     });
-        //     const link_items: []const *std.Build.Step.Compile = &.{
-        //         wasmlib,
-        //         exe_lib,
-        //     };
-        //     for (link_items) |item| {
-        //         emcc_command.addFileArg(item.getEmittedBin());
-        //         emcc_command.step.dependOn(&item.step);
-        //     }
-        //     const run_step = try emscriptenRunStep(b, emsdk_dep, emccOutputDirExampleWithFile);
-        //     run_step.step.dependOn(&emcc_command.step);
-        //     run_step.addArg("--no_browser");
-        //     const run_option = b.step("zigxel", "zigxel");
-        //     run_option.dependOn(&run_step.step);
-        // }
     } else {
         const exe = b.addExecutable(.{
             .name = "zigxel",
