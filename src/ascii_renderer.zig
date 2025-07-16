@@ -509,6 +509,7 @@ pub const AsciiRenderer = struct {
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
             try self.terminal.out(term.COLOR_RESET);
             try self.terminal.out(term.CURSOR_HIDE);
+            if (self.terminal_type == .wasm) try self.terminal.out("\n");
         }
     }
 };

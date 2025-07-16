@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 pub const graphics = @import("graphics.zig");
-const event_manager = @import("event_manager.zig");
+pub const event_manager = @import("event_manager.zig");
 const term = @import("term");
 const common = @import("common");
 const texture = @import("texture.zig");
@@ -25,7 +25,6 @@ pub const Error = error{} || EventManager.Error || graphics.Error || std.time.Ti
 pub const WindowChangeCallback = common.Callback(WindowSize);
 pub const ENGINE_LOG = std.log.scoped(.engine);
 
-pub const SINGLE_THREADED: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 
 pub const Engine = struct {
@@ -39,14 +38,16 @@ pub const Engine = struct {
     window_changed: bool = false,
     window_change_size: term.Size = undefined,
     window_change_callback: ?WindowChangeCallback = null,
+    threading: Threading = .multi,
     const Self = @This();
-    pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType) Error!Self {
-        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, terminal_type), .events = EventManager.init(term_width_offset, term_height_offset) };
+    pub const Threading = enum { single, multi };
+    pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, threading: Threading) Error!Self {
+        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, terminal_type), .events = EventManager.init(term_width_offset, term_height_offset), .threading = threading };
     }
 
     pub fn deinit(self: *Self) Error!void {
         self.stop();
-        if (!WASM and !SINGLE_THREADED) {
+        if (!WASM and self.threading == .multi) {
             if (self.render_callback != null) {
                 self.render_thread.join();
             }
@@ -115,7 +116,7 @@ pub const Engine = struct {
                 ENGINE_LOG.info("Window size {d}x{d}\n", .{ renderer.terminal.size.width, renderer.terminal.size.height });
             },
         }
-        if (!WASM and !SINGLE_THREADED) {
+        if (!WASM and self.threading == .multi) {
             self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
             self.running = true;
             if (self.render_callback) |_| {
@@ -123,7 +124,7 @@ pub const Engine = struct {
             }
         }
         if (!WASM) {
-            try self.events.start(SINGLE_THREADED);
+            try self.events.start(self.threading == .single);
         }
     }
 
