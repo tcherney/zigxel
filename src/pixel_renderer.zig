@@ -194,7 +194,7 @@ pub const PixelRenderer = struct {
         self.allocator.free(self.last_frame);
         self.terminal.size = .{ .width = size.width, .height = size.height };
         self.pixel_width = size.width;
-        self.pixel_height = size.height;
+        self.pixel_height = size.height * 2;
         self.terminal_buffer = try self.allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((self.pixel_width * self.pixel_height) + 200));
         self.allocator.free(self.pixel_buffer);
         self.pixel_buffer = try self.allocator.alloc(PixelType, self.pixel_width * self.pixel_height * 2);

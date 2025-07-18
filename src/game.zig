@@ -48,6 +48,7 @@ pub const Game = struct {
     old_mouse_y: i32 = -1,
     player: ?Player = null,
     font_tex: *Texture = undefined,
+    game_objects: std.ArrayList(GameObject) = undefined,
     font_sprite: sprite.Sprite = undefined,
     tui: TUI,
     state: State = .start,
@@ -87,6 +88,10 @@ pub const Game = struct {
                 self.allocator.destroy(self.pixels.items[i].?);
             }
         }
+        for (0..self.game_objects.items.len) |i| {
+            self.game_objects.items[i].deinit();
+        }
+        self.game_objects.deinit();
         self.tui.deinit();
         self.pixels.deinit();
         self.current_world.deinit();
@@ -432,6 +437,9 @@ pub const Game = struct {
                     self.player.?.draw(&self.e.renderer.pixel, self.current_world.tex);
                     self.e.renderer.pixel.pop();
                 }
+                for (0..self.game_objects.items.len) |i| {
+                    self.game_objects.items[i].draw(&self.e.renderer.pixel, self.current_world.tex);
+                }
                 self.e.renderer.pixel.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
                 // try self.e.renderer.pixel.push();
                 // try self.e.renderer.pixel.translate(.{ .x = @floatFromInt(self.placement_pixel[self.placement_index].x), .y = @floatFromInt(self.placement_pixel[self.placement_index].y) });
@@ -487,6 +495,12 @@ pub const Game = struct {
                 var y = y_start;
                 if (self.player_mode) {
                     self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
+                        GAME_LOG.info("Error: {any}\n", .{err});
+                        return;
+                    };
+                }
+                for (0..self.game_objects.items.len) |i| {
+                    self.game_objects.items[i].update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
                         return;
                     };
@@ -606,8 +620,16 @@ pub const Game = struct {
 
         self.state = .game;
         self.assets = AssetManager.init(self.allocator);
+        self.game_objects = std.ArrayList(GameObject).init(self.allocator);
         if (!WASM) {
             try self.assets.load("basic", "basic0.png");
+            try self.assets.load("profile", "profile.jpg");
+            var t = try self.assets.get("profile");
+            try t.scale(100, 100);
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, try self.assets.get("profile"), self.allocator));
+            for (0..self.game_objects.items.len) |i| {
+                self.game_objects.items[i].add_sim(self.pixels.items, self.current_world.tex.width);
+            }
             var font: Font = Font.init(self.allocator);
             try font.load("envy.ttf", 24, &self.e.renderer.pixel);
             self.font_tex = try font.texture_from_string("Welcome");
