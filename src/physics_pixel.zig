@@ -28,6 +28,7 @@ pub const PixelType = enum {
     Plant,
     Explosive,
     Object,
+    WhiteWall,
 };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
@@ -47,6 +48,7 @@ pub const WOOD_COLOR = Pixel.init(97, 69, 47, null);
 pub const ICE_COLOR = Pixel.init(160, 205, 230, null);
 pub const PLANT_COLOR = Pixel.init(45, 160, 45, null);
 pub const EXPLOSIVE_COLOR = Pixel.init(235, 200, 60, null);
+pub const WHITE_COLOR = common.Colors.WHITE;
 
 const Properties = struct {
     color: Pixel,
@@ -99,6 +101,16 @@ pub const EMPTY_PROPERTIES: Properties = Properties{
 
 pub const WALL_PROPERTIES: Properties = Properties{
     .color = Pixel.init(WALL_COLOR.get_r(), WALL_COLOR.get_g(), WALL_COLOR.get_b(), null),
+    .solid = true,
+    .max_duration = 0,
+    .density = 10.0,
+    .speed = 1,
+    .piercing = false,
+    .flammability = 0,
+};
+
+pub const WHITE_WALL_PROPERTIES: Properties = Properties{
+    .color = Pixel.init(WHITE_COLOR.get_r(), WHITE_COLOR.get_g(), WHITE_COLOR.get_b(), null),
     .solid = true,
     .max_duration = 0,
     .density = 10.0,
@@ -278,6 +290,10 @@ pub const PhysicsPixel = struct {
             .Explosive => {
                 properties = EXPLOSIVE_PROPERTIES;
                 color = properties.vary_color(10);
+            },
+            .WhiteWall => {
+                properties = WHITE_WALL_PROPERTIES;
+                color = properties.color;
             },
             .Object => {
                 properties = OBJECT_PROPERTIES;
