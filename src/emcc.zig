@@ -126,6 +126,8 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
         const run_option = b.step(name, name);
         run_option.dependOn(&run_step.step);
         return run_option;
+    } else {
+        std.debug.print("emsdk lazy dependency failed.\n", .{});
     }
     return Error.MissingDependency;
 }
