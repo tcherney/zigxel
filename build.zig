@@ -72,15 +72,16 @@ pub fn build(b: *std.Build) !void {
         wasm_mod.addImport("term", termlib.module("term"));
         wasm_mod.addImport("common", commonlib.module("common"));
         wasm_mod.addImport("engine", engine_module);
-        _ = try emcc.Build(b, lib, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", null);
+        //TODO figure out multiple preloaded files
+        _ = try emcc.Build(b, lib, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", "assets/profile.jpg");
     } else {
         const exe = b.addExecutable(.{
             .name = "zigxel",
-            .root_module = b.createModule(.{ // this line was added
+            .root_module = b.createModule(.{
                 .root_source_file = b.path("src/main.zig"),
                 .target = target,
                 .optimize = optimize,
-            }), // this line was added
+            }),
         });
         //DEPS
         exe.root_module.addImport("image", imglib.module("image"));

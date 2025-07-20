@@ -208,6 +208,7 @@ pub const GameObject = struct {
         }
     }
 
+    //TODO add active logic from physics pixel in here as well, can be problematic if game objects are large
     pub fn update(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) Error!void {
         self.wet_pixels = 0;
         self.hot_pixels = 0;

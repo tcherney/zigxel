@@ -547,8 +547,8 @@ pub const Game = struct {
         std.debug.print("event_type {any}\n", .{event_type});
         std.debug.print("event {any}\n", .{event});
         const self: *Self = @ptrCast(@alignCast(ctx));
-        const width = 1350;
-        const height = 607;
+        const width = 720;
+        const height = 630;
         const scale_x: f64 = @as(f64, @floatFromInt(event.?.targetX)) / @as(f64, @floatFromInt(width));
         const scale_y: f64 = @as(f64, @floatFromInt(event.?.targetY)) / @as(f64, @floatFromInt(height));
         const res_x: i16 = @intFromFloat(scale_x * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_width)));
@@ -569,8 +569,8 @@ pub const Game = struct {
         std.debug.print("event {any}\n", .{event});
         const self: *Self = @ptrCast(@alignCast(ctx));
         if (event.?.numTouches > 0) {
-            const width = 1350;
-            const height = 607;
+            const width = 720;
+            const height = 630;
             const scale_x: f64 = @as(f64, @floatFromInt(event.?.touches[0].targetX)) / @as(f64, @floatFromInt(width));
             const scale_y: f64 = @as(f64, @floatFromInt(event.?.touches[0].targetY)) / @as(f64, @floatFromInt(height));
             const res_x: i16 = @intFromFloat(scale_x * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_width)));
@@ -620,20 +620,21 @@ pub const Game = struct {
         self.state = .game;
         self.assets = AssetManager.init(self.allocator);
         self.game_objects = std.ArrayList(GameObject).init(self.allocator);
+        try self.assets.load_texture("profile", "assets/profile.jpg");
+        var t = try self.assets.get_texture("profile");
+        try t.scale(100, 100);
+        try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + @as(i32, @bitCast(t.height / 2)), self.current_world.tex.width, try self.assets.get_texture("profile"), self.allocator));
+        try self.assets.load_font("envy", "assets/envy.ttf", 22, &self.e.renderer);
+        try self.assets.load_font_texture("Timothy Cherney", "envy");
+        try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, try self.assets.get_texture("Timothy Cherney"), self.allocator));
+
         if (!WASM) {
             try self.assets.load_texture("basic", "basic0.png");
-            try self.assets.load_texture("profile", "profile.jpg");
-            var t = try self.assets.get_texture("profile");
-            try t.scale(100, 100);
-            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y, self.current_world.tex.width, try self.assets.get_texture("profile"), self.allocator));
-
-            try self.assets.load_font("envy", "envy.ttf", 22, &self.e.renderer);
-            try self.assets.load_font_texture("Timothy Cherney", "envy");
-            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x + @as(i32, @bitCast(self.current_world.viewport.width / 2)), self.current_world.viewport.y, self.current_world.tex.width, try self.assets.get_texture("Timothy Cherney"), self.allocator));
             //self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, try self.assets.get_texture("Welcome"));
-            for (0..self.game_objects.items.len) |i| {
-                self.game_objects.items[i].add_sim(self.pixels.items, self.current_world.tex.width);
-            }
+
+        }
+        for (0..self.game_objects.items.len) |i| {
+            self.game_objects.items[i].add_sim(self.pixels.items, self.current_world.tex.width);
         }
         const tui_adjust = self.e.renderer.pixel.terminal.size.height % 2 == 1;
         var button_y = (self.e.renderer.pixel.pixel_height / 2);

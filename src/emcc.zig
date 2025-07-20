@@ -100,9 +100,12 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
             "-sUSE_OFFSET_CONVERTER",
             "-sINITIAL_MEMORY=167772160",
             "-sALLOW_MEMORY_GROWTH",
+            "-sFORCE_FILESYSTEM=1",
             "-O3",
             "--emrun",
             "-sSINGLE_FILE",
+            "--preload-file",
+            "assets/envy.ttf",
         });
         if (preload_file != null) {
             emcc_command.addArg("--preload-file");
