@@ -224,11 +224,23 @@ pub const GameObject = struct {
                 if (self.pixels[i].pixel_type != .Object) {
                     continue;
                 }
-                self.pixels[i].left_update(pixels, xlimit, ylimit);
-                self.pixels[i].up_update(pixels, xlimit, ylimit);
-                self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
-                self.pixels[i].active = true;
-                self.pixels[i].idle_turns = 0;
+                if (self.pixels[i].active) {
+                    self.pixels[i].updated = false;
+                    self.pixels[i].left_update(pixels, xlimit, ylimit);
+                    self.pixels[i].up_update(pixels, xlimit, ylimit);
+                    self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
+                }
+                if (self.pixels[i].updated) {
+                    self.pixels[i].active = true;
+                    self.pixels[i].idle_turns = 0;
+                } else {
+                    self.pixels[i].idle_turns += 1;
+                    if (self.pixels[i].idle_turns >= 25) {
+                        self.pixels[i].idle_turns = 0;
+                        self.pixels[i].active = !self.pixels[i].active;
+                    }
+                }
+                self.pixels[i].updated = false;
             }
             self.pixel_map.clearRetainingCapacity();
             for (self.pixels) |p| {
@@ -239,9 +251,21 @@ pub const GameObject = struct {
                 if (self.pixels[i].pixel_type != .Object) {
                     continue;
                 }
-                self.pixels[i].up_update(pixels, xlimit, ylimit);
-                self.pixels[i].active = true;
-                self.pixels[i].idle_turns = 0;
+                if (self.pixels[i].active) {
+                    self.pixels[i].updated = false;
+                    self.pixels[i].up_update(pixels, xlimit, ylimit);
+                }
+                if (self.pixels[i].updated) {
+                    self.pixels[i].active = true;
+                    self.pixels[i].idle_turns = 0;
+                } else {
+                    self.pixels[i].idle_turns += 1;
+                    if (self.pixels[i].idle_turns >= 25) {
+                        self.pixels[i].idle_turns = 0;
+                        self.pixels[i].active = !self.pixels[i].active;
+                    }
+                }
+                self.pixels[i].updated = false;
             }
             var i: usize = self.pixels.len - 1;
             while (i >= 0) : (i -= 1) {
@@ -249,10 +273,22 @@ pub const GameObject = struct {
                     if (i == 0) break;
                     continue;
                 }
-                self.pixels[i].right_update(pixels, xlimit, ylimit);
-                self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
-                self.pixels[i].active = true;
-                self.pixels[i].idle_turns = 0;
+                if (self.pixels[i].active) {
+                    self.pixels[i].updated = false;
+                    self.pixels[i].right_update(pixels, xlimit, ylimit);
+                    self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
+                }
+                if (self.pixels[i].updated) {
+                    self.pixels[i].active = true;
+                    self.pixels[i].idle_turns = 0;
+                } else {
+                    self.pixels[i].idle_turns += 1;
+                    if (self.pixels[i].idle_turns >= 25) {
+                        self.pixels[i].idle_turns = 0;
+                        self.pixels[i].active = !self.pixels[i].active;
+                    }
+                }
+                self.pixels[i].updated = false;
                 if (i == 0) break;
             }
             self.pixel_map.clearRetainingCapacity();
@@ -264,9 +300,21 @@ pub const GameObject = struct {
                 if (self.pixels[i].pixel_type != .Object) {
                     continue;
                 }
-                self.pixels[i].up_update(pixels, xlimit, ylimit);
-                self.pixels[i].active = true;
-                self.pixels[i].idle_turns = 0;
+                if (self.pixels[i].active) {
+                    self.pixels[i].updated = false;
+                    self.pixels[i].up_update(pixels, xlimit, ylimit);
+                }
+                if (self.pixels[i].updated) {
+                    self.pixels[i].active = true;
+                    self.pixels[i].idle_turns = 0;
+                } else {
+                    self.pixels[i].idle_turns += 1;
+                    if (self.pixels[i].idle_turns >= 25) {
+                        self.pixels[i].idle_turns = 0;
+                        self.pixels[i].active = !self.pixels[i].active;
+                    }
+                }
+                self.pixels[i].updated = false;
             }
             self.pixel_map.clearRetainingCapacity();
             for (self.pixels) |p| {
@@ -278,10 +326,22 @@ pub const GameObject = struct {
                     if (self.pixels[i].pixel_type != .Object) {
                         continue;
                     }
-                    self.pixels[i].left_update(pixels, xlimit, ylimit);
-                    self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
-                    self.pixels[i].active = true;
-                    self.pixels[i].idle_turns = 0;
+                    if (self.pixels[i].active) {
+                        self.pixels[i].updated = false;
+                        self.pixels[i].left_update(pixels, xlimit, ylimit);
+                        self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
+                    }
+                    if (self.pixels[i].updated) {
+                        self.pixels[i].active = true;
+                        self.pixels[i].idle_turns = 0;
+                    } else {
+                        self.pixels[i].idle_turns += 1;
+                        if (self.pixels[i].idle_turns >= 25) {
+                            self.pixels[i].idle_turns = 0;
+                            self.pixels[i].active = !self.pixels[i].active;
+                        }
+                    }
+                    self.pixels[i].updated = false;
                 }
                 self.pixel_map.clearRetainingCapacity();
                 for (self.pixels) |p| {
@@ -294,10 +354,22 @@ pub const GameObject = struct {
                         if (i == 0) break;
                         continue;
                     }
-                    self.pixels[i].right_update(pixels, xlimit, ylimit);
-                    self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
-                    self.pixels[i].active = true;
-                    self.pixels[i].idle_turns = 0;
+                    if (self.pixels[i].active) {
+                        self.pixels[i].updated = false;
+                        self.pixels[i].right_update(pixels, xlimit, ylimit);
+                        self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
+                    }
+                    if (self.pixels[i].updated) {
+                        self.pixels[i].active = true;
+                        self.pixels[i].idle_turns = 0;
+                    } else {
+                        self.pixels[i].idle_turns += 1;
+                        if (self.pixels[i].idle_turns >= 25) {
+                            self.pixels[i].idle_turns = 0;
+                            self.pixels[i].active = !self.pixels[i].active;
+                        }
+                    }
+                    self.pixels[i].updated = false;
                     if (i == 0) break;
                 }
                 self.pixel_map.clearRetainingCapacity();
@@ -312,10 +384,22 @@ pub const GameObject = struct {
                         if (i == 0) break;
                         continue;
                     }
-                    self.pixels[i].down_update(pixels, xlimit, ylimit);
-                    self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
-                    self.pixels[i].active = true;
-                    self.pixels[i].idle_turns = 0;
+                    if (self.pixels[i].active) {
+                        self.pixels[i].updated = false;
+                        self.pixels[i].down_update(pixels, xlimit, ylimit);
+                        self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
+                    }
+                    if (self.pixels[i].updated) {
+                        self.pixels[i].active = true;
+                        self.pixels[i].idle_turns = 0;
+                    } else {
+                        self.pixels[i].idle_turns += 1;
+                        if (self.pixels[i].idle_turns >= 25) {
+                            self.pixels[i].idle_turns = 0;
+                            self.pixels[i].active = !self.pixels[i].active;
+                        }
+                    }
+                    self.pixels[i].updated = false;
                     if (i == 0) break;
                 }
                 self.pixel_map.clearRetainingCapacity();
@@ -327,9 +411,21 @@ pub const GameObject = struct {
                     if (self.pixels[i].pixel_type != .Object) {
                         continue;
                     }
-                    self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
-                    self.pixels[i].active = true;
-                    self.pixels[i].idle_turns = 0;
+                    if (self.pixels[i].active) {
+                        self.pixels[i].updated = false;
+                        self.pixels[i].react_with_neighbors(pixels, xlimit, ylimit);
+                    }
+                    if (self.pixels[i].updated) {
+                        self.pixels[i].active = true;
+                        self.pixels[i].idle_turns = 0;
+                    } else {
+                        self.pixels[i].idle_turns += 1;
+                        if (self.pixels[i].idle_turns >= 25) {
+                            self.pixels[i].idle_turns = 0;
+                            self.pixels[i].active = !self.pixels[i].active;
+                        }
+                    }
+                    self.pixels[i].updated = false;
                 }
             }
         }

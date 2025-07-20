@@ -523,7 +523,9 @@ pub const PhysicsPixel = struct {
             pixel.idle_turns = 0;
             self.fire_turns = 0;
             pixel.fire_turns = 0;
-        } else if (self.pixel_type == .Object and pixel.pixel_type != .Object) {
+        } else if (self.pixel_type == .Object and pixel.pixel_type != .Object and pixel.pixel_type != .Empty) {
+            self.active = true;
+            self.idle_turns = 0;
             if (self.object_reaction_callback) |func| {
                 func.call(pixel.pixel_type);
             }

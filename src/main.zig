@@ -14,12 +14,12 @@ pub const std_options: std.Options = .{
         .{ .scope = .texture, .level = .err },
         .{ .scope = .graphics, .level = .err },
         .{ .scope = .ttf, .level = .err },
-        .{ .scope = .game, .level = .info },
+        .{ .scope = .game, .level = .err },
         .{ .scope = .font, .level = .err },
-        .{ .scope = .physics_pixel, .level = .info },
-        .{ .scope = .pixel_renderer, .level = .info },
+        .{ .scope = .physics_pixel, .level = .err },
+        .{ .scope = .pixel_renderer, .level = .err },
         .{ .scope = .ascii_renderer, .level = .err },
-        .{ .scope = .tui, .level = .info },
+        .{ .scope = .tui, .level = .err },
     },
 };
 
