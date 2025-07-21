@@ -49,7 +49,7 @@ const emccOutputFile = "index.html";
 
 pub const Error = error{ MissingDependency, InvalidArgs };
 
-pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, root_source_file: std.Build.LazyPath, app_name: ?[]const u8, shell_file: ?[]const u8, preload_file: ?[]const u8) !*std.Build.Step {
+pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, root_source_file: std.Build.LazyPath, app_name: ?[]const u8, shell_file: ?[]const u8, preload_file: ?[]const []const u8) !*std.Build.Step {
     const wasm_mod = if (m == null) b.createModule(.{
         .root_source_file = root_source_file,
         .target = target,
@@ -104,12 +104,12 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
             "-O3",
             "--emrun",
             "-sSINGLE_FILE",
-            "--preload-file",
-            "assets/envy.ttf",
         });
         if (preload_file != null) {
-            emcc_command.addArg("--preload-file");
-            emcc_command.addArg(b.path(preload_file.?).getPath(b));
+            for (0..preload_file.?.len) |i| {
+                emcc_command.addArg("--preload-file");
+                emcc_command.addArg(b.path(preload_file.?[i]).getPath(b));
+            }
         }
 
         if (shell_file != null) {

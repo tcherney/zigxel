@@ -24,6 +24,7 @@ pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
 pub const SINGLE_THREADED: bool = false;
+pub const PROFILE_MODE: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
 const TERMINAL_WIDTH_OFFSET = 30;
@@ -48,7 +49,6 @@ pub const Game = struct {
     old_mouse_y: i32 = -1,
     player: ?Player = null,
     game_objects: std.ArrayList(GameObject) = undefined,
-    //font_sprite: sprite.Sprite = undefined,
     tui: TUI,
     state: State = .start,
     timer: std.time.Timer = undefined,
@@ -99,9 +99,6 @@ pub const Game = struct {
         if (self.player != null) {
             self.player.?.deinit();
         }
-        // if (!WASM) {
-        //     self.font_sprite.deinit();
-        // }
     }
 
     pub fn place_pixel(self: *Self) !void {
@@ -402,7 +399,7 @@ pub const Game = struct {
     pub fn on_render(self: *Self, dt: u64) !void {
         //GAME_LOG.info("starting render in {any}\n", .{self.state});
         //GAME_LOG.info("set bg {any} {any} {any}\n", .{ self.current_world.tex.width, self.current_world.tex.height, self.current_world.tex.pixel_buffer.len });
-        self.e.renderer.pixel.set_bg(33, 36, 40, self.current_world.tex);
+        if (PROFILE_MODE) self.e.renderer.pixel.set_bg(33, 36, 40, self.current_world.tex) else self.e.renderer.pixel.set_bg(0, 0, 0, self.current_world.tex);
         //GAME_LOG.info("end set bg {any}\n", .{self.state});
         switch (self.state) {
             .start => {
@@ -447,12 +444,6 @@ pub const Game = struct {
                 // try self.e.renderer.pixel.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
                 // self.e.renderer.pixel.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
                 // self.e.renderer.pixel.pop();
-
-                // if (!WASM) {
-                //     self.font_sprite.dest.x = self.current_world.viewport.x + @as(i32, @bitCast(self.current_world.viewport.width / 2));
-                //     self.font_sprite.dest.y = self.current_world.viewport.y + @as(i32, @bitCast(self.font_sprite.dest.height));
-                //     try self.e.renderer.pixel.draw_sprite(self.font_sprite, self.current_world.tex);
-                // }
             },
         }
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
@@ -617,21 +608,20 @@ pub const Game = struct {
         self.state = .game;
         self.assets = AssetManager.init(self.allocator);
         self.game_objects = std.ArrayList(GameObject).init(self.allocator);
-        try self.assets.load_texture("profile", "assets/profile.jpg");
-        var t = try self.assets.get_texture("profile");
-        try t.scale(85, 85);
-        try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)), self.current_world.tex.width, try self.assets.get_texture("profile"), self.allocator));
-        try self.assets.load_font("envy", "assets/envy.ttf", 22, &self.e.renderer);
-        try self.assets.load_font_texture("Timothy", "envy");
-        try self.assets.load_font_texture("Cherney", "envy");
-        const t_tex = try self.assets.get_texture("Timothy");
-        try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)), self.current_world.tex.width, t_tex, self.allocator));
-        try self.game_objects.append(try GameObject.init(self.current_world.viewport.x + @as(i32, @bitCast(t_tex.width)) + 5, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)), self.current_world.tex.width, try self.assets.get_texture("Cherney"), self.allocator));
-
+        if (PROFILE_MODE) {
+            try self.assets.load_texture("profile", "assets/profile.jpg");
+            var t = try self.assets.get_texture("profile");
+            try t.scale(85, 85);
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)), self.current_world.tex.width, try self.assets.get_texture("profile"), self.allocator));
+            try self.assets.load_font("envy", "assets/envy.ttf", 22, &self.e.renderer);
+            try self.assets.load_font_texture("Timothy", "envy");
+            try self.assets.load_font_texture("Cherney", "envy");
+            const t_tex = try self.assets.get_texture("Timothy");
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)), self.current_world.tex.width, t_tex, self.allocator));
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x + @as(i32, @bitCast(t_tex.width)) + 5, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)), self.current_world.tex.width, try self.assets.get_texture("Cherney"), self.allocator));
+        }
         if (!WASM) {
             try self.assets.load_texture("basic", "basic0.png");
-            //self.font_sprite = try sprite.Sprite.init(self.allocator, null, null, try self.assets.get_texture("Welcome"));
-
         }
         for (0..self.game_objects.items.len) |i| {
             self.game_objects.items[i].add_sim(self.pixels.items, self.current_world.tex.width);

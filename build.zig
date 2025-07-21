@@ -73,7 +73,7 @@ pub fn build(b: *std.Build) !void {
         wasm_mod.addImport("common", commonlib.module("common"));
         wasm_mod.addImport("engine", engine_module);
         //TODO figure out multiple preloaded files
-        _ = try emcc.Build(b, lib, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", "assets/profile.jpg");
+        _ = try emcc.Build(b, lib, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", &[_][]const u8{ "assets/profile.jpg", "assets/envy.ttf" });
     } else {
         const exe = b.addExecutable(.{
             .name = "zigxel",
