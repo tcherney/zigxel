@@ -52,7 +52,7 @@ pub fn build(b: *std.Build) !void {
     engine_module.addImport("graphics", graphics_module);
     engine_module.addImport("texture", texture_module);
     engine_module.addImport("sprite", sprite_module);
-    if (builtin.target.os.tag == .linux) {
+    if (builtin.target.os.tag == .linux and target.result.os.tag != .emscripten) {
         lib.linkLibC();
         lib.addIncludePath(b.path("../../../linuxbrew/.linuxbrew/include"));
         lib.linkSystemLibrary("X11");
