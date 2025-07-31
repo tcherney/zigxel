@@ -39,7 +39,6 @@ pub const Game = struct {
     placement_pixel: []PhysicsPixel = undefined,
     placement_index: usize = 0,
     current_world: World = undefined,
-    pixels: std.ArrayList(?*PhysicsPixel) = undefined,
     assets: AssetManager = undefined,
     allocator: std.mem.Allocator = undefined,
     frame_limit: u64 = 16_666_667,
@@ -83,17 +82,13 @@ pub const Game = struct {
     pub fn deinit(self: *Self) Error!void {
         try self.e.deinit();
         self.assets.deinit();
-        for (0..self.pixels.items.len) |i| {
-            if (self.pixels.items[i] != null and !self.pixels.items[i].?.managed) {
-                self.allocator.destroy(self.pixels.items[i].?);
-            }
-        }
+
         for (0..self.game_objects.items.len) |i| {
             self.game_objects.items[i].deinit();
         }
         self.game_objects.deinit();
         self.tui.deinit();
-        self.pixels.deinit();
+
         self.current_world.deinit();
         self.allocator.free(self.placement_pixel);
         if (self.player != null) {
@@ -103,40 +98,40 @@ pub const Game = struct {
 
     pub fn place_pixel(self: *Self) !void {
         var indx: u32 = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
-        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
-            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
-        } else if (indx >= 0 and indx < self.pixels.items.len) {
-            const temp = self.pixels.items[indx].?.managed;
-            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
-            self.pixels.items[indx].?.*.managed = temp;
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
         }
         indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
-        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
-            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
-        } else if (indx >= 0 and indx < self.pixels.items.len) {
-            const temp = self.pixels.items[indx].?.managed;
-            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
-            self.pixels.items[indx].?.*.managed = temp;
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
         }
         indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x + 1));
-        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
-            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
-        } else if (indx >= 0 and indx < self.pixels.items.len) {
-            const temp = self.pixels.items[indx].?.managed;
-            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
-            self.pixels.items[indx].?.*.managed = temp;
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
         }
         indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x + 1));
-        if (indx >= 0 and indx < self.pixels.items.len and self.pixels.items[indx] == null) {
-            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
-        } else if (indx >= 0 and indx < self.pixels.items.len) {
-            const temp = self.pixels.items[indx].?.managed;
-            self.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
-            self.pixels.items[indx].?.*.managed = temp;
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
         }
     }
 
@@ -228,8 +223,8 @@ pub const Game = struct {
                 };
                 var new_pixels: std.ArrayList(?*PhysicsPixel) = std.ArrayList(?*PhysicsPixel).init(self.allocator);
                 for (0..new_world.tex.width * new_world.tex.height) |i| {
-                    if (i < self.pixels.items.len) {
-                        new_pixels.append(self.pixels.items[i]) catch |err| {
+                    if (i < self.current_world.pixels.items.len) {
+                        new_pixels.append(self.current_world.pixels.items[i]) catch |err| {
                             GAME_LOG.info("{any}\n", .{err});
                             self.running = false;
                             return;
@@ -242,19 +237,19 @@ pub const Game = struct {
                         };
                     }
                 }
-                const pixels_to_delete = if (WASM) @as(i32, @bitCast(self.pixels.items.len)) - @as(i32, @bitCast(new_pixels.items.len)) else @as(i64, @bitCast(self.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
+                const pixels_to_delete = if (WASM) @as(i32, @bitCast(self.current_world.pixels.items.len)) - @as(i32, @bitCast(new_pixels.items.len)) else @as(i64, @bitCast(self.current_world.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
                 if (pixels_to_delete > 0) {
-                    for (new_pixels.items.len..self.pixels.items.len) |i| {
-                        if (self.pixels.items[i] != null) {
-                            self.allocator.destroy(self.pixels.items[i].?);
+                    for (new_pixels.items.len..self.current_world.pixels.items.len) |i| {
+                        if (self.current_world.pixels.items[i] != null) {
+                            self.allocator.destroy(self.current_world.pixels.items[i].?);
                         }
                     }
                 }
                 new_world.viewport.x = self.starting_pos_x;
                 new_world.viewport.y = self.starting_pos_y;
-                self.pixels.deinit();
+                self.current_world.pixels.deinit();
                 self.current_world.deinit();
-                self.pixels = new_pixels;
+                self.current_world.pixels = new_pixels;
                 self.current_world = new_world;
                 if (!SINGLE_THREADED and !WASM) {
                     self.lock.unlock();
@@ -359,7 +354,7 @@ pub const Game = struct {
                     self.running = false;
                     return;
                 };
-                self.player.?.go.add_sim(self.pixels.items, self.current_world.tex.width);
+                self.player.?.go.add_sim(self.current_world.pixels.items, self.current_world.tex.width);
             }
         }
     }
@@ -408,7 +403,7 @@ pub const Game = struct {
             },
             .game => {
                 //GAME_LOG.info("drawing world {any} \n", .{self.state});
-                for (self.pixels.items) |p| {
+                for (self.current_world.pixels.items) |p| {
                     if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
                         self.e.renderer.pixel.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
                     }
@@ -474,23 +469,23 @@ pub const Game = struct {
                 }
             },
             .game => {
-                for (0..self.pixels.items.len) |i| {
-                    if (self.pixels.items[i] != null) {
-                        self.pixels.items[i].?.*.dirty = false;
-                        //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.pixels.items[i] });
+                for (0..self.current_world.pixels.items.len) |i| {
+                    if (self.current_world.pixels.items[i] != null) {
+                        self.current_world.pixels.items[i].?.*.dirty = false;
+                        //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.current_world.pixels.items[i] });
                     }
                 }
                 const y_start = self.current_world.tex.height - 1;
                 const x_start = self.current_world.tex.width - 1;
                 var y = y_start;
                 if (self.player_mode) {
-                    self.player.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
+                    self.player.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
                         return;
                     };
                 }
                 for (0..self.game_objects.items.len) |i| {
-                    self.game_objects.items[i].update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
+                    self.game_objects.items[i].update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
                         return;
                     };
@@ -498,10 +493,10 @@ pub const Game = struct {
                 while (y >= 0) : (y -= 1) {
                     var x = x_start;
                     while (x >= 0) : (x -= 1) {
-                        var p = self.pixels.items[y * self.current_world.tex.width + x];
+                        var p = self.current_world.pixels.items[y * self.current_world.tex.width + x];
                         if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.pixel_type != .Object) {
                             //GAME_LOG.info("updating {any}\n", .{p.?});
-                            p.?.update(self.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                            p.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
                             self.active_pixels = if (p.?.active) self.active_pixels + 1 else self.active_pixels;
                         }
                         if (x == 0) break;
@@ -597,10 +592,7 @@ pub const Game = struct {
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native, if (WASM) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
-        self.pixels = std.ArrayList(?*PhysicsPixel).init(self.allocator);
-        for (0..self.current_world.tex.width * self.current_world.tex.height) |_| {
-            try self.pixels.append(null);
-        }
+        try self.current_world.generate(.desert);
 
         self.current_world.viewport.x = self.starting_pos_x;
         self.current_world.viewport.y = self.starting_pos_y;
@@ -624,7 +616,7 @@ pub const Game = struct {
             try self.assets.load_texture("basic", "basic0.png");
         }
         for (0..self.game_objects.items.len) |i| {
-            self.game_objects.items[i].add_sim(self.pixels.items, self.current_world.tex.width);
+            self.game_objects.items[i].add_sim(self.current_world.pixels.items, self.current_world.tex.width);
         }
         const tui_adjust = self.e.renderer.pixel.terminal.size.height % 2 == 1;
         var button_y = (self.e.renderer.pixel.pixel_height / 2);
