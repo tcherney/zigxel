@@ -37,6 +37,28 @@ pub const World = struct {
             .pixels = std.ArrayList(?*PhysicsPixel).init(allocator),
         };
     }
+
+    fn add_pixel(self: *Self, x: u32, y: u32, p_type: physic_pixel.PixelType) Error!void {
+        const indx = y * self.tex.width + x;
+        const y_i32 = @as(i32, @bitCast(y));
+        const x_i32 = @as(i32, @bitCast(x));
+        if (self.pixels.items[indx] == null) {
+            self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+        }
+        self.pixels.items[indx].?.* = PhysicsPixel.init(p_type, x_i32, y_i32);
+    }
+
+    fn build_tree(self: *Self, x: usize, y: usize) Error!void {
+        const HEIGHT = 5;
+        var i: usize = y;
+        while (i > y - HEIGHT) : (i -= 1) {
+            try self.add_pixel(@intCast(x), @intCast(i), .Wood);
+        }
+        if (x > 0) try self.add_pixel(@intCast(x - 1), @intCast(y - HEIGHT - 1), .Plant);
+        try self.add_pixel(@intCast(x), @intCast(y - HEIGHT), .Plant);
+        try self.add_pixel(@intCast(x), @intCast(y - HEIGHT - 2), .Plant);
+        try self.add_pixel(@intCast(x + 1), @intCast(y - HEIGHT - 1), .Plant);
+    }
     pub fn generate(self: *Self, biome: Biome) Error!void {
         for (0..self.tex.width * self.tex.height) |_| {
             try self.pixels.append(null);
@@ -44,14 +66,16 @@ pub const World = struct {
         const BASE_HEIGHT = 10;
         switch (biome) {
             .desert => {
-                for (0..BASE_HEIGHT) |i| {
-                    for (0..self.tex.width) |j| {
-                        const indx = i * self.tex.width + j;
-                        const i_i32 = if (WASM) @as(i32, @bitCast(i)) else @as(i32, @intCast(@as(i64, @bitCast(i))));
-                        const j_i32 = if (WASM) @as(i32, @bitCast(j)) else @as(i32, @intCast(@as(i64, @bitCast(j))));
-                        self.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-                        self.pixels.items[indx].?.* = PhysicsPixel.init(.Sand, j_i32, i_i32);
+                for (0..self.tex.width) |j| {
+                    const variation = common.rand.intRangeAtMost(usize, 2, BASE_HEIGHT);
+                    const start_y = self.tex.height - 1;
+                    const end_y = start_y - variation;
+                    std.debug.print("start {any} end {any}\n", .{ start_y, end_y });
+                    var i: usize = start_y;
+                    while (i > end_y) : (i -= 1) {
+                        try self.add_pixel(@intCast(j), @intCast(i), .Sand);
                     }
+                    if (common.rand.intRangeAtMost(usize, 0, 5) == 0) try self.build_tree(j, end_y);
                 }
             },
         }
