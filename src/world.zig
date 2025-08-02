@@ -38,7 +38,46 @@ pub const World = struct {
         };
     }
 
-    fn add_pixel(self: *Self, x: u32, y: u32, p_type: physic_pixel.PixelType) Error!void {
+    pub fn resize(self: *Self, w_width: u32, w_height: u32, v_width: u32, v_height: u32) Error!void {
+        self.tex.deinit();
+        self.tex = Texture.init(self.allocator);
+        try self.tex.rect(w_width, w_height, 0, 0, 0, 255);
+        self.bounds = common.Rectangle{
+            .x = 0,
+            .y = 0,
+            .height = self.tex.height,
+            .width = self.tex.width,
+        };
+        self.viewport = common.Rectangle{
+            .x = 0,
+            .y = 0,
+            .width = v_width,
+            .height = v_height,
+        };
+        var new_pixels: std.ArrayList(?*PhysicsPixel) = std.ArrayList(?*PhysicsPixel).init(self.allocator);
+        for (0..self.tex.width * self.tex.height) |i| {
+            if (i < self.pixels.items.len) {
+                if (self.pixels.items[i] != null) {
+                    self.pixels.items[i].?.active = true;
+                }
+                try new_pixels.append(self.pixels.items[i]);
+            } else {
+                try new_pixels.append(null);
+            }
+        }
+        const pixels_to_delete = if (WASM) @as(i32, @bitCast(self.pixels.items.len)) - @as(i32, @bitCast(new_pixels.items.len)) else @as(i64, @bitCast(self.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
+        if (pixels_to_delete > 0) {
+            for (new_pixels.items.len..self.pixels.items.len) |i| {
+                if (self.pixels.items[i] != null) {
+                    self.allocator.destroy(self.pixels.items[i].?);
+                }
+            }
+        }
+        self.pixels.deinit();
+        self.pixels = new_pixels;
+    }
+
+    pub fn add_pixel(self: *Self, x: u32, y: u32, p_type: physic_pixel.PixelType) Error!void {
         const indx = y * self.tex.width + x;
         const y_i32 = @as(i32, @bitCast(y));
         const x_i32 = @as(i32, @bitCast(x));

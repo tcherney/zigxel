@@ -216,41 +216,14 @@ pub const Game = struct {
             },
             .game => {
                 const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;
-                var new_world: World = World.init(w_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) catch |err| {
+                self.current_world.resize(w_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height))) catch |err| {
                     GAME_LOG.info("{any}\n", .{err});
                     self.running = false;
                     return;
                 };
-                var new_pixels: std.ArrayList(?*PhysicsPixel) = std.ArrayList(?*PhysicsPixel).init(self.allocator);
-                for (0..new_world.tex.width * new_world.tex.height) |i| {
-                    if (i < self.current_world.pixels.items.len) {
-                        new_pixels.append(self.current_world.pixels.items[i]) catch |err| {
-                            GAME_LOG.info("{any}\n", .{err});
-                            self.running = false;
-                            return;
-                        };
-                    } else {
-                        new_pixels.append(null) catch |err| {
-                            GAME_LOG.info("{any}\n", .{err});
-                            self.running = false;
-                            return;
-                        };
-                    }
-                }
-                const pixels_to_delete = if (WASM) @as(i32, @bitCast(self.current_world.pixels.items.len)) - @as(i32, @bitCast(new_pixels.items.len)) else @as(i64, @bitCast(self.current_world.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
-                if (pixels_to_delete > 0) {
-                    for (new_pixels.items.len..self.current_world.pixels.items.len) |i| {
-                        if (self.current_world.pixels.items[i] != null) {
-                            self.allocator.destroy(self.current_world.pixels.items[i].?);
-                        }
-                    }
-                }
-                new_world.viewport.x = self.starting_pos_x;
-                new_world.viewport.y = self.starting_pos_y;
-                self.current_world.pixels.deinit();
-                self.current_world.deinit();
-                self.current_world.pixels = new_pixels;
-                self.current_world = new_world;
+                self.current_world.viewport.x = self.starting_pos_x;
+                self.current_world.viewport.y = self.starting_pos_y;
+
                 if (!SINGLE_THREADED and !WASM) {
                     self.lock.unlock();
                 }
