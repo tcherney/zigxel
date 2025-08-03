@@ -79,6 +79,7 @@ pub const World = struct {
 
     pub fn add_pixel(self: *Self, x: u32, y: u32, p_type: physic_pixel.PixelType) Error!void {
         const indx = y * self.tex.width + x;
+        if (indx > self.pixels.items.len) return;
         const y_i32 = @as(i32, @bitCast(y));
         const x_i32 = @as(i32, @bitCast(x));
         if (self.pixels.items[indx] == null) {
@@ -90,8 +91,23 @@ pub const World = struct {
     fn build_tree(self: *Self, x: usize, y: usize) Error!void {
         const HEIGHT = 5;
         var i: usize = y;
-        while (i > y - HEIGHT) : (i -= 1) {
+        while (i > y - HEIGHT - 1) : (i -= 1) {
             try self.add_pixel(@intCast(x), @intCast(i), .Wood);
+        }
+        for (y - HEIGHT - 2..y - HEIGHT + 2) |k| {
+            const x_start = if (x < 2) 0 else x - 2;
+            for (x_start..x_start + 2) |j| {
+                const chance = common.rand.intRangeAtMost(usize, 0, 1);
+                if (chance == 0) {
+                    try self.add_pixel(@intCast(j), @intCast(k), .Plant);
+                    // const plant = common.rand.boolean();
+                    // if (plant) {
+                    //     try self.add_pixel(@intCast(j), @intCast(k), .Plant);
+                    // } else {
+                    //     try self.add_pixel(@intCast(j), @intCast(k), .Wood);
+                    // }
+                }
+            }
         }
         if (x > 0) try self.add_pixel(@intCast(x - 1), @intCast(y - HEIGHT - 1), .Plant);
         try self.add_pixel(@intCast(x), @intCast(y - HEIGHT), .Plant);
@@ -110,11 +126,17 @@ pub const World = struct {
                     const start_y = self.tex.height - 1;
                     const end_y = start_y - variation;
                     std.debug.print("start {any} end {any}\n", .{ start_y, end_y });
+                    var missing_pixels: u32 = 0;
                     var i: usize = start_y;
                     while (i > end_y) : (i -= 1) {
-                        try self.add_pixel(@intCast(j), @intCast(i), .Sand);
+                        const should_add = common.rand.intRangeAtMost(usize, 0, 9);
+                        if (should_add > 0) {
+                            try self.add_pixel(@intCast(j), @intCast(i), .Sand);
+                        } else {
+                            missing_pixels += 1;
+                        }
                     }
-                    if (common.rand.intRangeAtMost(usize, 0, 5) == 0) try self.build_tree(j, end_y);
+                    if (common.rand.intRangeAtMost(usize, 0, 5) == 0) try self.build_tree(j, end_y + missing_pixels);
                 }
             },
         }
