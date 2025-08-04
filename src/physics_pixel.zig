@@ -356,179 +356,229 @@ pub const PhysicsPixel = struct {
     }
 
     fn reaction(self: *Self, pixel: *PhysicsPixel) void {
-        if (self.pixel_type == .Lava and pixel.pixel_type == .Water) {
-            pixel.properties = STEAM_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Steam;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.properties = ROCK_PROPERTIES;
-            self.duration = 0;
-            self.pixel_type = .Rock;
-            self.pixel = self.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-        } else if (self.pixel_type == .Lava and pixel.pixel_type == .Wood) {
-            if (pixel.fire_turns >= pixel.properties.flammability) {
-                pixel.properties = FIRE_PROPERTIES;
-                pixel.duration = 0;
-                pixel.pixel_type = .Fire;
-                pixel.pixel = pixel.properties.vary_color(10);
-                self.updated = true;
-                pixel.active = true;
-                self.active = true;
-                self.idle_turns = 0;
-                pixel.idle_turns = 0;
-                pixel.fire_turns = 0;
-            } else {
-                pixel.fire_turns += 1;
-            }
-        } else if (self.pixel_type == .Lava and pixel.pixel_type == .Oil) {
-            pixel.properties = FIRE_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Fire;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-        } else if (self.pixel_type == .Water and pixel.pixel_type == .Steam) {
-            pixel.properties = WATER_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Water;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-        } else if (self.pixel_type == .Fire and pixel.pixel_type == .Wood) {
-            if (pixel.fire_turns >= pixel.properties.flammability) {
-                pixel.properties = FIRE_PROPERTIES;
-                pixel.duration = 0;
-                pixel.pixel_type = .Fire;
-                pixel.pixel = self.properties.vary_color(10);
-                self.updated = true;
-                pixel.active = true;
-                self.active = true;
-                self.idle_turns = 0;
-                pixel.idle_turns = 0;
-                pixel.fire_turns = 0;
-            } else {
-                pixel.fire_turns += 1;
-            }
-        } else if (self.pixel_type == .Fire and pixel.pixel_type == .Oil) {
-            pixel.properties = FIRE_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Fire;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-        } else if (self.pixel_type == .Water and pixel.pixel_type == .Fire) {
-            pixel.properties = STEAM_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Steam;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-        } else if (self.pixel_type == .Fire and pixel.pixel_type == .Ice) {
-            pixel.properties = WATER_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Water;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-        } else if (self.pixel_type == .Lava and pixel.pixel_type == .Ice) {
-            pixel.properties = WATER_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Water;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-        } else if (self.pixel_type == .Fire and pixel.pixel_type == .Plant) {
-            if (pixel.fire_turns >= pixel.properties.flammability) {
-                pixel.properties = FIRE_PROPERTIES;
-                pixel.duration = 0;
-                pixel.pixel_type = .Fire;
-                pixel.pixel = pixel.properties.vary_color(10);
-                self.updated = true;
-                pixel.active = true;
-                self.active = true;
-                self.idle_turns = 0;
-                pixel.idle_turns = 0;
-                pixel.fire_turns = 0;
-            } else {
-                pixel.fire_turns += 1;
-            }
-        } else if (self.pixel_type == .Lava and pixel.pixel_type == .Plant) {
-            if (pixel.fire_turns >= pixel.properties.flammability) {
-                pixel.properties = FIRE_PROPERTIES;
-                pixel.duration = 0;
-                pixel.pixel_type = .Fire;
-                pixel.pixel = pixel.properties.vary_color(10);
-                self.updated = true;
-                pixel.active = true;
-                self.active = true;
-                self.idle_turns = 0;
-                pixel.idle_turns = 0;
-                pixel.fire_turns = 0;
-            } else {
-                pixel.fire_turns += 1;
-            }
-        } else if (self.pixel_type == .Water and pixel.pixel_type == .Plant) {
-            self.properties = PLANT_PROPERTIES;
-            self.duration = 0;
-            self.pixel_type = .Plant;
-            self.pixel = self.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-        } else if (self.pixel_type == .Plant and pixel.pixel_type == .Water) {
-            pixel.properties = PLANT_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Plant;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-            //TODO use callback to remove ownership of object pixels
-        } else if (self.pixel_type == .Explosive and pixel.pixel_type != .Empty and pixel.pixel_type != .Explosive and pixel.pixel_type != .Steam) {
-            pixel.properties = FIRE_PROPERTIES;
-            pixel.duration = 0;
-            pixel.pixel_type = .Fire;
-            pixel.pixel = pixel.properties.vary_color(10);
-            self.updated = true;
-            pixel.active = true;
-            self.active = true;
-            self.idle_turns = 0;
-            pixel.idle_turns = 0;
-            self.fire_turns = 0;
-            pixel.fire_turns = 0;
-        } else if (self.pixel_type == .Object and pixel.pixel_type != .Object and pixel.pixel_type != .Empty) {
-            self.active = true;
-            self.idle_turns = 0;
-            if (self.object_reaction_callback) |func| {
-                func.call(pixel.pixel_type);
-            }
+        //TODO add some logging to make it easier to debug future interaction issues
+        switch (self.pixel_type) {
+            .Lava => {
+                switch (pixel.pixel_type) {
+                    .Water => {
+                        pixel.properties = STEAM_PROPERTIES;
+                        pixel.duration = 0;
+                        pixel.pixel_type = .Steam;
+                        pixel.pixel = pixel.properties.vary_color(10);
+                        self.properties = ROCK_PROPERTIES;
+                        self.duration = 0;
+                        self.pixel_type = .Rock;
+                        self.pixel = self.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    .Wood => {
+                        if (pixel.fire_turns >= pixel.properties.flammability) {
+                            pixel.properties = FIRE_PROPERTIES;
+                            pixel.duration = 0;
+                            pixel.pixel_type = .Fire;
+                            pixel.pixel = pixel.properties.vary_color(10);
+                            self.updated = true;
+                            pixel.active = true;
+                            self.active = true;
+                            self.idle_turns = 0;
+                            pixel.idle_turns = 0;
+                            pixel.fire_turns = 0;
+                        } else {
+                            pixel.fire_turns += 1;
+                        }
+                    },
+                    .Oil => {
+                        pixel.properties = FIRE_PROPERTIES;
+                        pixel.duration = 0;
+                        pixel.pixel_type = .Fire;
+                        pixel.pixel = pixel.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    .Ice => {
+                        pixel.properties = WATER_PROPERTIES;
+                        pixel.duration = 0;
+                        pixel.pixel_type = .Water;
+                        pixel.pixel = pixel.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    .Plant => {
+                        if (pixel.fire_turns >= pixel.properties.flammability) {
+                            pixel.properties = FIRE_PROPERTIES;
+                            pixel.duration = 0;
+                            pixel.pixel_type = .Fire;
+                            pixel.pixel = pixel.properties.vary_color(10);
+                            self.updated = true;
+                            pixel.active = true;
+                            self.active = true;
+                            self.idle_turns = 0;
+                            pixel.idle_turns = 0;
+                            pixel.fire_turns = 0;
+                        } else {
+                            pixel.fire_turns += 1;
+                        }
+                    },
+                    else => {},
+                }
+            },
+            .Water => {
+                switch (pixel.pixel_type) {
+                    .Steam => {
+                        pixel.properties = WATER_PROPERTIES;
+                        pixel.duration = 0;
+                        pixel.pixel_type = .Water;
+                        pixel.pixel = pixel.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    .Fire => {
+                        pixel.properties = STEAM_PROPERTIES;
+                        pixel.duration = 0;
+                        pixel.pixel_type = .Steam;
+                        pixel.pixel = pixel.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    .Plant => {
+                        self.properties = PLANT_PROPERTIES;
+                        self.duration = 0;
+                        self.pixel_type = .Plant;
+                        self.pixel = self.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    else => {},
+                }
+            },
+            .Fire => {
+                switch (pixel.pixel_type) {
+                    .Wood => {
+                        if (pixel.fire_turns >= pixel.properties.flammability) {
+                            pixel.properties = FIRE_PROPERTIES;
+                            pixel.duration = 0;
+                            pixel.pixel_type = .Fire;
+                            pixel.pixel = self.properties.vary_color(10);
+                            self.updated = true;
+                            pixel.active = true;
+                            self.active = true;
+                            self.idle_turns = 0;
+                            pixel.idle_turns = 0;
+                            pixel.fire_turns = 0;
+                        } else {
+                            pixel.fire_turns += 1;
+                        }
+                    },
+                    .Oil => {
+                        pixel.properties = FIRE_PROPERTIES;
+                        pixel.duration = 0;
+                        pixel.pixel_type = .Fire;
+                        pixel.pixel = pixel.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    .Ice => {
+                        pixel.properties = WATER_PROPERTIES;
+                        pixel.duration = 0;
+                        pixel.pixel_type = .Water;
+                        pixel.pixel = pixel.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    .Plant => {
+                        if (pixel.fire_turns >= pixel.properties.flammability) {
+                            pixel.properties = FIRE_PROPERTIES;
+                            pixel.duration = 0;
+                            pixel.pixel_type = .Fire;
+                            pixel.pixel = pixel.properties.vary_color(10);
+                            self.updated = true;
+                            pixel.active = true;
+                            self.active = true;
+                            self.idle_turns = 0;
+                            pixel.idle_turns = 0;
+                            pixel.fire_turns = 0;
+                        } else {
+                            pixel.fire_turns += 1;
+                        }
+                    },
+                    else => {},
+                }
+            },
+            .Plant => {
+                switch (pixel.pixel_type) {
+                    .Water => {
+                        self.properties = PLANT_PROPERTIES;
+                        self.duration = 0;
+                        self.pixel_type = .Plant;
+                        self.pixel = self.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                    },
+                    else => {},
+                }
+            },
+            .Explosive => {
+                switch (pixel.pixel_type) {
+                    .Empty => {},
+                    .Explosive => {},
+                    .Steam => {},
+                    else => {
+                        pixel.properties = FIRE_PROPERTIES;
+                        pixel.duration = 0;
+                        pixel.pixel_type = .Fire;
+                        pixel.pixel = pixel.properties.vary_color(10);
+                        self.updated = true;
+                        pixel.active = true;
+                        self.active = true;
+                        self.idle_turns = 0;
+                        pixel.idle_turns = 0;
+                        self.fire_turns = 0;
+                        pixel.fire_turns = 0;
+                    },
+                }
+            },
+            .Object => {
+                switch (pixel.pixel_type) {
+                    .Object => {},
+                    .Empty => {},
+                    else => {
+                        self.active = true;
+                        self.idle_turns = 0;
+                        if (self.object_reaction_callback) |func| {
+                            func.call(pixel.pixel_type);
+                        }
+                    },
+                }
+            },
+            else => {},
         }
     }
 

@@ -15,7 +15,7 @@ pub const World = struct {
     pixels: std.ArrayList(?*PhysicsPixel),
     const Self = @This();
     pub const Error = error{} || Texture.Error || std.mem.Allocator.Error;
-    pub const Biome = enum { desert };
+    pub const Biome = enum { desert, forest };
     pub fn init(w_width: u32, w_height: u32, v_width: u32, v_height: u32, allocator: std.mem.Allocator) Error!Self {
         var world_tex = Texture.init(allocator);
         try world_tex.rect(w_width, w_height, 0, 0, 0, 255);
@@ -125,13 +125,32 @@ pub const World = struct {
                     const variation = common.rand.intRangeAtMost(usize, 2, BASE_HEIGHT);
                     const start_y = self.tex.height - 1;
                     const end_y = start_y - variation;
-                    std.debug.print("start {any} end {any}\n", .{ start_y, end_y });
+                    //std.debug.print("start {any} end {any}\n", .{ start_y, end_y });
                     var missing_pixels: u32 = 0;
                     var i: usize = start_y;
                     while (i > end_y) : (i -= 1) {
                         const should_add = common.rand.intRangeAtMost(usize, 0, 9);
                         if (should_add > 0) {
                             try self.add_pixel(@intCast(j), @intCast(i), .Sand);
+                        } else {
+                            missing_pixels += 1;
+                        }
+                    }
+                    if (common.rand.intRangeAtMost(usize, 0, 5) == 0) try self.build_tree(j, end_y + missing_pixels);
+                }
+            },
+            .forest => {
+                for (0..self.tex.width) |j| {
+                    const variation = common.rand.intRangeAtMost(usize, 2, BASE_HEIGHT);
+                    const start_y = self.tex.height - 1;
+                    const end_y = start_y - variation;
+                    //std.debug.print("start {any} end {any}\n", .{ start_y, end_y });
+                    var missing_pixels: u32 = 0;
+                    var i: usize = start_y;
+                    while (i > end_y) : (i -= 1) {
+                        const should_add = common.rand.intRangeAtMost(usize, 0, 9);
+                        if (should_add > 0) {
+                            try self.add_pixel(@intCast(j), @intCast(i), .Plant);
                         } else {
                             missing_pixels += 1;
                         }
