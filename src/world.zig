@@ -150,7 +150,7 @@ pub const World = struct {
                     while (i > end_y) : (i -= 1) {
                         const should_add = common.rand.intRangeAtMost(usize, 0, 9);
                         if (should_add > 0) {
-                            try self.add_pixel(@intCast(j), @intCast(i), .Plant);
+                            try self.add_pixel(@intCast(j), @intCast(i), .Dirt);
                         } else {
                             missing_pixels += 1;
                         }

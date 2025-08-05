@@ -29,6 +29,7 @@ pub const PixelType = enum {
     Explosive,
     Object,
     WhiteWall,
+    Dirt,
 };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
@@ -49,6 +50,7 @@ pub const ICE_COLOR = Pixel.init(160, 205, 230, null);
 pub const PLANT_COLOR = Pixel.init(45, 160, 45, null);
 pub const EXPLOSIVE_COLOR = Pixel.init(235, 200, 60, null);
 pub const WHITE_COLOR = common.Colors.WHITE;
+pub const DIRT_COLOR = Pixel.init(57, 29, 7, null);
 
 const Properties = struct {
     color: Pixel,
@@ -60,10 +62,13 @@ const Properties = struct {
     flammability: u32,
     pub fn vary_color(self: *Properties, variance: i16) Pixel {
         const variation = common.rand.intRangeAtMost(i16, -variance, variance);
+        const r_i16 = @as(i16, @bitCast(@as(u16, @intCast(self.color.get_r())))) + variation;
+        const g_i16 = @as(i16, @bitCast(@as(u16, @intCast(self.color.get_g())))) + variation;
+        const b_i16 = @as(i16, @bitCast(@as(u16, @intCast(self.color.get_b())))) + variation;
         return Pixel.init(
-            @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.get_r())))) + variation)))),
-            @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.get_g())))) + variation)))),
-            @as(u8, @intCast(@as(u16, @bitCast(@as(i16, @bitCast(@as(u16, @intCast(self.color.get_b())))) + variation)))),
+            @as(u8, @intCast(@as(u16, @bitCast(if (r_i16 > 0) r_i16 else 0)))),
+            @as(u8, @intCast(@as(u16, @bitCast(if (g_i16 > 0) g_i16 else 0)))),
+            @as(u8, @intCast(@as(u16, @bitCast(if (b_i16 > 0) b_i16 else 0)))),
             null,
         );
     }
@@ -177,6 +182,16 @@ pub const WOOD_PROPERTIES: Properties = Properties{
     .speed = 1,
     .piercing = false,
     .flammability = 50,
+};
+
+pub const DIRT_PROPERTIES: Properties = Properties{
+    .color = Pixel.init(DIRT_COLOR.get_r(), DIRT_COLOR.get_g(), DIRT_COLOR.get_b(), null),
+    .solid = true,
+    .max_duration = 0,
+    .density = 10.0,
+    .speed = 1,
+    .piercing = false,
+    .flammability = 80,
 };
 
 pub const ICE_PROPERTIES: Properties = Properties{
@@ -298,6 +313,10 @@ pub const PhysicsPixel = struct {
             .Object => {
                 properties = OBJECT_PROPERTIES;
                 color = properties.color;
+            },
+            .Dirt => {
+                properties = DIRT_PROPERTIES;
+                color = properties.vary_color(10);
             },
         }
         return Self{ .x = x, .y = y, .pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .pixel_type = pixel_type, .last_dir = if (common.rand.boolean()) -1 else 1, .properties = properties };
@@ -511,6 +530,22 @@ pub const PhysicsPixel = struct {
                         pixel.idle_turns = 0;
                     },
                     .Plant => {
+                        if (pixel.fire_turns >= pixel.properties.flammability) {
+                            pixel.properties = FIRE_PROPERTIES;
+                            pixel.duration = 0;
+                            pixel.pixel_type = .Fire;
+                            pixel.pixel = pixel.properties.vary_color(10);
+                            self.updated = true;
+                            pixel.active = true;
+                            self.active = true;
+                            self.idle_turns = 0;
+                            pixel.idle_turns = 0;
+                            pixel.fire_turns = 0;
+                        } else {
+                            pixel.fire_turns += 1;
+                        }
+                    },
+                    .Dirt => {
                         if (pixel.fire_turns >= pixel.properties.flammability) {
                             pixel.properties = FIRE_PROPERTIES;
                             pixel.duration = 0;
@@ -838,6 +873,9 @@ pub const PhysicsPixel = struct {
                     },
                     .Explosive => {
                         self.fire_update(pixels, xlimit, ylimit);
+                    },
+                    .Dirt => {
+                        self.sand_update(pixels, xlimit, ylimit);
                     },
                     else => {},
                 }

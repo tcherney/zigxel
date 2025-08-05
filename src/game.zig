@@ -565,7 +565,7 @@ pub const Game = struct {
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native, if (WASM) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
-        try self.current_world.generate(.desert);
+        try self.current_world.generate(.forest);
 
         self.current_world.viewport.x = self.starting_pos_x;
         self.current_world.viewport.y = self.starting_pos_y;
