@@ -13,24 +13,7 @@ pub inline fn to_seconds(nano: u64) f64 {
 const PHYSICS_PIXEL_LOG = std.log.scoped(.physics_pixel);
 //TODO update callback with more information like xy to remove pixel from object
 pub const ObjectReactionCallback = common.Callback(PixelType);
-pub const PixelType = enum {
-    Sand,
-    Water,
-    Empty,
-    Wall,
-    Oil,
-    Rock,
-    Steam,
-    Fire,
-    Lava,
-    Wood,
-    Ice,
-    Plant,
-    Explosive,
-    Object,
-    WhiteWall,
-    Dirt,
-};
+pub const PixelType = enum { Sand, Water, Empty, Wall, Oil, Rock, Steam, Fire, Lava, Wood, Ice, Plant, Explosive, Object, WhiteWall, Dirt, Grass };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
     return if (x < 0 or x >= width or y < 0 or y >= height) false else if (pixels[@as(u32, @bitCast(y)) * width + @as(u32, @bitCast(x))] == null) false else pixels[@as(u32, @bitCast(y)) * width + @as(u32, @bitCast(x))].?.pixel_type != .Empty;
@@ -51,6 +34,7 @@ pub const PLANT_COLOR = Pixel.init(45, 160, 45, null);
 pub const EXPLOSIVE_COLOR = Pixel.init(235, 200, 60, null);
 pub const WHITE_COLOR = common.Colors.WHITE;
 pub const DIRT_COLOR = Pixel.init(57, 29, 7, null);
+pub const GRASS_COLOR = PLANT_COLOR;
 
 const Properties = struct {
     color: Pixel,
@@ -214,6 +198,16 @@ pub const PLANT_PROPERTIES: Properties = Properties{
     .flammability = 25,
 };
 
+pub const GRASS_PROPERTIES: Properties = Properties{
+    .color = Pixel.init(GRASS_COLOR.get_r(), GRASS_COLOR.get_g(), GRASS_COLOR.get_b(), null),
+    .solid = true,
+    .max_duration = 0,
+    .density = 5.0,
+    .speed = 1,
+    .piercing = false,
+    .flammability = 25,
+};
+
 pub const EXPLOSIVE_PROPERTIES: Properties = Properties{
     .color = Pixel.init(EXPLOSIVE_COLOR.get_r(), EXPLOSIVE_COLOR.get_g(), EXPLOSIVE_COLOR.get_b(), null),
     .solid = false,
@@ -302,6 +296,10 @@ pub const PhysicsPixel = struct {
                 properties = PLANT_PROPERTIES;
                 color = properties.vary_color(10);
             },
+            .Grass => {
+                properties = GRASS_PROPERTIES;
+                color = properties.vary_color(10);
+            },
             .Explosive => {
                 properties = EXPLOSIVE_PROPERTIES;
                 color = properties.vary_color(10);
@@ -374,6 +372,24 @@ pub const PhysicsPixel = struct {
         if (self.execute_move(pixels, self.x + second, self.y + 1, xlimit, ylimit)) return;
     }
 
+    fn burn(self: *Self, pixel: *PhysicsPixel) void {
+        if (pixel.fire_turns >= pixel.properties.flammability) {
+            pixel.properties = FIRE_PROPERTIES;
+            pixel.duration = 0;
+            pixel.pixel_type = .Fire;
+            pixel.pixel = pixel.properties.vary_color(10);
+            self.updated = true;
+            pixel.active = true;
+            self.active = true;
+            self.idle_turns = 0;
+            pixel.idle_turns = 0;
+            pixel.fire_turns = 0;
+        } else {
+            //TODO slowly update color to be darker and darker
+            pixel.fire_turns += 1;
+        }
+    }
+
     fn reaction(self: *Self, pixel: *PhysicsPixel) void {
         //TODO add some logging to make it easier to debug future interaction issues
         switch (self.pixel_type) {
@@ -393,22 +409,6 @@ pub const PhysicsPixel = struct {
                         self.active = true;
                         self.idle_turns = 0;
                         pixel.idle_turns = 0;
-                    },
-                    .Wood => {
-                        if (pixel.fire_turns >= pixel.properties.flammability) {
-                            pixel.properties = FIRE_PROPERTIES;
-                            pixel.duration = 0;
-                            pixel.pixel_type = .Fire;
-                            pixel.pixel = pixel.properties.vary_color(10);
-                            self.updated = true;
-                            pixel.active = true;
-                            self.active = true;
-                            self.idle_turns = 0;
-                            pixel.idle_turns = 0;
-                            pixel.fire_turns = 0;
-                        } else {
-                            pixel.fire_turns += 1;
-                        }
                     },
                     .Oil => {
                         pixel.properties = FIRE_PROPERTIES;
@@ -432,23 +432,11 @@ pub const PhysicsPixel = struct {
                         self.idle_turns = 0;
                         pixel.idle_turns = 0;
                     },
-                    .Plant => {
-                        if (pixel.fire_turns >= pixel.properties.flammability) {
-                            pixel.properties = FIRE_PROPERTIES;
-                            pixel.duration = 0;
-                            pixel.pixel_type = .Fire;
-                            pixel.pixel = pixel.properties.vary_color(10);
-                            self.updated = true;
-                            pixel.active = true;
-                            self.active = true;
-                            self.idle_turns = 0;
-                            pixel.idle_turns = 0;
-                            pixel.fire_turns = 0;
-                        } else {
-                            pixel.fire_turns += 1;
+                    else => {
+                        if (pixel.properties.flammability > 0) {
+                            self.burn(pixel);
                         }
                     },
-                    else => {},
                 }
             },
             .Water => {
@@ -491,22 +479,6 @@ pub const PhysicsPixel = struct {
             },
             .Fire => {
                 switch (pixel.pixel_type) {
-                    .Wood => {
-                        if (pixel.fire_turns >= pixel.properties.flammability) {
-                            pixel.properties = FIRE_PROPERTIES;
-                            pixel.duration = 0;
-                            pixel.pixel_type = .Fire;
-                            pixel.pixel = self.properties.vary_color(10);
-                            self.updated = true;
-                            pixel.active = true;
-                            self.active = true;
-                            self.idle_turns = 0;
-                            pixel.idle_turns = 0;
-                            pixel.fire_turns = 0;
-                        } else {
-                            pixel.fire_turns += 1;
-                        }
-                    },
                     .Oil => {
                         pixel.properties = FIRE_PROPERTIES;
                         pixel.duration = 0;
@@ -529,39 +501,11 @@ pub const PhysicsPixel = struct {
                         self.idle_turns = 0;
                         pixel.idle_turns = 0;
                     },
-                    .Plant => {
-                        if (pixel.fire_turns >= pixel.properties.flammability) {
-                            pixel.properties = FIRE_PROPERTIES;
-                            pixel.duration = 0;
-                            pixel.pixel_type = .Fire;
-                            pixel.pixel = pixel.properties.vary_color(10);
-                            self.updated = true;
-                            pixel.active = true;
-                            self.active = true;
-                            self.idle_turns = 0;
-                            pixel.idle_turns = 0;
-                            pixel.fire_turns = 0;
-                        } else {
-                            pixel.fire_turns += 1;
+                    else => {
+                        if (pixel.properties.flammability > 0) {
+                            self.burn(pixel);
                         }
                     },
-                    .Dirt => {
-                        if (pixel.fire_turns >= pixel.properties.flammability) {
-                            pixel.properties = FIRE_PROPERTIES;
-                            pixel.duration = 0;
-                            pixel.pixel_type = .Fire;
-                            pixel.pixel = pixel.properties.vary_color(10);
-                            self.updated = true;
-                            pixel.active = true;
-                            self.active = true;
-                            self.idle_turns = 0;
-                            pixel.idle_turns = 0;
-                            pixel.fire_turns = 0;
-                        } else {
-                            pixel.fire_turns += 1;
-                        }
-                    },
-                    else => {},
                 }
             },
             .Plant => {
@@ -875,6 +819,9 @@ pub const PhysicsPixel = struct {
                         self.fire_update(pixels, xlimit, ylimit);
                     },
                     .Dirt => {
+                        self.sand_update(pixels, xlimit, ylimit);
+                    },
+                    .Grass => {
                         self.sand_update(pixels, xlimit, ylimit);
                     },
                     else => {},

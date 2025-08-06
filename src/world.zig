@@ -155,6 +155,12 @@ pub const World = struct {
                             missing_pixels += 1;
                         }
                     }
+                    const should_add = common.rand.intRangeAtMost(usize, 0, 9);
+                    if (should_add > 0) {
+                        try self.add_pixel(@intCast(j), @intCast(i + 1), .Grass);
+                    } else {
+                        missing_pixels += 1;
+                    }
                     if (common.rand.intRangeAtMost(usize, 0, 5) == 0) try self.build_tree(j, end_y + missing_pixels);
                 }
             },
