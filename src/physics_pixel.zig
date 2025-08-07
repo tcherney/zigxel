@@ -35,6 +35,7 @@ pub const EXPLOSIVE_COLOR = Pixel.init(235, 200, 60, null);
 pub const WHITE_COLOR = common.Colors.WHITE;
 pub const DIRT_COLOR = Pixel.init(57, 29, 7, null);
 pub const GRASS_COLOR = PLANT_COLOR;
+pub const ASH_COLOR = Pixel.init(25, 25, 25, null);
 
 const Properties = struct {
     color: Pixel,
@@ -230,6 +231,7 @@ pub const OBJECT_PROPERTIES: Properties = Properties{
 
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
+    start_pixel: Pixel,
     x: i32,
     y: i32,
     pixel_type: PixelType,
@@ -242,6 +244,7 @@ pub const PhysicsPixel = struct {
     updated: bool = false,
     managed: bool = false,
     fire_turns: u32 = 0,
+    prev_fire_turns: u32 = 0,
     object_reaction_callback: ?ObjectReactionCallback = null,
     const Self = @This();
     pub fn init(pixel_type: PixelType, x: i32, y: i32) Self {
@@ -317,7 +320,7 @@ pub const PhysicsPixel = struct {
                 color = properties.vary_color(10);
             },
         }
-        return Self{ .x = x, .y = y, .pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .pixel_type = pixel_type, .last_dir = if (common.rand.boolean()) -1 else 1, .properties = properties };
+        return Self{ .x = x, .y = y, .pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .start_pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .pixel_type = pixel_type, .last_dir = if (common.rand.boolean()) -1 else 1, .properties = properties };
     }
 
     pub fn set_color(self: *Self, r: u8, g: u8, b: u8, a: u8) void {
@@ -385,8 +388,8 @@ pub const PhysicsPixel = struct {
             pixel.idle_turns = 0;
             pixel.fire_turns = 0;
         } else {
-            //TODO slowly update color to be darker and darker
             pixel.fire_turns += 1;
+            pixel.pixel = pixel.start_pixel.lerp(self.pixel, @as(f64, @floatFromInt(pixel.fire_turns)) / @as(f64, @floatFromInt(pixel.properties.flammability)));
         }
     }
 
@@ -788,6 +791,24 @@ pub const PhysicsPixel = struct {
                     }
                 }
                 self.updated = true;
+            }
+            if (self.fire_turns > 0) {
+                self.updated = true;
+                if (self.prev_fire_turns == 0) {
+                    self.prev_fire_turns = self.fire_turns;
+                    self.start_pixel = Pixel.init(self.pixel.get_r(), self.pixel.get_g(), self.pixel.get_b(), self.pixel.get_a());
+                } else {
+                    if (self.prev_fire_turns == self.fire_turns) {
+                        self.fire_turns -= 1;
+                        self.pixel = self.start_pixel.lerp(ASH_COLOR, 1 - @as(f64, @floatFromInt(self.fire_turns)) / @as(f64, @floatFromInt(self.properties.flammability)));
+                        if (self.fire_turns == 0) {
+                            self.start_pixel = Pixel.init(self.pixel.get_r(), self.pixel.get_g(), self.pixel.get_b(), self.pixel.get_a());
+                        }
+                    }
+                    self.prev_fire_turns = self.fire_turns;
+                }
+            } else {
+                self.prev_fire_turns = 0;
             }
             for (0..self.properties.speed) |_| {
                 switch (self.pixel_type) {
