@@ -23,6 +23,7 @@ pub const Engine = engine.Engine;
 pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
+pub const DEBUG = true;
 pub const SINGLE_THREADED: bool = false;
 pub const PROFILE_MODE: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
@@ -364,6 +365,7 @@ pub const Game = struct {
     var elapsed: u64 = 0;
     var flip: bool = false;
     var rect_rot: f64 = 0;
+    var debug_buffer: [256]u8 = undefined;
     pub fn on_render(self: *Self, dt: u64) !void {
         //GAME_LOG.info("starting render in {any}\n", .{self.state});
         //GAME_LOG.info("set bg {any} {any} {any}\n", .{ self.current_world.tex.width, self.current_world.tex.height, self.current_world.tex.pixel_buffer.len });
@@ -412,6 +414,12 @@ pub const Game = struct {
                 // try self.e.renderer.pixel.translate(.{ .x = @floatFromInt(-self.placement_pixel[self.placement_index].x), .y = @floatFromInt(-self.placement_pixel[self.placement_index].y) });
                 // self.e.renderer.pixel.draw_rect(@as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].x - 5)))), @as(usize, @bitCast(@as(i64, @intCast(self.placement_pixel[self.placement_index].y - 5)))), 10, 10, 255, 255, 255, self.current_world.tex);
                 // self.e.renderer.pixel.pop();
+                if (DEBUG) {
+                    const p = self.current_world.pixels.items[@as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x))];
+                    if (p != null) {
+                        try self.e.renderer.pixel.draw_text(try std.fmt.bufPrint(&debug_buffer, "Color ({any}), Type {any}", .{ p.?.pixel, p.?.pixel_type }), 0, 0, 255, 255, 255);
+                    }
+                }
             },
         }
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);

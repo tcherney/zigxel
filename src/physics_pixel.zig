@@ -261,11 +261,11 @@ pub const PhysicsPixel = struct {
             },
             .Empty => {
                 properties = EMPTY_PROPERTIES;
-                color = properties.color;
+                color = properties.color.copy();
             },
             .Wall => {
                 properties = WALL_PROPERTIES;
-                color = properties.color;
+                color = properties.color.copy();
             },
             .Oil => {
                 properties = OIL_PROPERTIES;
@@ -309,11 +309,11 @@ pub const PhysicsPixel = struct {
             },
             .WhiteWall => {
                 properties = WHITE_WALL_PROPERTIES;
-                color = properties.color;
+                color = properties.color.copy();
             },
             .Object => {
                 properties = OBJECT_PROPERTIES;
-                color = properties.color;
+                color = properties.color.copy();
             },
             .Dirt => {
                 properties = DIRT_PROPERTIES;
@@ -381,13 +381,16 @@ pub const PhysicsPixel = struct {
             pixel.duration = 0;
             pixel.pixel_type = .Fire;
             pixel.pixel = pixel.properties.vary_color(10);
+            pixel.start_pixel = pixel.pixel.copy();
             self.updated = true;
             pixel.active = true;
             self.active = true;
+            pixel.prev_fire_turns = 0;
             self.idle_turns = 0;
             pixel.idle_turns = 0;
             pixel.fire_turns = 0;
         } else {
+            std.debug.print("object burning /n", .{});
             pixel.fire_turns += 1;
             pixel.pixel = pixel.start_pixel.lerp(self.pixel, @as(f64, @floatFromInt(pixel.fire_turns)) / @as(f64, @floatFromInt(pixel.properties.flammability)));
         }
@@ -796,13 +799,14 @@ pub const PhysicsPixel = struct {
                 self.updated = true;
                 if (self.prev_fire_turns == 0) {
                     self.prev_fire_turns = self.fire_turns;
-                    self.start_pixel = Pixel.init(self.pixel.get_r(), self.pixel.get_g(), self.pixel.get_b(), self.pixel.get_a());
+                    self.start_pixel = self.pixel.copy();
                 } else {
                     if (self.prev_fire_turns == self.fire_turns) {
+                        std.debug.print("object cooling /n", .{});
                         self.fire_turns -= 1;
                         self.pixel = self.start_pixel.lerp(ASH_COLOR, 1 - @as(f64, @floatFromInt(self.fire_turns)) / @as(f64, @floatFromInt(self.properties.flammability)));
                         if (self.fire_turns == 0) {
-                            self.start_pixel = Pixel.init(self.pixel.get_r(), self.pixel.get_g(), self.pixel.get_b(), self.pixel.get_a());
+                            self.start_pixel = self.pixel.copy();
                         }
                     }
                     self.prev_fire_turns = self.fire_turns;
@@ -856,7 +860,7 @@ pub const PhysicsPixel = struct {
         }
         //TODO figure out better way to sleep pixels
         self.idle_turns += 1;
-        if (self.idle_turns >= 25) {
+        if (self.idle_turns >= 50) {
             self.idle_turns = 0;
             self.active = !self.active;
         }

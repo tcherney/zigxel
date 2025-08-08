@@ -614,19 +614,11 @@ pub const PixelRenderer = struct {
                             if (fg_pixel.eql(last_fg_pixel) and bg_pixel.eql(last_bg_pixel)) {
                                 continue;
                             }
-                            self.last_frame[j * width + i] = fg_pixel;
-                            self.last_frame[(j + 1) * width + i] = bg_pixel;
                         },
                         .color_true => {
                             if (fg_pixel.eql(last_fg_pixel) and bg_pixel.eql(last_bg_pixel)) {
                                 continue;
                             }
-                            self.last_frame[j * width + i].color_true.r = fg_pixel.color_true.r;
-                            self.last_frame[j * width + i].color_true.g = fg_pixel.color_true.g;
-                            self.last_frame[j * width + i].color_true.b = fg_pixel.color_true.b;
-                            self.last_frame[(j + 1) * width + i].color_true.r = bg_pixel.color_true.r;
-                            self.last_frame[(j + 1) * width + i].color_true.g = bg_pixel.color_true.g;
-                            self.last_frame[(j + 1) * width + i].color_true.b = bg_pixel.color_true.b;
                         },
                     }
 
@@ -638,6 +630,8 @@ pub const PixelRenderer = struct {
 
                 switch (self.color_type) {
                     .color_256 => {
+                        self.last_frame[j * width + i] = fg_pixel;
+                        self.last_frame[(j + 1) * width + i] = bg_pixel;
                         if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel) and !fg_pixel.eql(bg_pixel)) {
                             for (LOWER_PX) |c| {
                                 self.terminal_buffer[buffer_len] = c;
@@ -671,6 +665,12 @@ pub const PixelRenderer = struct {
                         }
                     },
                     .color_true => {
+                        self.last_frame[j * width + i].color_true.r = fg_pixel.color_true.r;
+                        self.last_frame[j * width + i].color_true.g = fg_pixel.color_true.g;
+                        self.last_frame[j * width + i].color_true.b = fg_pixel.color_true.b;
+                        self.last_frame[(j + 1) * width + i].color_true.r = bg_pixel.color_true.r;
+                        self.last_frame[(j + 1) * width + i].color_true.g = bg_pixel.color_true.g;
+                        self.last_frame[(j + 1) * width + i].color_true.b = bg_pixel.color_true.b;
                         if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel) and !fg_pixel.eql(bg_pixel)) {
                             for (LOWER_PX) |c| {
                                 self.terminal_buffer[buffer_len] = c;
