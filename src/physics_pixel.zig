@@ -60,7 +60,7 @@ const Properties = struct {
 };
 
 pub const SAND_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(SAND_COLOR.get_r(), SAND_COLOR.get_g(), SAND_COLOR.get_b(), null),
+    .color = SAND_COLOR.copy(),
     .solid = true,
     .max_duration = 0,
     .density = 3.0,
@@ -70,7 +70,7 @@ pub const SAND_PROPERTIES: Properties = Properties{
 };
 
 pub const WATER_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(WATER_COLOR.get_r(), WATER_COLOR.get_g(), WATER_COLOR.get_b(), null),
+    .color = WATER_COLOR.copy(),
     .solid = false,
     .max_duration = 0,
     .density = 1.0,
@@ -80,7 +80,7 @@ pub const WATER_PROPERTIES: Properties = Properties{
 };
 
 pub const EMPTY_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(EMPTY_COLOR.get_r(), EMPTY_COLOR.get_g(), EMPTY_COLOR.get_b(), null),
+    .color = EMPTY_COLOR.copy(),
     .solid = false,
     .max_duration = 0,
     .density = 0,
@@ -90,7 +90,7 @@ pub const EMPTY_PROPERTIES: Properties = Properties{
 };
 
 pub const WALL_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(WALL_COLOR.get_r(), WALL_COLOR.get_g(), WALL_COLOR.get_b(), null),
+    .color = WALL_COLOR.copy(),
     .solid = true,
     .max_duration = 0,
     .density = 10.0,
@@ -100,7 +100,7 @@ pub const WALL_PROPERTIES: Properties = Properties{
 };
 
 pub const WHITE_WALL_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(WHITE_COLOR.get_r(), WHITE_COLOR.get_g(), WHITE_COLOR.get_b(), null),
+    .color = WHITE_COLOR.copy(),
     .solid = true,
     .max_duration = 0,
     .density = 10.0,
@@ -110,7 +110,7 @@ pub const WHITE_WALL_PROPERTIES: Properties = Properties{
 };
 
 pub const OIL_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(OIL_COLOR.get_r(), OIL_COLOR.get_g(), OIL_COLOR.get_b(), null),
+    .color = OIL_COLOR.copy(),
     .solid = false,
     .max_duration = 0,
     .density = 0.5,
@@ -120,7 +120,7 @@ pub const OIL_PROPERTIES: Properties = Properties{
 };
 
 pub const ROCK_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(ROCK_COLOR.get_r(), ROCK_COLOR.get_g(), ROCK_COLOR.get_b(), null),
+    .color = ROCK_COLOR.copy(),
     .solid = true,
     .max_duration = 0,
     .density = 5.0,
@@ -130,7 +130,7 @@ pub const ROCK_PROPERTIES: Properties = Properties{
 };
 
 pub const STEAM_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(STEAM_COLOR.get_r(), STEAM_COLOR.get_g(), STEAM_COLOR.get_b(), null),
+    .color = STEAM_COLOR.copy(),
     .solid = false,
     .max_duration = 125,
     .density = 0.1,
@@ -140,7 +140,7 @@ pub const STEAM_PROPERTIES: Properties = Properties{
 };
 
 pub const FIRE_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(FIRE_COLOR.get_r(), FIRE_COLOR.get_g(), FIRE_COLOR.get_b(), null),
+    .color = FIRE_COLOR.copy(),
     .solid = false,
     .max_duration = 100,
     .density = 0.1,
@@ -150,7 +150,7 @@ pub const FIRE_PROPERTIES: Properties = Properties{
 };
 
 pub const LAVA_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(LAVA_COLOR.get_r(), LAVA_COLOR.get_g(), LAVA_COLOR.get_b(), null),
+    .color = LAVA_COLOR.copy(),
     .solid = false,
     .max_duration = 300,
     .density = 2.0,
@@ -160,7 +160,7 @@ pub const LAVA_PROPERTIES: Properties = Properties{
 };
 
 pub const WOOD_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(WOOD_COLOR.get_r(), WOOD_COLOR.get_g(), WOOD_COLOR.get_b(), null),
+    .color = WOOD_COLOR.copy(),
     .solid = true,
     .max_duration = 0,
     .density = 8.0,
@@ -170,7 +170,7 @@ pub const WOOD_PROPERTIES: Properties = Properties{
 };
 
 pub const DIRT_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(DIRT_COLOR.get_r(), DIRT_COLOR.get_g(), DIRT_COLOR.get_b(), null),
+    .color = DIRT_COLOR.copy(),
     .solid = true,
     .max_duration = 0,
     .density = 10.0,
@@ -180,7 +180,7 @@ pub const DIRT_PROPERTIES: Properties = Properties{
 };
 
 pub const ICE_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(ICE_COLOR.get_r(), ICE_COLOR.get_g(), ICE_COLOR.get_b(), null),
+    .color = ICE_COLOR.copy(),
     .solid = true,
     .max_duration = 300,
     .density = 0.4,
@@ -190,7 +190,7 @@ pub const ICE_PROPERTIES: Properties = Properties{
 };
 
 pub const PLANT_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(PLANT_COLOR.get_r(), PLANT_COLOR.get_g(), PLANT_COLOR.get_b(), null),
+    .color = PLANT_COLOR.copy(),
     .solid = true,
     .max_duration = 0,
     .density = 5.0,
@@ -200,7 +200,7 @@ pub const PLANT_PROPERTIES: Properties = Properties{
 };
 
 pub const GRASS_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(GRASS_COLOR.get_r(), GRASS_COLOR.get_g(), GRASS_COLOR.get_b(), null),
+    .color = GRASS_COLOR.copy(),
     .solid = true,
     .max_duration = 0,
     .density = 5.0,
@@ -210,7 +210,7 @@ pub const GRASS_PROPERTIES: Properties = Properties{
 };
 
 pub const EXPLOSIVE_PROPERTIES: Properties = Properties{
-    .color = Pixel.init(EXPLOSIVE_COLOR.get_r(), EXPLOSIVE_COLOR.get_g(), EXPLOSIVE_COLOR.get_b(), null),
+    .color = EXPLOSIVE_COLOR.copy(),
     .solid = false,
     .max_duration = 30,
     .density = 0.1,
