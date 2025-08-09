@@ -390,7 +390,6 @@ pub const PhysicsPixel = struct {
             pixel.idle_turns = 0;
             pixel.fire_turns = 0;
         } else {
-            std.debug.print("object burning /n", .{});
             pixel.fire_turns += 1;
             pixel.pixel = pixel.start_pixel.lerp(self.pixel, @as(f64, @floatFromInt(pixel.fire_turns)) / @as(f64, @floatFromInt(pixel.properties.flammability)));
         }
@@ -802,7 +801,6 @@ pub const PhysicsPixel = struct {
                     self.start_pixel = self.pixel.copy();
                 } else {
                     if (self.prev_fire_turns == self.fire_turns) {
-                        std.debug.print("object cooling /n", .{});
                         self.fire_turns -= 1;
                         self.pixel = self.start_pixel.lerp(ASH_COLOR, 1 - @as(f64, @floatFromInt(self.fire_turns)) / @as(f64, @floatFromInt(self.properties.flammability)));
                         if (self.fire_turns == 0) {

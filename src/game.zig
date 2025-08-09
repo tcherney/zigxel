@@ -417,7 +417,7 @@ pub const Game = struct {
                 if (DEBUG) {
                     const p = self.current_world.pixels.items[@as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x))];
                     if (p != null) {
-                        try self.e.renderer.pixel.draw_text(try std.fmt.bufPrint(&debug_buffer, "Color ({any}), Type {any}", .{ p.?.pixel, p.?.pixel_type }), 0, 0, 255, 255, 255);
+                        try self.e.renderer.pixel.draw_text(try std.fmt.bufPrint(&debug_buffer, "FPS: {d:.2} Color ({any}), Type {any}", .{ self.e.fps, p.?.pixel, p.?.pixel_type }), 0, 0, 255, 255, 255);
                     }
                 }
             },

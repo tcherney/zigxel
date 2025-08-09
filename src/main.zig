@@ -10,7 +10,7 @@ pub const std_options: std.Options = .{
         .{ .scope = .bmp_image, .level = .err },
         .{ .scope = .event_manager, .level = .err },
         .{ .scope = .xlib, .level = .err },
-        .{ .scope = .engine, .level = .err },
+        .{ .scope = .engine, .level = .info },
         .{ .scope = .texture, .level = .err },
         .{ .scope = .graphics, .level = .err },
         .{ .scope = .ttf, .level = .err },
