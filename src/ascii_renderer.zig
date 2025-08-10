@@ -425,21 +425,11 @@ pub const AsciiRenderer = struct {
                             if (fg_pixel.eql(last_fg_pixel) and bg_pixel.eql(last_bg_pixel) and ascii == last_ascii) {
                                 continue;
                             }
-                            self.last_frame[j * width + i] = fg_pixel;
-                            self.background_last_frame[j * width + i] = bg_pixel;
-                            self.ascii_last_frame[j * width + i] = ascii;
                         },
                         .color_true => {
                             if (fg_pixel.eql(last_fg_pixel) and bg_pixel.eql(last_bg_pixel) and ascii == last_ascii) {
                                 continue;
                             }
-                            self.last_frame[j * width + i].color_true.r = fg_pixel.color_true.r;
-                            self.last_frame[j * width + i].color_true.g = fg_pixel.color_true.g;
-                            self.last_frame[j * width + i].color_true.b = fg_pixel.color_true.b;
-                            self.background_last_frame[j * width + i].color_true.r = bg_pixel.color_true.r;
-                            self.background_last_frame[j * width + i].color_true.g = bg_pixel.color_true.g;
-                            self.background_last_frame[j * width + i].color_true.b = bg_pixel.color_true.b;
-                            self.ascii_last_frame[j * width + i] = ascii;
                         },
                     }
 
@@ -451,6 +441,9 @@ pub const AsciiRenderer = struct {
 
                 switch (self.color_type) {
                     .color_256 => {
+                        self.last_frame[j * width + i] = fg_pixel;
+                        self.background_last_frame[j * width + i] = bg_pixel;
+                        self.ascii_last_frame[j * width + i] = ascii;
                         if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel)) {
                             self.terminal_buffer[buffer_len] = ascii;
                             buffer_len += 1;
@@ -474,6 +467,13 @@ pub const AsciiRenderer = struct {
                         }
                     },
                     .color_true => {
+                        self.last_frame[j * width + i].color_true.r = fg_pixel.color_true.r;
+                        self.last_frame[j * width + i].color_true.g = fg_pixel.color_true.g;
+                        self.last_frame[j * width + i].color_true.b = fg_pixel.color_true.b;
+                        self.background_last_frame[j * width + i].color_true.r = bg_pixel.color_true.r;
+                        self.background_last_frame[j * width + i].color_true.g = bg_pixel.color_true.g;
+                        self.background_last_frame[j * width + i].color_true.b = bg_pixel.color_true.b;
+                        self.ascii_last_frame[j * width + i] = ascii;
                         if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel)) {
                             self.terminal_buffer[buffer_len] = ascii;
                             buffer_len += 1;

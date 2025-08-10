@@ -93,9 +93,11 @@ pub fn build(b: *std.Build) !void {
         exe.root_module.addImport("graphics", graphics_module);
         exe.root_module.addImport("texture", texture_module);
         exe.root_module.addImport("sprite", sprite_module);
-
-        exe.linkLibrary(lib);
-
+        //TODO make this configurable, linux builds could then provide their own include
+        if (builtin.target.os.tag == .linux and target.result.os.tag != .emscripten) {
+            exe.addIncludePath(b.path("../../../linuxbrew/.linuxbrew/include"));
+        }
+        //exe.linkLibrary(lib);
         // This declares intent for the executable to be installed into the
         // standard location when the user invokes the "install" step (the default
         // step when running `zig build`).
