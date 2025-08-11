@@ -62,6 +62,7 @@ pub fn build(b: *std.Build) !void {
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
     b.installArtifact(lib);
+    //TODO change this, make wasm step for wasm target/release small and run for default
     if (target.result.os.tag == .emscripten) {
         const wasm_mod = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),

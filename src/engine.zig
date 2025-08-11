@@ -92,7 +92,11 @@ pub const Engine = struct {
                 //ENGINE_LOG.info("fps {d}\n", .{self.fps});
                 frames = 0;
                 elapsed = 0.0;
-                self.renderer.pixel.first_render = true;
+                switch (self.renderer) {
+                    inline else => |*r| {
+                        r.first_render = true;
+                    },
+                }
             }
             const time_to_sleep: i64 = @as(i64, @bitCast(self.frame_limit)) - @as(i64, @bitCast(delta));
             //ENGINE_LOG.info("time to sleep {d}\n", .{time_to_sleep});
