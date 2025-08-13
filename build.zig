@@ -2,18 +2,9 @@ const std = @import("std");
 const builtin = @import("builtin");
 const emcc = @import("src/emcc.zig");
 
-pub fn build(b: *std.Build) !void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
-    const target = b.standardTargetOptions(.{});
+const wasm_target: std.Target.Query = .{ .cpu_arch = .wasm32, .os_tag = .emscripten };
 
-    // Standard optimization options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
-    // set a preferred release mode, allowing the user to decide how to optimize.
-    const optimize = b.standardOptimizeOption(.{});
-
+pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !void {
     const imglib = b.dependency("imglib", .{});
     const termlib = b.dependency("terminal", .{});
     const commonlib = b.dependency("common", .{});
@@ -57,12 +48,6 @@ pub fn build(b: *std.Build) !void {
         lib.addIncludePath(b.path("../../../linuxbrew/.linuxbrew/include"));
         lib.linkSystemLibrary("X11");
     }
-
-    // This declares intent for the library to be installed into the standard
-    // location when the user invokes the "install" step (the default step when
-    // running `zig build`).
-    b.installArtifact(lib);
-    //TODO change this, make wasm step for wasm target/release small and run for default
     if (target.result.os.tag == .emscripten) {
         const wasm_mod = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
@@ -84,6 +69,7 @@ pub fn build(b: *std.Build) !void {
                 .optimize = optimize,
             }),
         });
+        b.installArtifact(lib);
         //DEPS
         exe.root_module.addImport("image", imglib.module("image"));
         exe.root_module.addImport("term", termlib.module("term"));
@@ -161,4 +147,20 @@ pub fn build(b: *std.Build) !void {
         test_step.dependOn(&run_texture_unit_tests.step);
         test_step.dependOn(&run_engine_unit_tests.step);
     }
+}
+
+pub fn build(b: *std.Build) !void {
+    // Standard target options allows the person running `zig build` to choose
+    // what target to build for. Here we do not override the defaults, which
+    // means any target is allowed, and the default is native. Other options
+    // for restricting supported target set are available.
+    const target = b.standardTargetOptions(.{});
+
+    // Standard optimization options allow the person running `zig build` to select
+    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
+    // set a preferred release mode, allowing the user to decide how to optimize.
+    const optimize = b.standardOptimizeOption(.{});
+
+    try build_target(b, b.resolveTargetQuery(wasm_target), .ReleaseSmall);
+    try build_target(b, target, optimize);
 }

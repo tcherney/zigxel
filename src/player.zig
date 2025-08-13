@@ -12,12 +12,12 @@ pub const Player = struct {
     go: GameObject,
     weapon: Weapon,
     const Self = @This();
-    pub const Error = error{} || GameObject.Error;
+    pub const Error = error{} || GameObject.Error || Weapon.Error;
     pub fn init(x: i32, y: i32, w_width: u32, tex: *game_object.Texture, allocator: std.mem.Allocator) Error!Self {
         return Self{
             .allocator = allocator,
             .go = try GameObject.init(x, y, w_width, tex, allocator),
-            .weapon = .{},
+            .weapon = try Weapon.init(.explosive, allocator),
         };
     }
 
