@@ -27,6 +27,10 @@ pub const ENGINE_LOG = std.log.scoped(.engine);
 
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 
+pub fn set_wasm_terminal_size(height: usize, width: usize) void {
+    term.WASM_SIZE = .{ .height = height, .width = width };
+}
+
 pub const Engine = struct {
     renderer: Graphics = undefined,
     events: EventManager = undefined,

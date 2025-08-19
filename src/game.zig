@@ -23,9 +23,9 @@ pub const Engine = engine.Engine;
 pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
-pub const DEBUG = true;
+pub const DEBUG = false;
 pub const SINGLE_THREADED: bool = false;
-pub const PROFILE_MODE: bool = false;
+pub const PROFILE_MODE: bool = true;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
 const TERMINAL_WIDTH_OFFSET = 30;
@@ -570,6 +570,7 @@ pub const Game = struct {
 
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
+        engine.set_wasm_terminal_size(50, 130);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native, if (WASM) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);

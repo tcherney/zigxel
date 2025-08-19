@@ -7,6 +7,8 @@ pub const Texture = texture.Texture;
 pub const PhysicsPixel = physics_pixel.PhysicsPixel;
 
 const JUMPING_MAX = 10;
+const ACTIVE_TURNS = 10;
+const INACTIVE_TURNS = 100;
 
 pub const GameObject = struct {
     jumping: bool = false,
@@ -208,7 +210,7 @@ pub const GameObject = struct {
         }
     }
 
-    //TODO add active logic from physics pixel in here as well, can be problematic if game objects are large
+    //TODO need to make a pass on this to fix ineffciencies in large objects
     pub fn update(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) Error!void {
         self.wet_pixels = 0;
         self.hot_pixels = 0;
@@ -235,7 +237,7 @@ pub const GameObject = struct {
                     self.pixels[i].idle_turns = 0;
                 } else {
                     self.pixels[i].idle_turns += 1;
-                    if (self.pixels[i].idle_turns >= 25) {
+                    if ((self.pixels[i].active and self.pixels[i].idle_turns >= ACTIVE_TURNS) or (!self.pixels[i].active and self.pixels[i].idle_turns >= INACTIVE_TURNS)) {
                         self.pixels[i].idle_turns = 0;
                         self.pixels[i].active = !self.pixels[i].active;
                     }
@@ -260,7 +262,7 @@ pub const GameObject = struct {
                     self.pixels[i].idle_turns = 0;
                 } else {
                     self.pixels[i].idle_turns += 1;
-                    if (self.pixels[i].idle_turns >= 25) {
+                    if ((self.pixels[i].active and self.pixels[i].idle_turns >= ACTIVE_TURNS) or (!self.pixels[i].active and self.pixels[i].idle_turns >= INACTIVE_TURNS)) {
                         self.pixels[i].idle_turns = 0;
                         self.pixels[i].active = !self.pixels[i].active;
                     }
@@ -283,7 +285,7 @@ pub const GameObject = struct {
                     self.pixels[i].idle_turns = 0;
                 } else {
                     self.pixels[i].idle_turns += 1;
-                    if (self.pixels[i].idle_turns >= 25) {
+                    if ((self.pixels[i].active and self.pixels[i].idle_turns >= ACTIVE_TURNS) or (!self.pixels[i].active and self.pixels[i].idle_turns >= INACTIVE_TURNS)) {
                         self.pixels[i].idle_turns = 0;
                         self.pixels[i].active = !self.pixels[i].active;
                     }
@@ -309,7 +311,7 @@ pub const GameObject = struct {
                     self.pixels[i].idle_turns = 0;
                 } else {
                     self.pixels[i].idle_turns += 1;
-                    if (self.pixels[i].idle_turns >= 25) {
+                    if ((self.pixels[i].active and self.pixels[i].idle_turns >= ACTIVE_TURNS) or (!self.pixels[i].active and self.pixels[i].idle_turns >= INACTIVE_TURNS)) {
                         self.pixels[i].idle_turns = 0;
                         self.pixels[i].active = !self.pixels[i].active;
                     }
@@ -336,7 +338,7 @@ pub const GameObject = struct {
                         self.pixels[i].idle_turns = 0;
                     } else {
                         self.pixels[i].idle_turns += 1;
-                        if (self.pixels[i].idle_turns >= 25) {
+                        if ((self.pixels[i].active and self.pixels[i].idle_turns >= ACTIVE_TURNS) or (!self.pixels[i].active and self.pixels[i].idle_turns >= INACTIVE_TURNS)) {
                             self.pixels[i].idle_turns = 0;
                             self.pixels[i].active = !self.pixels[i].active;
                         }
@@ -364,7 +366,7 @@ pub const GameObject = struct {
                         self.pixels[i].idle_turns = 0;
                     } else {
                         self.pixels[i].idle_turns += 1;
-                        if (self.pixels[i].idle_turns >= 25) {
+                        if ((self.pixels[i].active and self.pixels[i].idle_turns >= ACTIVE_TURNS) or (!self.pixels[i].active and self.pixels[i].idle_turns >= INACTIVE_TURNS)) {
                             self.pixels[i].idle_turns = 0;
                             self.pixels[i].active = !self.pixels[i].active;
                         }
@@ -394,7 +396,7 @@ pub const GameObject = struct {
                         self.pixels[i].idle_turns = 0;
                     } else {
                         self.pixels[i].idle_turns += 1;
-                        if (self.pixels[i].idle_turns >= 25) {
+                        if ((self.pixels[i].active and self.pixels[i].idle_turns >= ACTIVE_TURNS) or (!self.pixels[i].active and self.pixels[i].idle_turns >= INACTIVE_TURNS)) {
                             self.pixels[i].idle_turns = 0;
                             self.pixels[i].active = !self.pixels[i].active;
                         }
@@ -420,7 +422,7 @@ pub const GameObject = struct {
                         self.pixels[i].idle_turns = 0;
                     } else {
                         self.pixels[i].idle_turns += 1;
-                        if (self.pixels[i].idle_turns >= 25) {
+                        if ((self.pixels[i].active and self.pixels[i].idle_turns >= ACTIVE_TURNS) or (!self.pixels[i].active and self.pixels[i].idle_turns >= INACTIVE_TURNS)) {
                             self.pixels[i].idle_turns = 0;
                             self.pixels[i].active = !self.pixels[i].active;
                         }

@@ -226,7 +226,7 @@ pub const OBJECT_PROPERTIES: Properties = Properties{
     .density = 10,
     .speed = 1,
     .piercing = false,
-    .flammability = 0,
+    .flammability = 200,
 };
 
 pub const PhysicsPixel = struct {
