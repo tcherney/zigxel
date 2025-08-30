@@ -45,6 +45,7 @@ pub const Game = struct {
     frame_limit: u64 = 16_666_667,
     player_mode: bool = false,
     lock: std.Thread.Mutex = undefined,
+    render_lock: std.Thread.Mutex = undefined,
     old_mouse_x: i32 = -1,
     old_mouse_y: i32 = -1,
     player: ?Player = null,
@@ -83,14 +84,12 @@ pub const Game = struct {
     pub fn deinit(self: *Self) Error!void {
         try self.e.deinit();
         self.assets.deinit();
-
+        self.tui.deinit();
+        self.current_world.deinit();
         for (0..self.game_objects.items.len) |i| {
             self.game_objects.items[i].deinit();
         }
         self.game_objects.deinit();
-        self.tui.deinit();
-
-        self.current_world.deinit();
         self.allocator.free(self.placement_pixel);
         if (self.player != null) {
             self.player.?.deinit();
@@ -209,6 +208,7 @@ pub const Game = struct {
         GAME_LOG.info("on_window_change\n", .{});
         if (!SINGLE_THREADED and !WASM) {
             self.lock.lock();
+            self.render_lock.lock();
         }
         GAME_LOG.info("changed height {d}\n", .{win_size.height});
         switch (self.state) {
@@ -217,18 +217,18 @@ pub const Game = struct {
             },
             .game => {
                 const w_width: u32 = if (win_size.width > self.world_width) win_size.width else self.world_width;
-                self.current_world.resize(w_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height))) catch |err| {
+                self.current_world.resize(w_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.game_objects) catch |err| {
                     GAME_LOG.info("{any}\n", .{err});
                     self.running = false;
                     return;
                 };
                 self.current_world.viewport.x = self.starting_pos_x;
                 self.current_world.viewport.y = self.starting_pos_y;
-
-                if (!SINGLE_THREADED and !WASM) {
-                    self.lock.unlock();
-                }
             },
+        }
+        if (!SINGLE_THREADED and !WASM) {
+            self.lock.unlock();
+            self.render_lock.unlock();
         }
     }
 
@@ -367,6 +367,9 @@ pub const Game = struct {
     var rect_rot: f64 = 0;
     var debug_buffer: [256]u8 = undefined;
     pub fn on_render(self: *Self, dt: u64) !void {
+        if (!SINGLE_THREADED and !WASM) {
+            self.render_lock.lock();
+        }
         //GAME_LOG.info("starting render in {any}\n", .{self.state});
         //GAME_LOG.info("set bg {any} {any} {any}\n", .{ self.current_world.tex.width, self.current_world.tex.height, self.current_world.tex.pixel_buffer.len });
         if (PROFILE_MODE) self.e.renderer.pixel.set_bg(33, 36, 40, self.current_world.tex) else self.e.renderer.pixel.set_bg(0, 0, 0, self.current_world.tex);
@@ -423,6 +426,9 @@ pub const Game = struct {
             },
         }
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
+        if (!SINGLE_THREADED and !WASM) {
+            self.render_lock.unlock();
+        }
         //GAME_LOG.info("ending render\n", .{});
     }
     //TODO add mouse down and mouse up handling along with touch for wasm where on down starts placing pixels and keeps placing until its released
@@ -570,6 +576,7 @@ pub const Game = struct {
 
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
+        self.render_lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(50, 130);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .wasm else .native, if (WASM) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
@@ -586,13 +593,14 @@ pub const Game = struct {
             try self.assets.load_texture("profile", "assets/profile.jpg");
             var t = try self.assets.get_texture("profile");
             try t.scale(85, 85);
-            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)), self.current_world.tex.width, try self.assets.get_texture("profile"), self.allocator));
+            //TODO this fails at small screen sizes
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) else 0, self.current_world.tex.width, try self.assets.get_texture("profile"), self.allocator));
             try self.assets.load_font("envy", "assets/envy.ttf", 22, &self.e.renderer);
             try self.assets.load_font_texture("Timothy", "envy");
             try self.assets.load_font_texture("Cherney", "envy");
             const t_tex = try self.assets.get_texture("Timothy");
-            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)), self.current_world.tex.width, t_tex, self.allocator));
-            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x + @as(i32, @bitCast(t_tex.width)) + 5, self.current_world.viewport.y + @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)), self.current_world.tex.width, try self.assets.get_texture("Cherney"), self.allocator));
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height + t_tex.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)) else 0, self.current_world.tex.width, t_tex, self.allocator));
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x + @as(i32, @bitCast(t_tex.width)) + 5, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height + t_tex.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)) else 0, self.current_world.tex.width, try self.assets.get_texture("Cherney"), self.allocator));
         }
         if (!WASM) {
             try self.assets.load_texture("basic", "basic0.png");

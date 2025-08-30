@@ -211,6 +211,7 @@ pub const GameObject = struct {
     }
 
     //TODO need to make a pass on this to fix ineffciencies in large objects
+    //TODO add logging to profile whats taking time
     pub fn update(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) Error!void {
         self.wet_pixels = 0;
         self.hot_pixels = 0;

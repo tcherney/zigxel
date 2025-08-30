@@ -2,8 +2,10 @@ pub const texture = @import("texture.zig");
 pub const common = @import("common");
 pub const physic_pixel = @import("physics_pixel.zig");
 pub const std = @import("std");
+pub const game_object = @import("game_object.zig");
 pub const builtin = @import("builtin");
 
+pub const GameObject = game_object.GameObject;
 pub const Texture = texture.Texture;
 pub const PhysicsPixel = physic_pixel.PhysicsPixel;
 const WASM = builtin.os.tag == .emscripten;
@@ -38,7 +40,7 @@ pub const World = struct {
         };
     }
 
-    pub fn resize(self: *Self, w_width: u32, w_height: u32, v_width: u32, v_height: u32) Error!void {
+    pub fn resize(self: *Self, w_width: u32, w_height: u32, v_width: u32, v_height: u32, game_objects: std.ArrayList(GameObject)) Error!void {
         self.tex.deinit();
         self.tex = Texture.init(self.allocator);
         try self.tex.rect(w_width, w_height, 0, 0, 0, 255);
@@ -57,7 +59,7 @@ pub const World = struct {
         var new_pixels: std.ArrayList(?*PhysicsPixel) = std.ArrayList(?*PhysicsPixel).init(self.allocator);
         for (0..self.tex.width * self.tex.height) |i| {
             if (i < self.pixels.items.len) {
-                if (self.pixels.items[i] != null) {
+                if (self.pixels.items[i] != null and !self.pixels.items[i].?.managed) {
                     self.pixels.items[i].?.active = true;
                 }
                 try new_pixels.append(self.pixels.items[i]);
@@ -68,13 +70,16 @@ pub const World = struct {
         const pixels_to_delete = if (WASM) @as(i32, @bitCast(self.pixels.items.len)) - @as(i32, @bitCast(new_pixels.items.len)) else @as(i64, @bitCast(self.pixels.items.len)) - @as(i64, @bitCast(new_pixels.items.len));
         if (pixels_to_delete > 0) {
             for (new_pixels.items.len..self.pixels.items.len) |i| {
-                if (self.pixels.items[i] != null) {
+                if (self.pixels.items[i] != null and !self.pixels.items[i].?.managed) {
                     self.allocator.destroy(self.pixels.items[i].?);
                 }
             }
         }
         self.pixels.deinit();
         self.pixels = new_pixels;
+        for (0..game_objects.items.len) |i| {
+            game_objects.items[i].add_sim(self.pixels.items, self.tex.width);
+        }
     }
 
     pub fn add_pixel(self: *Self, x: u32, y: u32, p_type: physic_pixel.PixelType) Error!void {
