@@ -593,7 +593,6 @@ pub const Game = struct {
             try self.assets.load_texture("profile", "assets/profile.jpg");
             var t = try self.assets.get_texture("profile");
             try t.scale(85, 85);
-            //TODO this fails at small screen sizes
             try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) else 0, self.current_world.tex.width, try self.assets.get_texture("profile"), self.allocator));
             try self.assets.load_font("envy", "assets/envy.ttf", 22, &self.e.renderer);
             try self.assets.load_font_texture("Timothy", "envy");
