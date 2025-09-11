@@ -590,6 +590,7 @@ pub const Game = struct {
         self.assets = AssetManager.init(self.allocator);
         self.game_objects = std.ArrayList(GameObject).init(self.allocator);
         if (PROFILE_MODE) {
+            self.placement_index = 6; // set default to explosive
             try self.assets.load_texture("profile", "assets/profile.jpg");
             var t = try self.assets.get_texture("profile");
             try t.scale(85, 85);
