@@ -382,7 +382,7 @@ pub const Game = struct {
             .game => {
                 //GAME_LOG.info("drawing world {any} \n", .{self.state});
                 for (self.current_world.pixels.items) |p| {
-                    if (p != null and p.?.*.pixel_type != .Empty and p.?.pixel_type != .Object) {
+                    if (p != null and p.?.*.pixel_type != .Empty and !(p.?.pixel_type == .Object and p.?.managed)) {
                         self.e.renderer.pixel.draw_pixel(p.?.*.x, p.?.*.y, p.?.*.pixel, self.current_world.tex);
                     }
                 }
@@ -406,7 +406,9 @@ pub const Game = struct {
                     self.e.renderer.pixel.pop();
                 }
                 for (0..self.game_objects.items.len) |i| {
-                    self.game_objects.items[i].draw(&self.e.renderer.pixel, self.current_world.tex);
+                    if (self.game_objects.items[i].managed) {
+                        self.game_objects.items[i].draw(&self.e.renderer.pixel, self.current_world.tex);
+                    }
                 }
                 self.e.renderer.pixel.draw_pixel(self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y, self.placement_pixel[self.placement_index].pixel, self.current_world.tex);
                 // try self.e.renderer.pixel.push();
@@ -472,16 +474,18 @@ pub const Game = struct {
                     };
                 }
                 for (0..self.game_objects.items.len) |i| {
-                    self.game_objects.items[i].update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
-                        GAME_LOG.info("Error: {any}\n", .{err});
-                        return;
-                    };
+                    if (self.game_objects.items[i].managed) {
+                        self.game_objects.items[i].update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
+                            GAME_LOG.info("Error: {any}\n", .{err});
+                            return;
+                        };
+                    }
                 }
                 while (y >= 0) : (y -= 1) {
                     var x = x_start;
                     while (x >= 0) : (x -= 1) {
                         var p = self.current_world.pixels.items[y * self.current_world.tex.width + x];
-                        if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and p.?.pixel_type != .Object) {
+                        if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and !(p.?.pixel_type == .Object and p.?.managed)) {
                             //GAME_LOG.info("updating {any}\n", .{p.?});
                             p.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
                             self.active_pixels = if (p.?.active) self.active_pixels + 1 else self.active_pixels;
@@ -594,13 +598,13 @@ pub const Game = struct {
             try self.assets.load_texture("profile", "assets/profile.jpg");
             var t = try self.assets.get_texture("profile");
             try t.scale(85, 85);
-            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) else 0, self.current_world.tex.width, try self.assets.get_texture("profile"), self.allocator));
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) else 0, self.current_world.tex.width, try self.assets.get_texture("profile"), false, false, .Object, self.allocator));
             try self.assets.load_font("envy", "assets/envy.ttf", 22, &self.e.renderer);
             try self.assets.load_font_texture("Timothy", "envy");
             try self.assets.load_font_texture("Cherney", "envy");
             const t_tex = try self.assets.get_texture("Timothy");
-            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height + t_tex.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)) else 0, self.current_world.tex.width, t_tex, self.allocator));
-            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x + @as(i32, @bitCast(t_tex.width)) + 5, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height + t_tex.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)) else 0, self.current_world.tex.width, try self.assets.get_texture("Cherney"), self.allocator));
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height + t_tex.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)) else 0, self.current_world.tex.width, t_tex, false, false, .Wood, self.allocator));
+            try self.game_objects.append(try GameObject.init(self.current_world.viewport.x + @as(i32, @bitCast(t_tex.width)) + 5, self.current_world.viewport.y + if (self.current_world.viewport.height > t.height + t_tex.height) @as(i32, @bitCast(self.current_world.viewport.height - t.height)) - @as(i32, @bitCast(t_tex.height)) else 0, self.current_world.tex.width, try self.assets.get_texture("Cherney"), false, false, .Wood, self.allocator));
         }
         if (!WASM) {
             try self.assets.load_texture("basic", "basic0.png");

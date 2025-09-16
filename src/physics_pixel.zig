@@ -847,6 +847,11 @@ pub const PhysicsPixel = struct {
                     .Grass => {
                         self.sand_update(pixels, xlimit, ylimit);
                     },
+                    .Object => {
+                        if (!self.managed) {
+                            self.down_update(pixels, xlimit, ylimit);
+                        }
+                    },
                     else => {},
                 }
                 self.react_with_neighbors(pixels, xlimit, ylimit);

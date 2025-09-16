@@ -1,6 +1,7 @@
 const std = @import("std");
 const physics_pixel = @import("physics_pixel.zig");
 const texture = @import("texture.zig");
+const common = @import("common");
 
 pub const PixelRenderer = @import("pixel_renderer.zig").PixelRenderer;
 pub const Texture = texture.Texture;
@@ -15,7 +16,6 @@ pub const GameObject = struct {
     left: bool = false,
     right: bool = false,
     jumping_duration: u32 = 0,
-    tex: *Texture,
     pixels: []*PhysicsPixel,
     allocator: std.mem.Allocator,
     status: Status = .None,
@@ -23,6 +23,7 @@ pub const GameObject = struct {
     pixel_map: std.AutoHashMap(u32, bool),
     wet_pixels: u32 = 0,
     hot_pixels: u32 = 0,
+    managed: bool,
     pub const Error = error{} || Texture.Error || std.mem.Allocator.Error;
     pub const Status = enum {
         Wet,
@@ -34,7 +35,7 @@ pub const GameObject = struct {
         a: []texture.Pixel,
     };
     const Self = @This();
-    pub fn init(x: i32, y: i32, w_width: u32, tex: *Texture, allocator: std.mem.Allocator) Error!Self {
+    pub fn init(x: i32, y: i32, w_width: u32, tex: *Texture, managed: bool, underlined: bool, pixel_type: physics_pixel.PixelType, allocator: std.mem.Allocator) Error!Self {
         var pixel_list: std.ArrayList(*PhysicsPixel) = std.ArrayList(*PhysicsPixel).init(allocator);
         var x_pix: i32 = x;
         var y_pix: i32 = y;
@@ -42,9 +43,10 @@ pub const GameObject = struct {
             if (tex.pixel_buffer[i].get_a() != 0) {
                 try pixel_list.append(try allocator.create(PhysicsPixel));
                 const indx = pixel_list.items.len - 1;
-                pixel_list.items[indx].* = PhysicsPixel.init(physics_pixel.PixelType.Object, x_pix, y_pix);
+                pixel_list.items[indx].* = PhysicsPixel.init(pixel_type, x_pix, y_pix);
                 pixel_list.items[indx].set_color(tex.pixel_buffer[i].get_r(), tex.pixel_buffer[i].get_g(), tex.pixel_buffer[i].get_b(), tex.pixel_buffer[i].get_a());
-                pixel_list.items[indx].managed = true;
+                pixel_list.items[indx].start_pixel = common.Pixel.init(tex.pixel_buffer[i].get_r(), tex.pixel_buffer[i].get_g(), tex.pixel_buffer[i].get_b(), tex.pixel_buffer[i].get_a());
+                pixel_list.items[indx].managed = managed;
             }
 
             x_pix += 1;
@@ -53,13 +55,29 @@ pub const GameObject = struct {
                 y_pix += 1;
             }
         }
+        if (underlined) {
+            x_pix = x;
+            y_pix += 1;
+            for (0..tex.width) |_| {
+                try pixel_list.append(try allocator.create(PhysicsPixel));
+                const indx = pixel_list.items.len - 1;
+                pixel_list.items[indx].* = PhysicsPixel.init(physics_pixel.PixelType.WhiteWall, x_pix, y_pix);
+                pixel_list.items[indx].managed = managed;
+
+                x_pix += 1;
+                if (@as(u32, @bitCast(x_pix)) >= (@as(u32, @bitCast(x)) + tex.width) or @as(u32, @bitCast(x_pix)) >= w_width) {
+                    x_pix = x;
+                    y_pix += 1;
+                }
+            }
+        }
         const pixels = try pixel_list.toOwnedSlice();
         var pixel_map: std.AutoHashMap(u32, bool) = std.AutoHashMap(u32, bool).init(allocator);
         for (pixels) |p| {
             try pixel_map.put(@as(u32, @bitCast(p.y)) * w_width + @as(u32, @bitCast(p.x)), true);
         }
 
-        return Self{ .tex = tex, .pixels = pixels, .pixel_map = pixel_map, .allocator = allocator, .background_buffer = .{ .status = .None, .a = try allocator.alloc(texture.Pixel, pixels.len) } };
+        return Self{ .pixels = pixels, .pixel_map = pixel_map, .allocator = allocator, .background_buffer = .{ .status = .None, .a = try allocator.alloc(texture.Pixel, pixels.len) }, .managed = managed };
     }
 
     pub fn on_object_reaction(self: *Self, pixel_type: physics_pixel.PixelType) void {
@@ -75,6 +93,10 @@ pub const GameObject = struct {
             const indx: u32 = @as(u32, @bitCast(self.pixels[i].y)) * w_width + @as(u32, @bitCast(self.pixels[i].x));
             if (indx > 0 and indx < pixels.len) {
                 self.pixels[i].on_object_reaction(Self, on_object_reaction, self);
+                const p = pixels[indx];
+                if (p != null and !p.?.managed) {
+                    self.allocator.destroy(pixels[indx].?);
+                }
                 pixels[indx] = self.pixels[i];
             }
         }
@@ -442,8 +464,10 @@ pub const GameObject = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        for (0..self.pixels.len) |i| {
-            self.allocator.destroy(self.pixels[i]);
+        if (self.managed) {
+            for (0..self.pixels.len) |i| {
+                self.allocator.destroy(self.pixels[i]);
+            }
         }
         self.allocator.free(self.pixels);
         self.allocator.free(self.background_buffer.a);

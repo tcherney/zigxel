@@ -16,7 +16,7 @@ pub const Player = struct {
     pub fn init(x: i32, y: i32, w_width: u32, tex: *game_object.Texture, allocator: std.mem.Allocator) Error!Self {
         return Self{
             .allocator = allocator,
-            .go = try GameObject.init(x, y, w_width, tex, allocator),
+            .go = try GameObject.init(x, y, w_width, tex, true, false, .Object, allocator),
             .weapon = try Weapon.init(.explosive, allocator),
         };
     }
