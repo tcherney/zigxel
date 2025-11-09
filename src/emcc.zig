@@ -23,6 +23,7 @@ fn emSdkSetupStep(b: *std.Build, emsdk: *std.Build.Dependency) !?*std.Build.Step
         emsdk_activate.step.dependOn(&emsdk_install.step);
         return emsdk_activate;
     } else {
+        std.debug.print("Path doesn't exist\n", .{});
         return null;
     }
 }
@@ -62,7 +63,8 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
         wasmlib.linkLibrary(s.?);
     }
     wasmlib.linkLibC();
-    if (b.lazyDependency("emsdk", .{})) |dep| {
+    const dep = b.dependency("emsdk", .{});
+    {
         if (try emSdkSetupStep(b, dep)) |emSdkStep| {
             wasmlib.step.dependOn(&emSdkStep.step);
         }
@@ -129,8 +131,6 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
         const run_option = b.step(name, name);
         run_option.dependOn(&run_step.step);
         return run_option;
-    } else {
-        std.debug.print("emsdk lazy dependency failed.\n", .{});
     }
     return Error.MissingDependency;
 }
