@@ -60,6 +60,8 @@ pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
         wasm_mod.addImport("engine", engine_module);
         //TODO figure out multiple preloaded files
         _ = try emcc.Build(b, lib, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", &[_][]const u8{ "assets/profile.jpg", "assets/envy.ttf" });
+        //lib.step.dependOn(wasmStep);
+        b.installArtifact(lib);
     } else {
         const exe = b.addExecutable(.{
             .name = "zigxel",

@@ -63,8 +63,7 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
         wasmlib.linkLibrary(s.?);
     }
     wasmlib.linkLibC();
-    const dep = b.dependency("emsdk", .{});
-    {
+    if (b.lazyDependency("emsdk", .{})) |dep| {
         if (try emSdkSetupStep(b, dep)) |emSdkStep| {
             wasmlib.step.dependOn(&emSdkStep.step);
         }
