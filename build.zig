@@ -35,6 +35,12 @@ pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
         .name = "libzigxel",
         .root_module = engine_module,
     });
+
+    const wasm_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "wasmzigxel",
+        .root_module = engine_module,
+    });
     engine_module.addImport("image", imglib.module("image"));
     engine_module.addImport("term", termlib.module("term"));
     engine_module.addImport("common", commonlib.module("common"));
@@ -59,9 +65,9 @@ pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
         wasm_mod.addImport("common", commonlib.module("common"));
         wasm_mod.addImport("engine", engine_module);
         //TODO figure out multiple preloaded files
-        _ = try emcc.Build(b, lib, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", &[_][]const u8{ "assets/profile.jpg", "assets/envy.ttf" });
+        _ = try emcc.Build(b, wasm_lib, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", &[_][]const u8{ "assets/profile.jpg", "assets/envy.ttf" });
         //lib.step.dependOn(wasmStep);
-        b.installArtifact(lib);
+        b.installArtifact(wasm_lib);
     } else {
         const exe = b.addExecutable(.{
             .name = "zigxel",
