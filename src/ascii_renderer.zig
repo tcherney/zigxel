@@ -173,6 +173,8 @@ pub const AsciiRenderer = struct {
         }
     }
 
+    //TODO drawline and draw text
+
     pub fn draw_symbol_bg(self: *Self, x: i32, y: i32, symbol: u8, p: texture.Pixel, dest: ?texture.Texture, bgr: u8, bgg: u8, bgb: u8) void {
         if (dest == null) {
             if (x < 0 or x >= @as(i32, @intCast(self.terminal.size.width)) or y >= @as(i32, @intCast(self.terminal.size.height)) or y < 0) {
@@ -206,7 +208,7 @@ pub const AsciiRenderer = struct {
                 dest.?.background_pixel_buffer[y_indx * dest.?.width + x_indx].set_r(bgr);
                 dest.?.background_pixel_buffer[y_indx * dest.?.width + x_indx].set_g(bgg);
                 dest.?.background_pixel_buffer[y_indx * dest.?.width + x_indx].set_b(bgb);
-                dest.?.ascii_buffer[y_indx * self.terminal.size.width + x_indx] = symbol;
+                dest.?.ascii_buffer[y_indx * dest.?.width + x_indx] = symbol;
             }
         }
     }
@@ -324,13 +326,17 @@ pub const AsciiRenderer = struct {
                 return Error.TextureError;
             } else {
                 var y: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.y))));
-                var buffer_indx: usize = 0;
                 const y_bound = bounds.?.height + y;
                 var x: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
                 const x_bound = bounds.?.width + x;
                 while (y < y_bound) : (y += 1) {
+                    if (y >= dest.?.height) break;
+                    if (y >= self.terminal.size.height) break;
                     x = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
                     while (x < x_bound) : (x += 1) {
+                        if (x >= dest.?.width) break;
+                        if (x >= self.terminal.size.width) break;
+                        const buffer_indx = y * self.terminal.size.width + x;
                         if (self.color_type == .color_256) {
                             self.pixel_buffer[buffer_indx].color_256 = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
                             self.background_pixel_buffer[buffer_indx].color_256 = dest.?.background_pixel_buffer[y * dest.?.width + x].get_r();
@@ -344,7 +350,6 @@ pub const AsciiRenderer = struct {
                             self.background_pixel_buffer[buffer_indx].color_true.b = dest.?.background_pixel_buffer[y * dest.?.width + x].get_b();
                         }
                         self.ascii_buffer[buffer_indx] = dest.?.ascii_buffer[y * dest.?.width + x];
-                        buffer_indx += 1;
                     }
                 }
             }

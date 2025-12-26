@@ -170,5 +170,6 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     try build_target(b, b.resolveTargetQuery(wasm_target), .ReleaseSmall);
-    try build_target(b, target, optimize);
+    //TODO droping linux build for now windows and web are hte primary targets
+    if (target.result.os.tag != .linux) try build_target(b, target, optimize);
 }
