@@ -174,6 +174,37 @@ pub const AsciiRenderer = struct {
     }
 
     //TODO drawline and draw text
+    pub fn draw_line(self: *Self, symbol: u8, color: texture.Pixel, p0: Point, p1: Point, dest: ?texture.Texture) void {
+        const dx: i32 = @bitCast(@abs(p1.x - p0.x));
+        const sx: i32 = if (p0.x < p1.x) 1 else -1;
+        const dy: i32 = -@as(i32, @bitCast(@abs(p1.y - p0.y)));
+        const sy: i32 = if (p0.y < p1.y) 1 else -1;
+        var err: i32 = dx + dy; // error value e_xy
+        var x0: i32 = p0.x;
+        var y0: i32 = p0.y;
+
+        while (true) {
+            self.draw_symbol(x0, y0, symbol, color, dest);
+            if (x0 == p1.x and y0 == p1.y) break;
+            const e2: i32 = 2 * err;
+            if (e2 >= dy) {
+                err += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx) {
+                err += dx;
+                y0 += sy;
+            }
+        }
+    }
+
+    pub fn draw_text(self: *Self, value: []const u8, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture) void {
+        var curr_x: i32 = x;
+        for (value) |c| {
+            self.draw_symbol_bg(curr_x, y, c, p, dest, 0, 0, 0);
+            curr_x += 1;
+        }
+    }
 
     pub fn draw_symbol_bg(self: *Self, x: i32, y: i32, symbol: u8, p: texture.Pixel, dest: ?texture.Texture, bgr: u8, bgg: u8, bgb: u8) void {
         if (dest == null) {
