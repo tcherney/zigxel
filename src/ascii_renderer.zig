@@ -173,7 +173,6 @@ pub const AsciiRenderer = struct {
         }
     }
 
-    //TODO drawline and draw text
     pub fn draw_line(self: *Self, symbol: u8, color: texture.Pixel, p0: Point, p1: Point, dest: ?texture.Texture) void {
         const dx: i32 = @bitCast(@abs(p1.x - p0.x));
         const sx: i32 = if (p0.x < p1.x) 1 else -1;
@@ -200,9 +199,19 @@ pub const AsciiRenderer = struct {
 
     pub fn draw_text(self: *Self, value: []const u8, x: i32, y: i32, p: texture.Pixel, dest: ?texture.Texture) void {
         var curr_x: i32 = x;
+        var curr_y: i32 = y;
         for (value) |c| {
-            self.draw_symbol_bg(curr_x, y, c, p, dest, 0, 0, 0);
-            curr_x += 1;
+            if (curr_x >= @as(i32, @intCast(self.terminal.size.width))) {
+                curr_x = x;
+                curr_y += 1;
+            }
+            if (c == '\n') {
+                curr_y += 1;
+                curr_x = x;
+            } else {
+                self.draw_symbol_bg(curr_x, curr_y, c, p, dest, 0, 0, 0);
+                curr_x += 1;
+            }
         }
     }
 
