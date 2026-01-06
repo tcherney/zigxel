@@ -87,7 +87,7 @@ const PIXEL_RENDERER_LOG = std.log.scoped(.pixel_renderer);
 //TODO add camera matrix for basic 3d support
 pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Image.Error;
 pub const PixelRenderer = struct {
-    ascii_based: bool = false,
+    sixel_renderer: bool = false,
     terminal: term.Term = undefined,
     pixel_buffer: []PixelType = undefined,
     last_frame: []PixelType = undefined,
@@ -539,32 +539,12 @@ pub const PixelRenderer = struct {
         try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
     }
 
-    //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
-    pub fn flip(self: *Self, dest: ?texture.Texture, bounds: ?Rectangle) Error!void {
-        if (dest != null and bounds != null) {
-            if (bounds.?.width > @as(u32, @intCast(self.pixel_width)) or bounds.?.height > @as(u32, @intCast(self.pixel_height))) {
-                return Error.TextureError;
-            } else {
-                var y: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.y))));
-                var buffer_indx: usize = 0;
-                const y_bound = bounds.?.height + y;
-                var x: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
-                const x_bound = bounds.?.width + x;
-                while (y < y_bound) : (y += 1) {
-                    x = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
-                    while (x < x_bound) : (x += 1) {
-                        if (self.color_type == .color_256) {
-                            self.pixel_buffer[buffer_indx].color_256 = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
-                        } else {
-                            self.pixel_buffer[buffer_indx].color_true.r = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
-                            self.pixel_buffer[buffer_indx].color_true.g = dest.?.pixel_buffer[y * dest.?.width + x].get_g();
-                            self.pixel_buffer[buffer_indx].color_true.b = dest.?.pixel_buffer[y * dest.?.width + x].get_b();
-                        }
-                        buffer_indx += 1;
-                    }
-                }
-            }
-        }
+    //TODO https://www.digiater.nl/openvms/decus/vax90b1/krypton-nasa/all-about-sixels.text
+    fn sixel_render(self: *Self) Error!void {
+        _ = self;
+    }
+
+    fn block_render(self: *Self) Error!void {
         var buffer_len: usize = 0;
         //std.debug.print("pixels {any}\n", .{self.pixel_buffer});
         var j: usize = 0;
@@ -781,6 +761,39 @@ pub const PixelRenderer = struct {
             try self.terminal.out(term.COLOR_RESET);
             try self.terminal.out(term.CURSOR_HIDE);
             if (self.terminal_type == .wasm) try self.terminal.out("\n");
+        }
+    }
+
+    //TODO scaling pass based on difference between render size and user window, can scale everything up to meet their resolution
+    pub fn flip(self: *Self, dest: ?texture.Texture, bounds: ?Rectangle) Error!void {
+        if (dest != null and bounds != null) {
+            if (bounds.?.width > @as(u32, @intCast(self.pixel_width)) or bounds.?.height > @as(u32, @intCast(self.pixel_height))) {
+                return Error.TextureError;
+            } else {
+                var y: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.y))));
+                var buffer_indx: usize = 0;
+                const y_bound = bounds.?.height + y;
+                var x: usize = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
+                const x_bound = bounds.?.width + x;
+                while (y < y_bound) : (y += 1) {
+                    x = @as(usize, @intCast(@as(u32, @bitCast(bounds.?.x))));
+                    while (x < x_bound) : (x += 1) {
+                        if (self.color_type == .color_256) {
+                            self.pixel_buffer[buffer_indx].color_256 = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
+                        } else {
+                            self.pixel_buffer[buffer_indx].color_true.r = dest.?.pixel_buffer[y * dest.?.width + x].get_r();
+                            self.pixel_buffer[buffer_indx].color_true.g = dest.?.pixel_buffer[y * dest.?.width + x].get_g();
+                            self.pixel_buffer[buffer_indx].color_true.b = dest.?.pixel_buffer[y * dest.?.width + x].get_b();
+                        }
+                        buffer_indx += 1;
+                    }
+                }
+            }
+        }
+        if (self.sixel_renderer) {
+            try self.sixel_render();
+        } else {
+            try self.block_render();
         }
     }
 };
