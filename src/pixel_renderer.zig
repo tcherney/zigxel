@@ -541,7 +541,73 @@ pub const PixelRenderer = struct {
 
     //TODO https://www.digiater.nl/openvms/decus/vax90b1/krypton-nasa/all-about-sixels.text
     fn sixel_render(self: *Self) Error!void {
-        _ = self;
+        var buffer_len: usize = 0;
+        var j: usize = 0;
+        var i: usize = 0;
+        const width = self.pixel_width;
+        const height = self.pixel_height;
+        var dirty_pixel_buffer: [48]u8 = undefined;
+        for (term.SIXEL_START) |c| {
+            self.terminal_buffer[buffer_len] = c;
+            buffer_len += 1;
+        }
+        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SET_SIXEL_COLOR, .{ 1, 255, 255, 255 })) |c| {
+            self.terminal_buffer[buffer_len] = c;
+            buffer_len += 1;
+        }
+        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{1})) |c| {
+            self.terminal_buffer[buffer_len] = c;
+            buffer_len += 1;
+        }
+        while (j < height) : (j += 6) {
+            i = 0;
+            while (i < width) : (i += 1) {
+                const p1 = self.pixel_buffer[(j + 0) * width + i];
+                const p2 = self.pixel_buffer[(j + 1) * width + i];
+                const p3 = self.pixel_buffer[(j + 2) * width + i];
+                const p4 = self.pixel_buffer[(j + 3) * width + i];
+                const p5 = self.pixel_buffer[(j + 4) * width + i];
+                const p6 = self.pixel_buffer[(j + 5) * width + i];
+                const sixel_char = self.to_sixel(p1, p2, p3, p4, p5, p6);
+                self.terminal_buffer[buffer_len] = sixel_char;
+                buffer_len += 1;
+            }
+            for (term.SIXEL_NEWLINE) |c| {
+                self.terminal_buffer[buffer_len] = c;
+                buffer_len += 1;
+            }
+        }
+        for (term.SIXEL_END) |c| {
+            self.terminal_buffer[buffer_len] = c;
+            buffer_len += 1;
+        }
+
+        if (buffer_len > 0) {
+            try self.terminal.out(self.terminal_buffer[0..buffer_len]);
+        }
+    }
+
+    fn to_sixel(p1: PixelType, p2: PixelType, p3: PixelType, p4: PixelType, p5: PixelType, p6: PixelType) u8 {
+        var result: u8 = 0;
+        if (p1.color_true.r != 0 or p1.color_true.g != 0 or p1.color_true.b != 0) {
+            result |= 0b00000001;
+        }
+        if (p2.color_true.r != 0 or p2.color_true.g != 0 or p2.color_true.b != 0) {
+            result |= 0b00000010;
+        }
+        if (p3.color_true.r != 0 or p3.color_true.g != 0 or p3.color_true.b != 0) {
+            result |= 0b00000100;
+        }
+        if (p4.color_true.r != 0 or p4.color_true.g != 0 or p4.color_true.b != 0) {
+            result |= 0b00001000;
+        }
+        if (p5.color_true.r != 0 or p5.color_true.g != 0 or p5.color_true.b != 0) {
+            result |= 0b00010000;
+        }
+        if (p6.color_true.r != 0 or p6.color_true.g != 0 or p6.color_true.b != 0) {
+            result |= 0b00100000;
+        }
+        return result + 63;
     }
 
     fn block_render(self: *Self) Error!void {
