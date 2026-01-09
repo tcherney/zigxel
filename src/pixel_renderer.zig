@@ -547,7 +547,7 @@ pub const PixelRenderer = struct {
         const width = self.pixel_width;
         const height = self.pixel_height;
         var dirty_pixel_buffer: [48]u8 = undefined;
-        for (term.SIXEL_START) |c| {
+        for (term.SIXEL_START_DEFAULT) |c| {
             self.terminal_buffer[buffer_len] = c;
             buffer_len += 1;
         }
@@ -568,11 +568,11 @@ pub const PixelRenderer = struct {
                 const p4 = self.pixel_buffer[(j + 3) * width + i];
                 const p5 = self.pixel_buffer[(j + 4) * width + i];
                 const p6 = self.pixel_buffer[(j + 5) * width + i];
-                const sixel_char = self.to_sixel(p1, p2, p3, p4, p5, p6);
+                const sixel_char = to_sixel(p1, p2, p3, p4, p5, p6);
                 self.terminal_buffer[buffer_len] = sixel_char;
                 buffer_len += 1;
             }
-            for (term.SIXEL_NEWLINE) |c| {
+            for (term.SIXEL_NEW_LINE) |c| {
                 self.terminal_buffer[buffer_len] = c;
                 buffer_len += 1;
             }
@@ -583,6 +583,7 @@ pub const PixelRenderer = struct {
         }
 
         if (buffer_len > 0) {
+            PIXEL_RENDERER_LOG.info("{s}\n", .{self.terminal_buffer[0..buffer_len]});
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
         }
     }
