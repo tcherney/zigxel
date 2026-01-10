@@ -150,7 +150,7 @@ pub const PixelRenderer = struct {
             .pixel_buffer = pixel_buffer,
             .last_frame = last_frame,
             // need space for setting background and setting of foreground color for every pixel
-            .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width * 2) + 200)),
+            .terminal_buffer = try allocator.alloc(u8, ((term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width * 2) + 200)) * 2),
             .text_to_render = std.ArrayList(Text).init(allocator),
             .stack = switch (graphics_type) {
                 ._2d => .{ ._2d = try MatrixStack(._2d).init(allocator) },
@@ -195,7 +195,7 @@ pub const PixelRenderer = struct {
         self.terminal.size = .{ .width = size.width, .height = size.height };
         self.pixel_width = size.width;
         self.pixel_height = size.height * 2;
-        self.terminal_buffer = try self.allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((self.pixel_width * self.pixel_height) + 200));
+        self.terminal_buffer = try self.allocator.alloc(u8, ((term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((self.pixel_width * self.pixel_height) + 200)) * 2);
         self.allocator.free(self.pixel_buffer);
         self.pixel_buffer = try self.allocator.alloc(PixelType, self.pixel_width * self.pixel_height * 2);
         for (0..self.pixel_buffer.len) |i| {
@@ -551,26 +551,38 @@ pub const PixelRenderer = struct {
             self.terminal_buffer[buffer_len] = c;
             buffer_len += 1;
         }
-        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SET_SIXEL_COLOR, .{ 1, 255, 255, 255 })) |c| {
-            self.terminal_buffer[buffer_len] = c;
-            buffer_len += 1;
-        }
-        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{1})) |c| {
-            self.terminal_buffer[buffer_len] = c;
-            buffer_len += 1;
-        }
-        while (j < height) : (j += 6) {
-            i = 0;
-            while (i < width) : (i += 1) {
-                const p1 = self.pixel_buffer[(j + 0) * width + i];
-                const p2 = self.pixel_buffer[(j + 1) * width + i];
-                const p3 = self.pixel_buffer[(j + 2) * width + i];
-                const p4 = self.pixel_buffer[(j + 3) * width + i];
-                const p5 = self.pixel_buffer[(j + 4) * width + i];
-                const p6 = self.pixel_buffer[(j + 5) * width + i];
-                const sixel_char = to_sixel(p1, p2, p3, p4, p5, p6);
-                self.terminal_buffer[buffer_len] = sixel_char;
+        for (0..term.MAX_COLOR) |k| {
+            for (term.SIXEL_COLORS[k]) |c| {
+                self.terminal_buffer[buffer_len] = c;
                 buffer_len += 1;
+            }
+        }
+
+        i = 0;
+
+        while (i < height) : (i += 6) {
+            for (0..term.MAX_COLOR) |k| {
+                for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
+                    self.terminal_buffer[buffer_len] = c;
+                    buffer_len += 1;
+                }
+                const on_color = @as(u8, @intCast(k));
+                j = 0;
+                while (j < width) : (j += 1) {
+                    const p1 = self.pixel_buffer[(i + 0) * width + j];
+                    const p2 = self.pixel_buffer[(i + 1) * width + j];
+                    const p3 = self.pixel_buffer[(i + 2) * width + j];
+                    const p4 = self.pixel_buffer[(i + 3) * width + j];
+                    const p5 = self.pixel_buffer[(i + 4) * width + j];
+                    const p6 = self.pixel_buffer[(i + 5) * width + j];
+                    const sixel_char = to_sixel_256(term.rgb_256(p1.color_true.r, p1.color_true.g, p1.color_true.b), term.rgb_256(p2.color_true.r, p2.color_true.g, p2.color_true.b), term.rgb_256(p3.color_true.r, p3.color_true.g, p3.color_true.b), term.rgb_256(p4.color_true.r, p4.color_true.g, p4.color_true.b), term.rgb_256(p5.color_true.r, p5.color_true.g, p5.color_true.b), term.rgb_256(p6.color_true.r, p6.color_true.g, p6.color_true.b), on_color);
+                    self.terminal_buffer[buffer_len] = sixel_char;
+                    buffer_len += 1;
+                }
+                for (term.SIXEL_RESET_LINE) |c| {
+                    self.terminal_buffer[buffer_len] = c;
+                    buffer_len += 1;
+                }
             }
             for (term.SIXEL_NEW_LINE) |c| {
                 self.terminal_buffer[buffer_len] = c;
@@ -588,24 +600,48 @@ pub const PixelRenderer = struct {
         }
     }
 
-    fn to_sixel(p1: PixelType, p2: PixelType, p3: PixelType, p4: PixelType, p5: PixelType, p6: PixelType) u8 {
+    fn to_sixel(p1: PixelType, p2: PixelType, p3: PixelType, p4: PixelType, p5: PixelType, p6: PixelType, on_color: struct { r: u8, g: u8, b: u8 }) u8 {
+        const ERROR_THRESHOLD: u8 = 10;
         var result: u8 = 0;
-        if (p1.color_true.r != 0 or p1.color_true.g != 0 or p1.color_true.b != 0) {
+        if (p1.color_true.r >= (on_color.r - ERROR_THRESHOLD) and p1.color_true.g >= (on_color.g - ERROR_THRESHOLD) and p1.color_true.b >= (on_color.b - ERROR_THRESHOLD)) {
             result |= 0b00000001;
         }
-        if (p2.color_true.r != 0 or p2.color_true.g != 0 or p2.color_true.b != 0) {
+        if (p2.color_true.r >= (on_color.r - ERROR_THRESHOLD) and p2.color_true.g >= (on_color.g - ERROR_THRESHOLD) and p2.color_true.b >= (on_color.b - ERROR_THRESHOLD)) {
             result |= 0b00000010;
         }
-        if (p3.color_true.r != 0 or p3.color_true.g != 0 or p3.color_true.b != 0) {
+        if (p3.color_true.r >= (on_color.r - ERROR_THRESHOLD) and p3.color_true.g >= (on_color.g - ERROR_THRESHOLD) and p3.color_true.b >= (on_color.b - ERROR_THRESHOLD)) {
             result |= 0b00000100;
         }
-        if (p4.color_true.r != 0 or p4.color_true.g != 0 or p4.color_true.b != 0) {
+        if (p4.color_true.r >= (on_color.r - ERROR_THRESHOLD) and p4.color_true.g >= (on_color.g - ERROR_THRESHOLD) and p4.color_true.b >= (on_color.b - ERROR_THRESHOLD)) {
             result |= 0b00001000;
         }
-        if (p5.color_true.r != 0 or p5.color_true.g != 0 or p5.color_true.b != 0) {
+        if (p5.color_true.r >= (on_color.r - ERROR_THRESHOLD) and p5.color_true.g >= (on_color.g - ERROR_THRESHOLD) and p5.color_true.b >= (on_color.b - ERROR_THRESHOLD)) {
             result |= 0b00010000;
         }
-        if (p6.color_true.r != 0 or p6.color_true.g != 0 or p6.color_true.b != 0) {
+        if (p6.color_true.r >= (on_color.r - ERROR_THRESHOLD) and p6.color_true.g >= (on_color.g - ERROR_THRESHOLD) and p6.color_true.b >= (on_color.b - ERROR_THRESHOLD)) {
+            result |= 0b00100000;
+        }
+        return result + 63;
+    }
+
+    fn to_sixel_256(p1: u8, p2: u8, p3: u8, p4: u8, p5: u8, p6: u8, on_color: u8) u8 {
+        var result: u8 = 0;
+        if (p1 == on_color) {
+            result |= 0b00000001;
+        }
+        if (p2 == on_color) {
+            result |= 0b00000010;
+        }
+        if (p3 == on_color) {
+            result |= 0b00000100;
+        }
+        if (p4 == on_color) {
+            result |= 0b00001000;
+        }
+        if (p5 == on_color) {
+            result |= 0b00010000;
+        }
+        if (p6 == on_color) {
             result |= 0b00100000;
         }
         return result + 63;
