@@ -539,20 +539,22 @@ pub const PixelRenderer = struct {
         try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
     }
 
-    //TODO RLE done, need to figure out white bar and black bar issues
+    var dirty_pixel_buffer: [48]u8 = undefined;
+    //TODO sixels can have much more colors than block characters, need to change how we allocater the terminal buffer and store height/width
     fn sixel_loop(self: *Self, buffer_len: *usize, i: *usize, j: *usize) !void {
-        var dirty_pixel_buffer: [48]u8 = undefined;
         for (0..term.MAX_COLOR) |k| {
-            for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
-                self.terminal_buffer[buffer_len.*] = c;
-                buffer_len.* += 1;
-            }
             const on_color = @as(u8, @intCast(k));
             j.* = 0;
             var previous_sixel: u8 = 0;
             var previous_sixel_count: usize = 0;
-            const RLE_ENABLED = false;
+            var first_color: bool = true;
+            const RLE_ENABLED = true;
             while (j.* < self.pixel_width) : (j.* += 1) {
+                if (j.* == 100) {
+                    const test_pixel = self.pixel_buffer[(i.* + 0) * self.pixel_width + j.*];
+                    std.debug.print("{any}", .{test_pixel});
+                    std.debug.print("\n{any}", .{term.rgb_256(test_pixel.color_true.r, test_pixel.color_true.g, test_pixel.color_true.b)});
+                }
                 var pixels: [6]PixelType = undefined;
                 var num_pixels: usize = 0;
                 for (0..6) |idx| {
@@ -567,7 +569,19 @@ pub const PixelRenderer = struct {
                         }
                     }
                 }
-                var sixel_char = to_sixel_256(term.rgb_256(pixels[0].color_true.r, pixels[0].color_true.g, pixels[0].color_true.b), term.rgb_256(pixels[1].color_true.r, pixels[1].color_true.g, pixels[1].color_true.b), term.rgb_256(pixels[2].color_true.r, pixels[2].color_true.g, pixels[2].color_true.b), term.rgb_256(pixels[3].color_true.r, pixels[3].color_true.g, pixels[3].color_true.b), term.rgb_256(pixels[4].color_true.r, pixels[4].color_true.g, pixels[4].color_true.b), term.rgb_256(pixels[5].color_true.r, pixels[5].color_true.g, pixels[5].color_true.b), on_color);
+                var sixel_char: u8 = 0;
+                if (self.color_type == .color_256) {
+                    sixel_char = to_sixel_256(pixels[0].color_256, pixels[1].color_256, pixels[2].color_256, pixels[3].color_256, pixels[4].color_256, pixels[5].color_256, on_color);
+                } else {
+                    // convert truecolor rows into 256-index for sixel matching
+                    const c0 = term.rgb_256(pixels[0].color_true.r, pixels[0].color_true.g, pixels[0].color_true.b);
+                    const c1 = term.rgb_256(pixels[1].color_true.r, pixels[1].color_true.g, pixels[1].color_true.b);
+                    const c2 = term.rgb_256(pixels[2].color_true.r, pixels[2].color_true.g, pixels[2].color_true.b);
+                    const c3 = term.rgb_256(pixels[3].color_true.r, pixels[3].color_true.g, pixels[3].color_true.b);
+                    const c4 = term.rgb_256(pixels[4].color_true.r, pixels[4].color_true.g, pixels[4].color_true.b);
+                    const c5 = term.rgb_256(pixels[5].color_true.r, pixels[5].color_true.g, pixels[5].color_true.b);
+                    sixel_char = to_sixel_256(c0, c1, c2, c3, c4, c5, on_color);
+                }
                 for (0..6 - num_pixels) |l| {
                     sixel_char &= ~(@as(u8, @intCast(1)) << 5 - @as(u3, @intCast(l)));
                 }
@@ -575,6 +589,13 @@ pub const PixelRenderer = struct {
                     if (sixel_char == previous_sixel) {
                         previous_sixel_count += 1;
                     } else {
+                        if (first_color and previous_sixel_count > 0) {
+                            for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
+                                self.terminal_buffer[buffer_len.*] = c;
+                                buffer_len.* += 1;
+                            }
+                            first_color = false;
+                        }
                         if (previous_sixel_count > 3) {
                             var remaining = previous_sixel_count;
                             while (remaining > 0) {
@@ -600,34 +621,50 @@ pub const PixelRenderer = struct {
                         previous_sixel_count = 1;
                     }
                 } else {
+                    if (first_color) {
+                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
+                            self.terminal_buffer[buffer_len.*] = c;
+                            buffer_len.* += 1;
+                        }
+                        first_color = false;
+                    }
                     self.terminal_buffer[buffer_len.*] = sixel_char;
                     buffer_len.* += 1;
                 }
             }
             // flush remaining
             if (RLE_ENABLED) {
-                if (previous_sixel_count > 3) {
-                    var remaining = previous_sixel_count;
-                    while (remaining > 0) {
-                        const to_write = if (remaining > 255) 255 else remaining;
-                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_REPEAT ++ "{c}", .{ to_write, previous_sixel })) |c| {
-                            self.terminal_buffer[buffer_len.*] = c;
-                            buffer_len.* += 1;
-                        }
-                        remaining -= to_write;
+                if (first_color and previous_sixel_count > 0 and previous_sixel != '?') {
+                    for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
+                        self.terminal_buffer[buffer_len.*] = c;
+                        buffer_len.* += 1;
                     }
-                } else {
-                    if (previous_sixel_count > 0) {
-                        for (0..previous_sixel_count) |_| {
-                            self.terminal_buffer[buffer_len.*] = previous_sixel;
-                            buffer_len.* += 1;
+                    first_color = false;
+                    if (previous_sixel_count > 3) {
+                        var remaining = previous_sixel_count;
+                        while (remaining > 0) {
+                            const to_write = if (remaining > 255) 255 else remaining;
+                            for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_REPEAT ++ "{c}", .{ to_write, previous_sixel })) |c| {
+                                self.terminal_buffer[buffer_len.*] = c;
+                                buffer_len.* += 1;
+                            }
+                            remaining -= to_write;
+                        }
+                    } else {
+                        if (previous_sixel_count > 0) {
+                            for (0..previous_sixel_count) |_| {
+                                self.terminal_buffer[buffer_len.*] = previous_sixel;
+                                buffer_len.* += 1;
+                            }
                         }
                     }
                 }
             }
-            for (term.SIXEL_RESET_LINE) |c| {
-                self.terminal_buffer[buffer_len.*] = c;
-                buffer_len.* += 1;
+            if (!first_color) {
+                for (term.SIXEL_RESET_LINE) |c| {
+                    self.terminal_buffer[buffer_len.*] = c;
+                    buffer_len.* += 1;
+                }
             }
         }
         for (term.SIXEL_NEW_LINE) |c| {
@@ -641,7 +678,11 @@ pub const PixelRenderer = struct {
         var buffer_len: usize = 0;
         var j: usize = 0;
         var i: usize = 0;
-        for (term.SIXEL_START_DEFAULT) |c| {
+        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ 0, 0, 0 })) |c| {
+            self.terminal_buffer[buffer_len] = c;
+            buffer_len += 1;
+        }
+        for (term.SIXEL_START) |c| {
             self.terminal_buffer[buffer_len] = c;
             buffer_len += 1;
         }
@@ -658,6 +699,7 @@ pub const PixelRenderer = struct {
         }
         // handle remaining lines
         if (i < self.pixel_height) {
+            PIXEL_RENDERER_LOG.info("handling remaining lines {d}\n", .{self.pixel_height - i});
             try self.sixel_loop(&buffer_len, &i, &j);
         }
         for (term.SIXEL_END) |c| {
@@ -666,7 +708,9 @@ pub const PixelRenderer = struct {
         }
 
         if (buffer_len > 0) {
-            PIXEL_RENDERER_LOG.info("{s}\n", .{self.terminal_buffer[0..buffer_len]});
+            PIXEL_RENDERER_LOG.info("\n{s}\n", .{self.terminal_buffer[0..buffer_len]});
+            try self.terminal.out(term.SCREEN_CLEAR);
+            try self.terminal.out(term.CURSOR_HOME);
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
         }
     }
@@ -727,7 +771,6 @@ pub const PixelRenderer = struct {
         const height = self.pixel_height;
         var prev_fg_pixel: PixelType = self.pixel_buffer[j * width + i];
         var prev_bg_pixel: PixelType = self.pixel_buffer[(j + 1) * width + i];
-        var dirty_pixel_buffer: [48]u8 = undefined;
         if (self.color_type == .color_256) {
             for (term.FG[prev_fg_pixel.color_256]) |c| {
                 self.terminal_buffer[buffer_len] = c;
