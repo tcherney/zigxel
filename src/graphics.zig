@@ -19,7 +19,7 @@ pub const Graphics = union(enum) {
         switch (renderer_type) {
             .pixel => {
                 return .{
-                    .pixel = try PixelRenderer.init(allocator, graphics_type, color_type, terminal_type),
+                    .pixel = try PixelRenderer.init(allocator, graphics_type, color_type, terminal_type, renderer_type),
                 };
             },
             .ascii => {

@@ -18,6 +18,7 @@ pub const ColorMode = graphics_enums.ColorMode;
 pub const Allocator = std.mem.Allocator;
 pub const PixelType = graphics_enums.PixelType;
 pub const TerminalType = graphics_enums.TerminalType;
+pub const RenderType = graphics_enums.RendererType;
 
 fn MatrixStack(comptime T: GraphicsType) type {
     return struct {
@@ -125,10 +126,13 @@ pub const PixelRenderer = struct {
     const Self = @This();
     pub const Text = struct { x: i32, y: i32, r: u8, g: u8, b: u8, value: []const u8 };
 
-    pub fn init(allocator: std.mem.Allocator, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType) Error!Self {
+    pub fn init(allocator: std.mem.Allocator, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, renderer_type: RenderType) Error!Self {
         var terminal = try term.Term.init(allocator);
         if (terminal_type == .native) try terminal.on();
-        var pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 4);
+        const sixel_renderer = renderer_type == .sixel;
+        const pixel_width = if (sixel_renderer) terminal.size.width * 10 else terminal.size.width;
+        const pixel_height = if (sixel_renderer) terminal.size.height * 20 else terminal.size.height * 2;
+        var pixel_buffer = try allocator.alloc(PixelType, pixel_height * pixel_width * 2);
         for (0..pixel_buffer.len) |i| {
             if (color_type == .color_256) {
                 pixel_buffer[i] = .{ .color_256 = 0 };
@@ -136,7 +140,7 @@ pub const PixelRenderer = struct {
                 pixel_buffer[i] = .{ .color_true = .{} };
             }
         }
-        var last_frame = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 4);
+        var last_frame = try allocator.alloc(PixelType, pixel_height * pixel_width * 2);
         for (0..last_frame.len) |i| {
             if (color_type == .color_256) {
                 last_frame[i] = .{ .color_256 = 0 };
@@ -144,20 +148,22 @@ pub const PixelRenderer = struct {
                 last_frame[i] = .{ .color_true = .{} };
             }
         }
+
         return Self{
             .terminal = terminal,
             .allocator = allocator,
             .pixel_buffer = pixel_buffer,
             .last_frame = last_frame,
+            .sixel_renderer = sixel_renderer,
             // need space for setting background and setting of foreground color for every pixel
-            .terminal_buffer = try allocator.alloc(u8, ((term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width * 2) + 200)) * 2),
+            .terminal_buffer = try allocator.alloc(u8, ((term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((pixel_width * pixel_height * 2) + 200))),
             .text_to_render = std.ArrayList(Text).init(allocator),
             .stack = switch (graphics_type) {
                 ._2d => .{ ._2d = try MatrixStack(._2d).init(allocator) },
                 ._3d => .{ ._3d = try MatrixStack(._3d).init(allocator) },
             },
-            .pixel_width = terminal.size.width,
-            .pixel_height = terminal.size.height * 2,
+            .pixel_width = pixel_width,
+            .pixel_height = pixel_height,
             .color_type = color_type,
             .graphics_type = graphics_type,
             .terminal_type = terminal_type,
@@ -193,9 +199,9 @@ pub const PixelRenderer = struct {
         self.allocator.free(self.terminal_buffer);
         self.allocator.free(self.last_frame);
         self.terminal.size = .{ .width = size.width, .height = size.height };
-        self.pixel_width = size.width;
-        self.pixel_height = size.height * 2;
-        self.terminal_buffer = try self.allocator.alloc(u8, ((term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((self.pixel_width * self.pixel_height) + 200)) * 2);
+        self.pixel_width = if (self.sixel_renderer) size.width * 10 else size.width;
+        self.pixel_height = if (self.sixel_renderer) size.height * 20 else size.height * 2;
+        self.terminal_buffer = try self.allocator.alloc(u8, ((term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((self.pixel_width * self.pixel_height) + 200)));
         self.allocator.free(self.pixel_buffer);
         self.pixel_buffer = try self.allocator.alloc(PixelType, self.pixel_width * self.pixel_height * 2);
         for (0..self.pixel_buffer.len) |i| {

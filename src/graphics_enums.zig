@@ -1,4 +1,4 @@
-pub const RendererType = enum { pixel, ascii };
+pub const RendererType = enum { pixel, ascii, sixel };
 pub const ColorMode = enum {
     color_256,
     color_true,
