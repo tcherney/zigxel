@@ -17,7 +17,7 @@ pub const Graphics = union(enum) {
     ascii: AsciiRenderer,
     pub fn init(allocator: std.mem.Allocator, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType) Error!Graphics {
         switch (renderer_type) {
-            .pixel => {
+            .pixel, .sixel => {
                 return .{
                     .pixel = try PixelRenderer.init(allocator, graphics_type, color_type, terminal_type, renderer_type),
                 };

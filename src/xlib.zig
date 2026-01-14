@@ -2,10 +2,10 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const XLIB_LOG = std.log.scoped(.xlib);
-
+pub const ENABLED = false;
 pub const Error = error{InvalidEvent};
 
-pub const Xlib = if (builtin.os.tag == .linux) struct {
+pub const Xlib = if (builtin.os.tag == .linux and ENABLED) struct {
     display: ?*c._XDisplay,
     window: c_ulong,
     event: c.XEvent = undefined,

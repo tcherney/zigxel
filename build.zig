@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const emcc = @import("src/emcc.zig");
+const xlib = @import("src/xlib.zig").ENABLED;
 
 const wasm_target: std.Target.Query = .{ .cpu_arch = .wasm32, .os_tag = .emscripten };
 
@@ -49,7 +50,7 @@ pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
     engine_module.addImport("graphics", graphics_module);
     engine_module.addImport("texture", texture_module);
     engine_module.addImport("sprite", sprite_module);
-    if (builtin.target.os.tag == .linux and target.result.os.tag != .emscripten) {
+    if (builtin.target.os.tag == .linux and target.result.os.tag != .emscripten and xlib) {
         lib.linkLibC();
         lib.addIncludePath(b.path("../../../linuxbrew/.linuxbrew/include"));
         lib.linkSystemLibrary("X11");
@@ -171,5 +172,5 @@ pub fn build(b: *std.Build) !void {
 
     try build_target(b, b.resolveTargetQuery(wasm_target), .ReleaseSmall);
     //TODO droping linux build for now windows and web are hte primary targets
-    if (target.result.os.tag != .linux) try build_target(b, target, optimize);
+    if ((target.result.os.tag == .linux and !xlib)) try build_target(b, target, optimize);
 }

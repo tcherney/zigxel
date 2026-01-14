@@ -556,11 +556,6 @@ pub const PixelRenderer = struct {
             var first_color: bool = true;
             const RLE_ENABLED = true;
             while (j.* < self.pixel_width) : (j.* += 1) {
-                if (j.* == 100) {
-                    const test_pixel = self.pixel_buffer[(i.* + 0) * self.pixel_width + j.*];
-                    std.debug.print("{any}", .{test_pixel});
-                    std.debug.print("\n{any}", .{term.rgb_256(test_pixel.color_true.r, test_pixel.color_true.g, test_pixel.color_true.b)});
-                }
                 var pixels: [6]PixelType = undefined;
                 var num_pixels: usize = 0;
                 for (0..6) |idx| {
