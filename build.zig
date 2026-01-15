@@ -172,5 +172,5 @@ pub fn build(b: *std.Build) !void {
 
     try build_target(b, b.resolveTargetQuery(wasm_target), .ReleaseSmall);
     //TODO droping linux build for now windows and web are hte primary targets
-    if ((target.result.os.tag == .linux and !xlib)) try build_target(b, target, optimize);
+    if (!(target.result.os.tag == .linux and xlib)) try build_target(b, target, optimize);
 }

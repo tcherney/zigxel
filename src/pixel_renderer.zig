@@ -546,20 +546,20 @@ pub const PixelRenderer = struct {
     }
 
     var dirty_pixel_buffer: [48]u8 = undefined;
-    //TODO sixels can have much more colors than block characters, need to change how we allocater the terminal buffer and store height/width
-    fn sixel_loop(self: *Self, buffer_len: *usize, i: *usize, j: *usize) !void {
+    //TODO now that we can store more pixels for some reason if image is too big we start cutting off the top, also something is weird with RLE when using the increased pixels
+    fn sixel_loop(self: *Self, buffer_len: *usize, i: *usize, j: *usize, width: usize, height: usize) !void {
         for (0..term.MAX_COLOR) |k| {
             const on_color = @as(u8, @intCast(k));
             j.* = 0;
             var previous_sixel: u8 = 0;
             var previous_sixel_count: usize = 0;
             var first_color: bool = true;
-            const RLE_ENABLED = true;
-            while (j.* < self.pixel_width) : (j.* += 1) {
+            const RLE_ENABLED = false;
+            while (j.* < width) : (j.* += 1) {
                 var pixels: [6]PixelType = undefined;
                 var num_pixels: usize = 0;
                 for (0..6) |idx| {
-                    if ((i.* + idx) < self.pixel_height) {
+                    if ((i.* + idx) < height) {
                         pixels[idx] = self.pixel_buffer[(i.* + idx) * self.pixel_width + j.*];
                         num_pixels += 1;
                     } else {
@@ -675,7 +675,7 @@ pub const PixelRenderer = struct {
     }
 
     //TODO https://www.digiater.nl/openvms/decus/vax90b1/krypton-nasa/all-about-sixels.text
-    fn sixel_render(self: *Self) Error!void {
+    fn sixel_render(self: *Self, width: usize, height: usize) Error!void {
         var buffer_len: usize = 0;
         var j: usize = 0;
         var i: usize = 0;
@@ -695,13 +695,13 @@ pub const PixelRenderer = struct {
         }
 
         i = 0;
-        while (i < self.pixel_height) : (i += 6) {
-            try self.sixel_loop(&buffer_len, &i, &j);
+        while (i < height) : (i += 6) {
+            try self.sixel_loop(&buffer_len, &i, &j, width, height);
         }
         // handle remaining lines
-        if (i < self.pixel_height) {
-            PIXEL_RENDERER_LOG.info("handling remaining lines {d}\n", .{self.pixel_height - i});
-            try self.sixel_loop(&buffer_len, &i, &j);
+        if (i < height) {
+            PIXEL_RENDERER_LOG.info("handling remaining lines {d}\n", .{height - i});
+            try self.sixel_loop(&buffer_len, &i, &j, width, height);
         }
         for (term.SIXEL_END) |c| {
             self.terminal_buffer[buffer_len] = c;
@@ -709,7 +709,7 @@ pub const PixelRenderer = struct {
         }
 
         if (buffer_len > 0) {
-            PIXEL_RENDERER_LOG.info("\n{s}\n", .{self.terminal_buffer[0..buffer_len]});
+            //PIXEL_RENDERER_LOG.info("\n{s}\n", .{self.terminal_buffer[0..buffer_len]});
             try self.terminal.out(term.SCREEN_CLEAR);
             try self.terminal.out(term.CURSOR_HOME);
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
@@ -763,15 +763,13 @@ pub const PixelRenderer = struct {
         return result + 63;
     }
 
-    fn block_render(self: *Self) Error!void {
+    fn block_render(self: *Self, width: usize, height: usize) Error!void {
         var buffer_len: usize = 0;
         //std.debug.print("pixels {any}\n", .{self.pixel_buffer});
         var j: usize = 0;
         var i: usize = 0;
-        const width = self.pixel_width;
-        const height = self.pixel_height;
-        var prev_fg_pixel: PixelType = self.pixel_buffer[j * width + i];
-        var prev_bg_pixel: PixelType = self.pixel_buffer[(j + 1) * width + i];
+        var prev_fg_pixel: PixelType = self.pixel_buffer[j * self.pixel_width + i];
+        var prev_bg_pixel: PixelType = self.pixel_buffer[(j + 1) * self.pixel_width + i];
         if (self.color_type == .color_256) {
             for (term.FG[prev_fg_pixel.color_256]) |c| {
                 self.terminal_buffer[buffer_len] = c;
@@ -802,10 +800,10 @@ pub const PixelRenderer = struct {
         while (j < height) : (j += 2) {
             i = 0;
             while (i < width) : (i += 1) {
-                const fg_pixel = self.pixel_buffer[j * width + i];
-                const bg_pixel = self.pixel_buffer[(j + 1) * width + i];
-                const last_fg_pixel = self.last_frame[j * width + i];
-                const last_bg_pixel = self.last_frame[(j + 1) * width + i];
+                const fg_pixel = self.pixel_buffer[j * self.pixel_width + i];
+                const bg_pixel = self.pixel_buffer[(j + 1) * self.pixel_width + i];
+                const last_fg_pixel = self.last_frame[j * self.pixel_width + i];
+                const last_bg_pixel = self.last_frame[(j + 1) * self.pixel_width + i];
                 if (!self.first_render) {
                     switch (self.color_type) {
                         .color_256 => {
@@ -828,8 +826,8 @@ pub const PixelRenderer = struct {
 
                 switch (self.color_type) {
                     .color_256 => {
-                        self.last_frame[j * width + i] = fg_pixel;
-                        self.last_frame[(j + 1) * width + i] = bg_pixel;
+                        self.last_frame[j * self.pixel_width + i] = fg_pixel;
+                        self.last_frame[(j + 1) * self.pixel_width + i] = bg_pixel;
                         if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel) and !fg_pixel.eql(bg_pixel)) {
                             for (LOWER_PX) |c| {
                                 self.terminal_buffer[buffer_len] = c;
@@ -863,12 +861,12 @@ pub const PixelRenderer = struct {
                         }
                     },
                     .color_true => {
-                        self.last_frame[j * width + i].color_true.r = fg_pixel.color_true.r;
-                        self.last_frame[j * width + i].color_true.g = fg_pixel.color_true.g;
-                        self.last_frame[j * width + i].color_true.b = fg_pixel.color_true.b;
-                        self.last_frame[(j + 1) * width + i].color_true.r = bg_pixel.color_true.r;
-                        self.last_frame[(j + 1) * width + i].color_true.g = bg_pixel.color_true.g;
-                        self.last_frame[(j + 1) * width + i].color_true.b = bg_pixel.color_true.b;
+                        self.last_frame[j * self.pixel_width + i].color_true.r = fg_pixel.color_true.r;
+                        self.last_frame[j * self.pixel_width + i].color_true.g = fg_pixel.color_true.g;
+                        self.last_frame[j * self.pixel_width + i].color_true.b = fg_pixel.color_true.b;
+                        self.last_frame[(j + 1) * self.pixel_width + i].color_true.r = bg_pixel.color_true.r;
+                        self.last_frame[(j + 1) * self.pixel_width + i].color_true.g = bg_pixel.color_true.g;
+                        self.last_frame[(j + 1) * self.pixel_width + i].color_true.b = bg_pixel.color_true.b;
                         if (bg_pixel.eql(prev_fg_pixel) and fg_pixel.eql(prev_bg_pixel) and !fg_pixel.eql(bg_pixel)) {
                             for (LOWER_PX) |c| {
                                 self.terminal_buffer[buffer_len] = c;
@@ -931,7 +929,7 @@ pub const PixelRenderer = struct {
                             }
 
                             for (t.value, 0..) |c, z| {
-                                const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
+                                const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * self.pixel_width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
                                 if (!prev_bg_pixel.eql(bg_pixel)) {
                                     prev_bg_pixel = bg_pixel;
                                     for (term.BG[bg_pixel.color_256]) |ci| {
@@ -954,7 +952,7 @@ pub const PixelRenderer = struct {
                                 }
                             }
                             for (t.value, 0..) |c, z| {
-                                const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
+                                const bg_pixel = self.pixel_buffer[(@as(usize, @intCast(@as(u32, @bitCast(t.y)))) + 1) * self.pixel_width + @as(usize, @intCast(@as(u32, @bitCast(t.x)))) + z];
                                 if (!prev_bg_pixel.eql(bg_pixel)) {
                                     prev_bg_pixel.color_true.r = bg_pixel.color_true.r;
                                     prev_bg_pixel.color_true.g = bg_pixel.color_true.g;
@@ -1008,10 +1006,13 @@ pub const PixelRenderer = struct {
                 }
             }
         }
+        const width = if (bounds != null) @min(self.pixel_width, @as(usize, @intCast(@as(u32, @bitCast(bounds.?.width))))) else self.pixel_width;
+        const height = if (bounds != null) @min(self.pixel_height, @as(usize, @intCast(@as(u32, @bitCast(bounds.?.height))))) else self.pixel_height;
+        PIXEL_RENDERER_LOG.info("Rendering at {d}x{d} pixel dims {d}x{d} bounds dims {d}x{d}\n", .{ width, height, self.pixel_width, self.pixel_height, if (bounds != null) @as(usize, @intCast(@as(u32, @bitCast(bounds.?.width)))) else 0, if (bounds != null) @as(usize, @intCast(@as(u32, @bitCast(bounds.?.height)))) else 0 });
         if (self.sixel_renderer) {
-            try self.sixel_render();
+            try self.sixel_render(width, height);
         } else {
-            try self.block_render();
+            try self.block_render(width, height);
         }
     }
 };
