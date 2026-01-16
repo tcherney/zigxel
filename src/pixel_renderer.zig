@@ -679,6 +679,7 @@ pub const PixelRenderer = struct {
         var buffer_len: usize = 0;
         var j: usize = 0;
         var i: usize = 0;
+        try common.timer_start();
         for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ 0, 0, 0 })) |c| {
             self.terminal_buffer[buffer_len] = c;
             buffer_len += 1;
@@ -693,7 +694,9 @@ pub const PixelRenderer = struct {
                 buffer_len += 1;
             }
         }
-
+        PIXEL_RENDERER_LOG.info("Sixel start time ", .{});
+        common.timer_end();
+        try common.timer_start();
         i = 0;
         while (i < height) : (i += 6) {
             try self.sixel_loop(&buffer_len, &i, &j, width, height);
@@ -703,17 +706,21 @@ pub const PixelRenderer = struct {
             PIXEL_RENDERER_LOG.info("handling remaining lines {d}\n", .{height - i});
             try self.sixel_loop(&buffer_len, &i, &j, width, height);
         }
+        PIXEL_RENDERER_LOG.info("Sixel loop time ", .{});
+        common.timer_end();
         for (term.SIXEL_END) |c| {
             self.terminal_buffer[buffer_len] = c;
             buffer_len += 1;
         }
-
+        try common.timer_start();
         if (buffer_len > 0) {
             //PIXEL_RENDERER_LOG.info("\n{s}\n", .{self.terminal_buffer[0..buffer_len]});
             try self.terminal.out(term.SCREEN_CLEAR);
             try self.terminal.out(term.CURSOR_HOME);
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
         }
+        PIXEL_RENDERER_LOG.info("Time to output buffer ", .{});
+        common.timer_end();
     }
 
     fn to_sixel(p1: PixelType, p2: PixelType, p3: PixelType, p4: PixelType, p5: PixelType, p6: PixelType, on_color: struct { r: u8, g: u8, b: u8 }) u8 {
@@ -763,7 +770,7 @@ pub const PixelRenderer = struct {
         return result + 63;
     }
 
-    fn block_render(self: *Self, width: usize, height: usize) Error!void {
+    fn block_render(self: *Self) Error!void {
         var buffer_len: usize = 0;
         //std.debug.print("pixels {any}\n", .{self.pixel_buffer});
         var j: usize = 0;
@@ -797,9 +804,9 @@ pub const PixelRenderer = struct {
         }
         //GRAPHICS_LOG.debug("width height {d} {d}\n", .{ width, height });
         // each pixel is an index into the possible 256 colors
-        while (j < height) : (j += 2) {
+        while (j < self.pixel_height) : (j += 2) {
             i = 0;
-            while (i < width) : (i += 1) {
+            while (i < self.pixel_width) : (i += 1) {
                 const fg_pixel = self.pixel_buffer[j * self.pixel_width + i];
                 const bg_pixel = self.pixel_buffer[(j + 1) * self.pixel_width + i];
                 const last_fg_pixel = self.last_frame[j * self.pixel_width + i];
@@ -1012,7 +1019,7 @@ pub const PixelRenderer = struct {
         if (self.sixel_renderer) {
             try self.sixel_render(width, height);
         } else {
-            try self.block_render(width, height);
+            try self.block_render();
         }
     }
 };
