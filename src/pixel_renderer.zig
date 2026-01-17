@@ -546,7 +546,8 @@ pub const PixelRenderer = struct {
     }
 
     var dirty_pixel_buffer: [48]u8 = undefined;
-    //TODO now that we can store more pixels for some reason if image is too big we start cutting off the top, also something is weird with RLE when using the increased pixels
+    //TODO now that we can store more pixels for some reason if image is too big we start cutting off the top
+    //TODO add thread pool, have to keep one thread version for web till we figure out wasm threads
     fn sixel_loop(self: *Self, buffer_len: *usize, i: *usize, j: *usize, width: usize, height: usize) !void {
         for (0..term.MAX_COLOR) |k| {
             const on_color = @as(u8, @intCast(k));
@@ -554,7 +555,7 @@ pub const PixelRenderer = struct {
             var previous_sixel: u8 = 0;
             var previous_sixel_count: usize = 0;
             var first_color: bool = true;
-            const RLE_ENABLED = false;
+            const RLE_ENABLED = true;
             while (j.* < width) : (j.* += 1) {
                 var pixels: [6]PixelType = undefined;
                 var num_pixels: usize = 0;
@@ -635,12 +636,14 @@ pub const PixelRenderer = struct {
             }
             // flush remaining
             if (RLE_ENABLED) {
-                if (first_color and previous_sixel_count > 0 and previous_sixel != '?') {
-                    for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
-                        self.terminal_buffer[buffer_len.*] = c;
-                        buffer_len.* += 1;
+                if (previous_sixel_count > 0 and previous_sixel != '?') {
+                    if (first_color) {
+                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
+                            self.terminal_buffer[buffer_len.*] = c;
+                            buffer_len.* += 1;
+                        }
+                        first_color = false;
                     }
-                    first_color = false;
                     if (previous_sixel_count > 3) {
                         var remaining = previous_sixel_count;
                         while (remaining > 0) {
@@ -695,7 +698,7 @@ pub const PixelRenderer = struct {
             }
         }
         PIXEL_RENDERER_LOG.info("Sixel start time ", .{});
-        common.timer_end();
+        _ = common.timer_end();
         try common.timer_start();
         i = 0;
         while (i < height) : (i += 6) {
@@ -707,7 +710,7 @@ pub const PixelRenderer = struct {
             try self.sixel_loop(&buffer_len, &i, &j, width, height);
         }
         PIXEL_RENDERER_LOG.info("Sixel loop time ", .{});
-        common.timer_end();
+        _ = common.timer_end();
         for (term.SIXEL_END) |c| {
             self.terminal_buffer[buffer_len] = c;
             buffer_len += 1;
@@ -720,7 +723,7 @@ pub const PixelRenderer = struct {
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
         }
         PIXEL_RENDERER_LOG.info("Time to output buffer ", .{});
-        common.timer_end();
+        _ = common.timer_end();
     }
 
     fn to_sixel(p1: PixelType, p2: PixelType, p3: PixelType, p4: PixelType, p5: PixelType, p6: PixelType, on_color: struct { r: u8, g: u8, b: u8 }) u8 {
