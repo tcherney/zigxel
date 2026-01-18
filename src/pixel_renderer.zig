@@ -548,7 +548,7 @@ pub const PixelRenderer = struct {
     var dirty_pixel_buffer: [48]u8 = undefined;
     //TODO now that we can store more pixels for some reason if image is too big we start cutting off the top
     //TODO add thread pool, have to keep one thread version for web till we figure out wasm threads
-    fn sixel_loop(self: *Self, buffer_len: *usize, i: *usize, j: *usize, width: usize, height: usize) !void {
+    fn sixel_loop(self: *Self, buffer: []u8, buffer_len: *usize, i: *usize, j: *usize, width: usize, height: usize) !void {
         for (0..term.MAX_COLOR) |k| {
             const on_color = @as(u8, @intCast(k));
             j.* = 0;
@@ -593,7 +593,7 @@ pub const PixelRenderer = struct {
                     } else {
                         if (first_color and previous_sixel_count > 0) {
                             for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
-                                self.terminal_buffer[buffer_len.*] = c;
+                                buffer[buffer_len.*] = c;
                                 buffer_len.* += 1;
                             }
                             first_color = false;
@@ -603,10 +603,10 @@ pub const PixelRenderer = struct {
                             while (remaining > 0) {
                                 const to_write = if (remaining > 255) 255 else remaining;
                                 for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_REPEAT ++ "{c}", .{ to_write, previous_sixel })) |c| {
-                                    self.terminal_buffer[buffer_len.*] = c;
+                                    buffer[buffer_len.*] = c;
                                     buffer_len.* += 1;
                                 }
-                                // self.terminal_buffer[buffer_len] = previous_sixel;
+                                // buffer[buffer_len] = previous_sixel;
                                 // buffer_len += 1;
                                 remaining -= to_write;
                             }
@@ -614,7 +614,7 @@ pub const PixelRenderer = struct {
                         } else {
                             if (previous_sixel_count > 0) {
                                 for (0..previous_sixel_count) |_| {
-                                    self.terminal_buffer[buffer_len.*] = previous_sixel;
+                                    buffer[buffer_len.*] = previous_sixel;
                                     buffer_len.* += 1;
                                 }
                             }
@@ -625,12 +625,12 @@ pub const PixelRenderer = struct {
                 } else {
                     if (first_color) {
                         for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
-                            self.terminal_buffer[buffer_len.*] = c;
+                            buffer[buffer_len.*] = c;
                             buffer_len.* += 1;
                         }
                         first_color = false;
                     }
-                    self.terminal_buffer[buffer_len.*] = sixel_char;
+                    buffer[buffer_len.*] = sixel_char;
                     buffer_len.* += 1;
                 }
             }
@@ -639,7 +639,7 @@ pub const PixelRenderer = struct {
                 if (previous_sixel_count > 0 and previous_sixel != '?') {
                     if (first_color) {
                         for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
-                            self.terminal_buffer[buffer_len.*] = c;
+                            buffer[buffer_len.*] = c;
                             buffer_len.* += 1;
                         }
                         first_color = false;
@@ -649,7 +649,7 @@ pub const PixelRenderer = struct {
                         while (remaining > 0) {
                             const to_write = if (remaining > 255) 255 else remaining;
                             for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_REPEAT ++ "{c}", .{ to_write, previous_sixel })) |c| {
-                                self.terminal_buffer[buffer_len.*] = c;
+                                buffer[buffer_len.*] = c;
                                 buffer_len.* += 1;
                             }
                             remaining -= to_write;
@@ -657,7 +657,7 @@ pub const PixelRenderer = struct {
                     } else {
                         if (previous_sixel_count > 0) {
                             for (0..previous_sixel_count) |_| {
-                                self.terminal_buffer[buffer_len.*] = previous_sixel;
+                                buffer[buffer_len.*] = previous_sixel;
                                 buffer_len.* += 1;
                             }
                         }
@@ -666,13 +666,13 @@ pub const PixelRenderer = struct {
             }
             if (!first_color) {
                 for (term.SIXEL_RESET_LINE) |c| {
-                    self.terminal_buffer[buffer_len.*] = c;
+                    buffer[buffer_len.*] = c;
                     buffer_len.* += 1;
                 }
             }
         }
         for (term.SIXEL_NEW_LINE) |c| {
-            self.terminal_buffer[buffer_len.*] = c;
+            buffer[buffer_len.*] = c;
             buffer_len.* += 1;
         }
     }
@@ -702,12 +702,22 @@ pub const PixelRenderer = struct {
         try common.timer_start();
         i = 0;
         while (i < height) : (i += 6) {
-            try self.sixel_loop(&buffer_len, &i, &j, width, height);
+            if (self.terminal_type == .wasm) {
+                try self.sixel_loop(self.terminal_buffer, &buffer_len, &i, &j, width, height);
+            } else {
+                //TODO replace with thread pool
+                try self.sixel_loop(self.terminal_buffer, &buffer_len, &i, &j, width, height);
+            }
         }
         // handle remaining lines
         if (i < height) {
             PIXEL_RENDERER_LOG.info("handling remaining lines {d}\n", .{height - i});
-            try self.sixel_loop(&buffer_len, &i, &j, width, height);
+            if (self.terminal_type == .wasm) {
+                try self.sixel_loop(self.terminal_buffer, &buffer_len, &i, &j, width, height);
+            } else {
+                //TODO replace with thread pool
+                try self.sixel_loop(self.terminal_buffer, &buffer_len, &i, &j, width, height);
+            }
         }
         PIXEL_RENDERER_LOG.info("Sixel loop time ", .{});
         _ = common.timer_end();
