@@ -156,7 +156,7 @@ pub const PixelRenderer = struct {
             .last_frame = last_frame,
             .sixel_renderer = sixel_renderer,
             // need space for setting background and setting of foreground color for every pixel
-            .terminal_buffer = try allocator.alloc(u8, ((term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((pixel_width * pixel_height * 2) + 200))),
+            .terminal_buffer = try allocator.alloc(u8, ((term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((pixel_width * pixel_height) + 200))),
             .text_to_render = std.ArrayList(Text).init(allocator),
             .stack = switch (graphics_type) {
                 ._2d => .{ ._2d = try MatrixStack(._2d).init(allocator) },
@@ -548,6 +548,8 @@ pub const PixelRenderer = struct {
     var dirty_pixel_buffer: [48]u8 = undefined;
     //TODO now that we can store more pixels for some reason if image is too big we start cutting off the top
     //TODO add thread pool, have to keep one thread version for web till we figure out wasm threads
+    //TODO until we figure out wasm64, we have to use a smaller buffer for web builds, so fill buffer then flush
+    //TODO at the end of the day the image does have to be scaled to fit in the terminal, so 6x width and height so we might get away with just making buffer smaller
     fn sixel_loop(self: *Self, buffer: []u8, buffer_len: *usize, i: *usize, j: *usize, width: usize, height: usize) !void {
         for (0..term.MAX_COLOR) |k| {
             const on_color = @as(u8, @intCast(k));
@@ -727,7 +729,7 @@ pub const PixelRenderer = struct {
         }
         try common.timer_start();
         if (buffer_len > 0) {
-            //PIXEL_RENDERER_LOG.info("\n{s}\n", .{self.terminal_buffer[0..buffer_len]});
+            PIXEL_RENDERER_LOG.info("\n{d} bytes for sixel, cap is {d}\n", .{ buffer_len, self.terminal_buffer.len });
             try self.terminal.out(term.SCREEN_CLEAR);
             try self.terminal.out(term.CURSOR_HOME);
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
