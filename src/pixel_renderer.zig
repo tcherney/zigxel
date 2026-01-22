@@ -678,7 +678,7 @@ pub const PixelRenderer = struct {
         for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ 0, 0, 0 })) |c| {
             try self.add_char_terminal(c, &buffer_len);
         }
-        for (term.SIXEL_START) |c| {
+        for (term.SIXEL_START_DEFAULT) |c| {
             try self.add_char_terminal(c, &buffer_len);
         }
         for (0..term.MAX_COLOR) |k| {
@@ -716,6 +716,7 @@ pub const PixelRenderer = struct {
         try common.timer_start();
         if (buffer_len > 0) {
             PIXEL_RENDERER_LOG.info("\n{d} bytes for sixel, cap is {d}\n", .{ buffer_len, self.terminal_buffer.items.len });
+            //PIXEL_RENDERER_LOG.info("{s}\n", .{self.terminal_buffer.items[0..buffer_len]});
             try self.terminal.out(term.SCREEN_CLEAR);
             try self.terminal.out(term.CURSOR_HOME);
             try self.terminal.out(self.terminal_buffer.items[0..buffer_len]);
