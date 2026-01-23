@@ -6,6 +6,7 @@ const graphics_enums = @import("graphics_enums.zig");
 pub const GraphicsType = graphics_enums.GraphicsType;
 pub const RendererType = graphics_enums.RendererType;
 pub const TerminalType = graphics_enums.TerminalType;
+pub const ThreadingSupport = graphics_enums.ThreadingSupport;
 pub const ColorMode = graphics_enums.ColorMode;
 pub const PixelRenderer = pixel_renderer.PixelRenderer;
 pub const AsciiRenderer = ascii_renderer.AsciiRenderer;

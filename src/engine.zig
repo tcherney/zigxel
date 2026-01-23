@@ -13,6 +13,7 @@ pub const TUI = _tui.TUI;
 pub const Graphics = graphics.Graphics;
 pub const GraphicsType = graphics.GraphicsType;
 pub const TerminalType = graphics.TerminalType;
+pub const ThreadingSupport = graphics.ThreadingSupport;
 pub const ColorMode = graphics.ColorMode;
 pub const RendererType = graphics.RendererType;
 pub const Texture = texture.Texture;
@@ -42,9 +43,9 @@ pub const Engine = struct {
     window_changed: bool = false,
     window_change_size: term.Size = undefined,
     window_change_callback: ?WindowChangeCallback = null,
-    threading: Threading = .multi,
+    threading: ThreadingSupport = .multi,
     const Self = @This();
-    pub const Threading = enum { single, multi };
+
     pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, threading: Threading) Error!Self {
         return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, terminal_type), .events = EventManager.init(term_width_offset, term_height_offset), .threading = threading };
     }

@@ -56,6 +56,7 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
         .target = target,
         .optimize = optimize,
     }) else m.?;
+    //wasm_mod.single_threaded = false;
     const name = if (app_name == null) "wasm" else app_name.?;
     const wasmlib = b.addLibrary(.{ .name = name, .linkage = .static, .root_module = wasm_mod });
     if (s != null) {
@@ -103,6 +104,11 @@ pub fn Build(b: *std.Build, s: ?*std.Build.Step.Compile, m: ?*std.Build.Module, 
             "-sALLOW_MEMORY_GROWTH",
             "-sFORCE_FILESYSTEM=1",
             "-O3",
+            "-Wl,-u,_emscripten_run_callback_on_thread",
+            "-pthread",
+            "-satomics=1",
+            "-sPTHREAD_POOL_SIZE=8",
+            "-Wpthreads-mem-growth",
             "--emrun",
             "-sSINGLE_FILE",
         });

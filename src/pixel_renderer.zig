@@ -19,6 +19,7 @@ pub const Allocator = std.mem.Allocator;
 pub const PixelType = graphics_enums.PixelType;
 pub const TerminalType = graphics_enums.TerminalType;
 pub const RenderType = graphics_enums.RendererType;
+pub const ThreadingSupport = graphics_enums.ThreadingSupport;
 
 fn MatrixStack(comptime T: GraphicsType) type {
     return struct {
@@ -197,7 +198,6 @@ pub const PixelRenderer = struct {
     }
 
     pub fn size_change(self: *Self, size: term.Size) Error!void {
-        self.allocator.free(self.terminal_buffer);
         self.allocator.free(self.last_frame);
         self.terminal.size = .{ .width = size.width, .height = size.height };
         self.pixel_width = if (self.sixel_renderer) size.width * 10 else size.width;
