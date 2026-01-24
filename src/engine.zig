@@ -43,16 +43,16 @@ pub const Engine = struct {
     window_changed: bool = false,
     window_change_size: term.Size = undefined,
     window_change_callback: ?WindowChangeCallback = null,
-    threading: ThreadingSupport = .multi,
+    threading_support: ThreadingSupport = .multi,
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, threading: Threading) Error!Self {
-        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, terminal_type), .events = EventManager.init(term_width_offset, term_height_offset), .threading = threading };
+    pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, threading_support: ThreadingSupport) Error!Self {
+        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, terminal_type, threading_support), .events = EventManager.init(term_width_offset, term_height_offset), .threading_support = threading_support };
     }
 
     pub fn deinit(self: *Self) Error!void {
         self.stop();
-        if (!WASM and self.threading == .multi) {
+        if (!WASM and self.threading_support == .multi) {
             if (self.render_callback != null) {
                 self.render_thread.join();
             }
@@ -126,7 +126,7 @@ pub const Engine = struct {
                 ENGINE_LOG.info("Window size {d}x{d}\n", .{ renderer.terminal.size.width, renderer.terminal.size.height });
             },
         }
-        if (!WASM and self.threading == .multi) {
+        if (!WASM and self.threading_support == .multi) {
             self.events.window_change_callback = event_manager.WindowChangeCallback.init(Self, window_change, self);
             self.running = true;
             if (self.render_callback) |_| {
@@ -134,7 +134,7 @@ pub const Engine = struct {
             }
         }
         if (!WASM) {
-            try self.events.start(self.threading == .single);
+            try self.events.start(self.threading_support == .single);
         }
     }
 

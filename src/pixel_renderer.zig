@@ -104,6 +104,7 @@ pub const PixelRenderer = struct {
     graphics_type: GraphicsType,
     color_type: ColorMode,
     terminal_type: TerminalType,
+    threading_support: ThreadingSupport = .single,
     pub const Point = common.Point(2, i32);
     pub const Rectangle = common.Rectangle;
     pub const MatrixStackType = union(enum) {
@@ -128,7 +129,7 @@ pub const PixelRenderer = struct {
     const Self = @This();
     pub const Text = struct { x: i32, y: i32, r: u8, g: u8, b: u8, value: []const u8 };
 
-    pub fn init(allocator: std.mem.Allocator, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, renderer_type: RenderType) Error!Self {
+    pub fn init(allocator: std.mem.Allocator, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, renderer_type: RenderType, threading_support: ThreadingSupport) Error!Self {
         var terminal = try term.Term.init(allocator);
         if (terminal_type == .native) try terminal.on();
         const sixel_renderer = renderer_type == .sixel;
@@ -169,6 +170,7 @@ pub const PixelRenderer = struct {
             .color_type = color_type,
             .graphics_type = graphics_type,
             .terminal_type = terminal_type,
+            .threading_support = threading_support,
         };
     }
     pub fn push(self: *Self) Error!void {
@@ -690,8 +692,13 @@ pub const PixelRenderer = struct {
         _ = common.timer_end();
         try common.timer_start();
         i = 0;
+        var pool: std.Thread.Pool = undefined;
+        if (self.terminal_type != .wasm and self.threading_support == .multi) {
+            pool = try std.Thread.Pool.init(self.allocator, std.math.min(@as(usize, std.process.cpu_count()), height / 6));
+            defer pool.deinit();
+        }
         while (i < height) : (i += 6) {
-            if (self.terminal_type == .wasm) {
+            if (self.terminal_type == .wasm or self.threading_support == .single) {
                 try self.sixel_loop(&buffer_len, &i, &j, width, height);
             } else {
                 //TODO replace with thread pool
@@ -701,13 +708,15 @@ pub const PixelRenderer = struct {
         // handle remaining lines
         if (i < height) {
             PIXEL_RENDERER_LOG.info("handling remaining lines {d}\n", .{height - i});
-            if (self.terminal_type == .wasm) {
+            if (self.terminal_type == .wasm or self.threading_support == .single) {
                 try self.sixel_loop(&buffer_len, &i, &j, width, height);
             } else {
                 //TODO replace with thread pool
                 try self.sixel_loop(&buffer_len, &i, &j, width, height);
             }
         }
+        //TODO join threads
+        if (self.terminal_type != .wasm and self.threading_support == .multi) {}
         PIXEL_RENDERER_LOG.info("Sixel loop time ", .{});
         _ = common.timer_end();
         for (term.SIXEL_END) |c| {
