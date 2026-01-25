@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const term = @import("term");
 const texture = @import("texture.zig");
 const common = @import("common");
@@ -13,6 +14,7 @@ pub const TerminalType = graphics_enums.TerminalType;
 
 const UPPER_PX = "▀";
 const LOWER_PX = "▄";
+pub const terminal_type: TerminalType = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) .wasm else .native;
 
 const ASCII_RENDERER_LOG = std.log.scoped(.ascii_renderer);
 pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Image.Error;
@@ -28,13 +30,12 @@ pub const AsciiRenderer = struct {
     allocator: std.mem.Allocator = undefined,
     first_render: bool = true,
     color_type: ColorMode,
-    terminal_type: TerminalType,
     pub const Point = common.Point(2, i32);
     pub const Rectangle = common.Rectangle;
     const Self = @This();
     pub const Text = struct { x: i32, y: i32, r: u8, g: u8, b: u8, value: []const u8 };
 
-    pub fn init(allocator: std.mem.Allocator, color_type: ColorMode, terminal_type: TerminalType) Error!Self {
+    pub fn init(allocator: std.mem.Allocator, color_type: ColorMode) Error!Self {
         var terminal = try term.Term.init(allocator);
         if (terminal_type == .native) try terminal.on();
         var pixel_buffer = try allocator.alloc(PixelType, terminal.size.height * terminal.size.width * 2);
@@ -90,7 +91,6 @@ pub const AsciiRenderer = struct {
             .color_type = color_type,
             // need space for setting background and setting of foreground color for every pixel
             .terminal_buffer = try allocator.alloc(u8, (term.FG[term.LAST_COLOR].len + UPPER_PX.len + term.BG[term.LAST_COLOR].len) * ((terminal.size.height * terminal.size.width) + 200)),
-            .terminal_type = terminal_type,
         };
     }
 
@@ -143,7 +143,7 @@ pub const AsciiRenderer = struct {
     pub fn deinit(self: *Self) Error!void {
         self.allocator.free(self.pixel_buffer);
         self.allocator.free(self.terminal_buffer);
-        if (self.terminal_type == .native) try self.terminal.off();
+        if (terminal_type == .native) try self.terminal.off();
         self.allocator.free(self.last_frame);
         self.allocator.free(self.ascii_buffer);
         self.allocator.free(self.ascii_last_frame);
@@ -554,7 +554,7 @@ pub const AsciiRenderer = struct {
             try self.terminal.out(self.terminal_buffer[0..buffer_len]);
             try self.terminal.out(term.COLOR_RESET);
             try self.terminal.out(term.CURSOR_HIDE);
-            if (self.terminal_type == .wasm) try self.terminal.out("\n");
+            if (terminal_type == .wasm) try self.terminal.out("\n");
         }
     }
 };

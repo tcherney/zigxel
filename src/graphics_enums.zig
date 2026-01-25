@@ -9,7 +9,7 @@ pub const ThreadingSupport = enum { single, multi };
 
 pub const PixelType = union(enum) {
     color_256: u8,
-    color_true: struct { r: u8 = 0, g: u8 = 0, b: u8 = 0 },
+    color_true: struct { r: u8 = 0, g: u8 = 0, b: u8 = 0, indx: u8 = 0 },
     pub fn eql(self: *const PixelType, other: PixelType) bool {
         switch (self.*) {
             .color_256 => |p| {

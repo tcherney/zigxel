@@ -46,8 +46,8 @@ pub const Engine = struct {
     threading_support: ThreadingSupport = .multi,
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, threading_support: ThreadingSupport) Error!Self {
-        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, terminal_type, threading_support), .events = EventManager.init(term_width_offset, term_height_offset), .threading_support = threading_support };
+    pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, threading_support: ThreadingSupport) Error!Self {
+        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, threading_support), .events = EventManager.init(term_width_offset, term_height_offset), .threading_support = threading_support };
     }
 
     pub fn deinit(self: *Self) Error!void {

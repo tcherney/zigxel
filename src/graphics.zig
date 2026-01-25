@@ -16,16 +16,16 @@ pub const Error = ascii_renderer.Error || pixel_renderer.Error;
 pub const Graphics = union(enum) {
     pixel: PixelRenderer,
     ascii: AsciiRenderer,
-    pub fn init(allocator: std.mem.Allocator, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, terminal_type: TerminalType, threading_support: ThreadingSupport) Error!Graphics {
+    pub fn init(allocator: std.mem.Allocator, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, threading_support: ThreadingSupport) Error!Graphics {
         switch (renderer_type) {
             .pixel, .sixel => {
                 return .{
-                    .pixel = try PixelRenderer.init(allocator, graphics_type, color_type, terminal_type, renderer_type, threading_support),
+                    .pixel = try PixelRenderer.init(allocator, graphics_type, color_type, renderer_type, threading_support),
                 };
             },
             .ascii => {
                 return .{
-                    .ascii = try AsciiRenderer.init(allocator, color_type, terminal_type),
+                    .ascii = try AsciiRenderer.init(allocator, color_type),
                 };
             },
         }
