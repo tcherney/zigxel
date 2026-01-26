@@ -554,16 +554,26 @@ pub const PixelRenderer = struct {
     //TODO look for more small ways to optimize this loop
     fn sixel_loop(self: *Self, buffer: *TerminalBuffer, i: usize, width: usize, height: usize) !void {
         var dirty_pixel_buffer: [48]u8 = undefined;
+        var colors_to_process: [256]u8 = undefined;
+        var color_in_image = [_]bool{false} ** 256;
+        var total_colors: usize = 0;
         for (0..width) |j| {
             for (0..6) |idx| {
                 if ((i + idx) < height) {
                     const pixel = self.pixel_buffer[(i + idx) * self.pixel_width + j];
                     self.pixel_buffer[(i + idx) * self.pixel_width + j].color_true.indx = term.rgb_256(pixel.color_true.r, pixel.color_true.g, pixel.color_true.b);
+                    color_in_image[self.pixel_buffer[(i + idx) * self.pixel_width + j].color_true.indx] = true;
                 }
             }
         }
-        for (0..term.MAX_COLOR) |k| {
-            const on_color = @as(u8, @intCast(k));
+        for (0..color_in_image.len) |j| {
+            if (color_in_image[j]) {
+                colors_to_process[total_colors] = @intCast(j);
+                total_colors += 1;
+            }
+        }
+        for (0..total_colors) |k| {
+            const on_color = colors_to_process[k];
             var j: usize = 0;
             var previous_sixel: u8 = 0;
             var previous_sixel_count: usize = 0;
@@ -593,7 +603,7 @@ pub const PixelRenderer = struct {
                         previous_sixel_count += 1;
                     } else {
                         if (first_color and previous_sixel_count > 0) {
-                            for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
+                            for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{on_color})) |c| {
                                 try add_char_terminal(buffer, c);
                             }
                             first_color = false;
@@ -622,7 +632,7 @@ pub const PixelRenderer = struct {
                     }
                 } else {
                     if (first_color) {
-                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
+                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{on_color})) |c| {
                             try add_char_terminal(buffer, c);
                         }
                         first_color = false;
@@ -634,7 +644,7 @@ pub const PixelRenderer = struct {
             if (RLE_ENABLED) {
                 if (previous_sixel_count > 0 and previous_sixel != '?') {
                     if (first_color) {
-                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{k})) |c| {
+                        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.SIXEL_USE_COLOR, .{on_color})) |c| {
                             try add_char_terminal(buffer, c);
                         }
                         first_color = false;
