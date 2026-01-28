@@ -21,6 +21,8 @@ pub const PixelType = graphics_enums.PixelType;
 pub const TerminalType = graphics_enums.TerminalType;
 pub const RenderType = graphics_enums.RendererType;
 pub const ThreadingSupport = graphics_enums.ThreadingSupport;
+pub const SixelWidth = graphics_enums.SixelWidth;
+pub const SixelHeight = graphics_enums.SixelHeight;
 
 pub const terminal_type: TerminalType = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) .wasm else .native;
 
@@ -137,8 +139,8 @@ pub const PixelRenderer = struct {
         var terminal = try term.Term.init(allocator);
         if (terminal_type == .native) try terminal.on();
         const sixel_renderer = renderer_type == .sixel;
-        const pixel_width = if (sixel_renderer) terminal.size.width * 10 else terminal.size.width;
-        const pixel_height = if (sixel_renderer) terminal.size.height * 20 else terminal.size.height * 2;
+        const pixel_width = if (sixel_renderer) terminal.size.width * SixelWidth else terminal.size.width;
+        const pixel_height = if (sixel_renderer) terminal.size.height * SixelHeight * 2 else terminal.size.height * 2;
         var pixel_buffer = try allocator.alloc(PixelType, pixel_height * pixel_width * 2);
         for (0..pixel_buffer.len) |i| {
             if (color_type == .color_256) {
@@ -206,8 +208,8 @@ pub const PixelRenderer = struct {
     pub fn size_change(self: *Self, size: term.Size) Error!void {
         self.allocator.free(self.last_frame);
         self.terminal.size = .{ .width = size.width, .height = size.height };
-        self.pixel_width = if (self.sixel_renderer) size.width * 10 else size.width;
-        self.pixel_height = if (self.sixel_renderer) size.height * 20 else size.height * 2;
+        self.pixel_width = if (self.sixel_renderer) size.width * SixelWidth else size.width;
+        self.pixel_height = if (self.sixel_renderer) size.height * SixelHeight * 2 else size.height * 2;
         self.allocator.free(self.pixel_buffer);
         self.pixel_buffer = try self.allocator.alloc(PixelType, self.pixel_width * self.pixel_height * 2);
         for (0..self.pixel_buffer.len) |i| {
@@ -550,6 +552,19 @@ pub const PixelRenderer = struct {
         std.debug.print("drawing {any}\n", .{value});
         try self.text_to_render.append(Text{ .x = x, .y = if (@mod(y, 2) == 1) y - 1 else y, .r = r, .g = g, .b = b, .value = value });
     }
+    pub const Sixel = struct {
+        pixels: [6]u8,
+        num_pixels: usize,
+        pub fn to_char(self: *Sixel, on_color: u8) u8 {
+            var res: u8 = 0;
+            for (0..self.num_pixels) |i| {
+                if (self.pixels[i] == on_color) {
+                    res |= @as(u8, @intCast(1)) << @as(u3, @intCast(i));
+                }
+            }
+            return res + 63;
+        }
+    };
 
     //TODO look for more small ways to optimize this loop
     fn sixel_loop(self: *Self, buffer: *TerminalBuffer, i: usize, width: usize, height: usize) !void {
@@ -560,13 +575,14 @@ pub const PixelRenderer = struct {
         for (0..width) |j| {
             for (0..6) |idx| {
                 if ((i + idx) < height) {
-                    const pixel = self.pixel_buffer[(i + idx) * self.pixel_width + j];
-                    self.pixel_buffer[(i + idx) * self.pixel_width + j].color_true.indx = term.rgb_256(pixel.color_true.r, pixel.color_true.g, pixel.color_true.b);
-                    color_in_image[self.pixel_buffer[(i + idx) * self.pixel_width + j].color_true.indx] = true;
+                    const indx = (i + idx) * self.pixel_width + j;
+                    const pixel = self.pixel_buffer[indx];
+                    self.pixel_buffer[indx].color_true.indx = term.rgb_256(pixel.color_true.r, pixel.color_true.g, pixel.color_true.b);
+                    color_in_image[self.pixel_buffer[indx].color_true.indx] = true;
                 }
             }
         }
-        for (0..color_in_image.len) |j| {
+        for (1..color_in_image.len) |j| {
             if (color_in_image[j]) {
                 colors_to_process[total_colors] = @intCast(j);
                 total_colors += 1;
@@ -594,10 +610,7 @@ pub const PixelRenderer = struct {
                         pixels[idx] = 0;
                     }
                 }
-                var sixel_char = to_sixel_256(pixels[0], pixels[1], pixels[2], pixels[3], pixels[4], pixels[5], on_color);
-                for (0..6 - num_pixels) |l| {
-                    sixel_char &= ~(@as(u8, @intCast(1)) << 5 - @as(u3, @intCast(l)));
-                }
+                const sixel_char = to_sixel_256(pixels, num_pixels, on_color);
                 if (RLE_ENABLED) {
                     if (sixel_char == previous_sixel) {
                         previous_sixel_count += 1;
@@ -697,7 +710,6 @@ pub const PixelRenderer = struct {
         // }
         if (terminal_type != .wasm and self.threading_support == .multi) {
             defer thread_buffer.deinit();
-            //TODO merge thread buffer into main buffer
             while (self.thread_to_process != thread_id) {
                 // busy wait
             }
@@ -716,9 +728,9 @@ pub const PixelRenderer = struct {
     fn sixel_render(self: *Self, width: usize, height: usize) Error!void {
         var dirty_pixel_buffer: [48]u8 = undefined;
         try common.timer_start();
-        for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ 0, 0, 0 })) |c| {
-            try add_char_terminal(&self.terminal_buffer, c);
-        }
+        // for (try std.fmt.bufPrint(&dirty_pixel_buffer, term.CSI ++ term.BG_RGB, .{ 0, 0, 0 })) |c| {
+        //     try add_char_terminal(&self.terminal_buffer, c);
+        // }
         // for (term.SIXEL_POSITIONAL) |c| {
         //     try add_char_terminal(&self.terminal_buffer, c);
         // }
@@ -803,27 +815,14 @@ pub const PixelRenderer = struct {
         return result + 63;
     }
 
-    fn to_sixel_256(p1: u8, p2: u8, p3: u8, p4: u8, p5: u8, p6: u8, on_color: u8) u8 {
-        var result: u8 = 0;
-        if (p1 == on_color) {
-            result |= 0b00000001;
+    inline fn to_sixel_256(pixels: [6]u8, num_pixels: usize, on_color: u8) u8 {
+        var res: u8 = 0;
+        for (0..num_pixels) |i| {
+            if (pixels[i] == on_color) {
+                res |= @as(u8, @intCast(1)) << @as(u3, @intCast(i));
+            }
         }
-        if (p2 == on_color) {
-            result |= 0b00000010;
-        }
-        if (p3 == on_color) {
-            result |= 0b00000100;
-        }
-        if (p4 == on_color) {
-            result |= 0b00001000;
-        }
-        if (p5 == on_color) {
-            result |= 0b00010000;
-        }
-        if (p6 == on_color) {
-            result |= 0b00100000;
-        }
-        return result + 63;
+        return res + 63;
     }
 
     inline fn add_char_terminal(buffer: *TerminalBuffer, c: u8) !void {

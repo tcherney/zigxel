@@ -32,6 +32,7 @@ pub fn set_wasm_terminal_size(height: usize, width: usize) void {
     term.WASM_SIZE = .{ .height = height, .width = width };
 }
 
+//TODO update event manager to support sixel coordinates
 pub const Engine = struct {
     renderer: Graphics = undefined,
     events: EventManager = undefined,
@@ -47,7 +48,7 @@ pub const Engine = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType, graphics_type: GraphicsType, color_type: ColorMode, threading_support: ThreadingSupport) Error!Self {
-        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, threading_support), .events = EventManager.init(term_width_offset, term_height_offset), .threading_support = threading_support };
+        return Self{ .renderer = try Graphics.init(allocator, renderer_type, graphics_type, color_type, threading_support), .events = EventManager.init(term_width_offset, term_height_offset, renderer_type), .threading_support = threading_support };
     }
 
     pub fn deinit(self: *Self) Error!void {

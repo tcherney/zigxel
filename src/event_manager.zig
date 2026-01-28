@@ -3,6 +3,11 @@ const builtin = @import("builtin");
 const common = @import("common");
 const _xlib = @import("xlib.zig");
 const term = @import("term");
+const graphics_enums = @import("graphics_enums.zig");
+
+const RendererType = graphics_enums.RendererType;
+const SixelWidth = graphics_enums.SixelWidth;
+const SixelHeight = graphics_enums.SixelHeight;
 
 const EVENT_LOG = std.log.scoped(.event_manager);
 const Xlib = _xlib.Xlib;
@@ -79,6 +84,7 @@ pub const EventManager = struct {
     term_height_offset: i32,
     stdin: std.fs.File,
     stdout: std.fs.File,
+    renderer_type: RendererType,
     xlib: Xlib = undefined,
     const Self = @This();
     pub const Error = error{ WindowsInit, WindowsRead, PosixInit, FileLocksNotSupported, FileBusy } || std.posix.TermiosGetError || std.posix.TermiosSetError || std.Thread.SpawnError || std.fs.File.Reader.NoEofError || std.posix.ReadError || std.posix.ReadLinkError || std.fs.SelfExePathError || _xlib.Error || term.Error;
@@ -86,12 +92,13 @@ pub const EventManager = struct {
         .windows => std.os.windows.DWORD,
         else => std.posix.termios,
     };
-    pub fn init(term_width_offset: i32, term_height_offset: i32) EventManager {
+    pub fn init(term_width_offset: i32, term_height_offset: i32, renderer_type: RendererType) EventManager {
         return EventManager{
             .stdin = std.io.getStdIn(),
             .stdout = std.io.getStdOut(),
             .term_width_offset = term_width_offset,
             .term_height_offset = term_height_offset,
+            .renderer_type = renderer_type,
             .running = false,
         };
     }
@@ -199,8 +206,8 @@ pub const EventManager = struct {
                                 if (self.mouse_event_callback != null) {
                                     EVENT_LOG.info("{any}\n", .{irInBuf[i].Event.MouseEvent});
                                     self.mouse_event_callback.?.call(.{
-                                        .x = irInBuf[i].Event.MouseEvent.dwMousePosition.X,
-                                        .y = irInBuf[i].Event.MouseEvent.dwMousePosition.Y,
+                                        .x = if (self.renderer_type == .sixel) irInBuf[i].Event.MouseEvent.dwMousePosition.X * SixelWidth else irInBuf[i].Event.MouseEvent.dwMousePosition.X,
+                                        .y = if (self.renderer_type == .sixel) irInBuf[i].Event.MouseEvent.dwMousePosition.Y * SixelHeight else irInBuf[i].Event.MouseEvent.dwMousePosition.Y,
                                         .clicked = (irInBuf[i].Event.MouseEvent.dwButtonState & 0x01) != 0,
                                         .scroll_up = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10000000) != 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
                                         .scroll_down = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10000000) == 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
@@ -300,8 +307,8 @@ pub const EventManager = struct {
                                     if (self.mouse_event_callback != null) {
                                         EVENT_LOG.info("{any}\n", .{irInBuf[i].Event.MouseEvent});
                                         self.mouse_event_callback.?.call(.{
-                                            .x = irInBuf[i].Event.MouseEvent.dwMousePosition.X,
-                                            .y = irInBuf[i].Event.MouseEvent.dwMousePosition.Y,
+                                            .x = if (self.renderer_type == .sixel) irInBuf[i].Event.MouseEvent.dwMousePosition.X * SixelWidth else irInBuf[i].Event.MouseEvent.dwMousePosition.X,
+                                            .y = if (self.renderer_type == .sixel) irInBuf[i].Event.MouseEvent.dwMousePosition.Y * SixelHeight else irInBuf[i].Event.MouseEvent.dwMousePosition.Y,
                                             .clicked = (irInBuf[i].Event.MouseEvent.dwButtonState & 0x01) != 0,
                                             .scroll_up = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10000000) != 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
                                             .scroll_down = ((irInBuf[i].Event.MouseEvent.dwButtonState & 0x10000000) == 0) and irInBuf[i].Event.MouseEvent.dwEventFlags & 0x04 != 0,
