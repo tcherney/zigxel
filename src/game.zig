@@ -361,6 +361,58 @@ pub const Game = struct {
         self.state = .game;
     }
 
+    pub fn sim(self: *Self) !void {
+        if (!SINGLE_THREADED or WASM) {
+            try self.block_sim(0, self.current_world.tex.width, self.current_world.tex.height);
+        } else {
+            const BLOCK_WIDTH = 16;
+            const BLOCK_HEIGHT = 16;
+            //TODO spawn threads divy up blocks spaced every other then simulate the ones in between after
+            _ = BLOCK_HEIGHT;
+            _ = BLOCK_WIDTH;
+        }
+    }
+
+    fn get_y(self: *Self, indx: usize) usize {
+        return indx / @as(usize, @intCast(self.current_world.tex.width));
+    }
+
+    fn get_x(self: *Self, indx: usize) usize {
+        return indx % @as(usize, @intCast(self.current_world.tex.width));
+    }
+
+    pub fn block_sim(self: *Self, block_id: usize, block_width: usize, block_height: usize) !void {
+        const start = block_id * block_width * block_height;
+        const end = start + (block_width * block_height);
+        for (start..end) |i| {
+            if (self.current_world.pixels.items[i] != null) {
+                self.current_world.pixels.items[i].?.*.dirty = false;
+                //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.current_world.pixels.items[i] });
+            }
+        }
+        //TODO convert start and end indx to start x,y and end x,y adjust for block size, using get_x and get_y helper functions
+        std.debug.print("{d}, {d}\n", .{ block_width, block_height });
+        std.debug.print("{d}, {d}\n", .{ self.get_y(end), self.get_x(end) });
+        const y_start = self.get_y(end) - 1;
+        const x_start = self.get_x(end - 1);
+        const y_end = self.get_y(start);
+        const x_end = self.get_x(start);
+        var y = y_start;
+        while (y >= y_end) : (y -= 1) {
+            var x = x_start;
+            while (x >= x_end) : (x -= 1) {
+                var p = self.current_world.pixels.items[y * self.current_world.tex.width + x];
+                if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and !(p.?.pixel_type == .Object and p.?.managed)) {
+                    //GAME_LOG.info("updating {any}\n", .{p.?});
+                    p.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                    self.active_pixels = if (p.?.active) self.active_pixels + 1 else self.active_pixels;
+                }
+                if (x == x_end) break;
+            }
+            if (y == y_end) break;
+        }
+    }
+
     var rotate_test: f64 = 0;
     var elapsed: u64 = 0;
     var flip: bool = false;
@@ -458,15 +510,6 @@ pub const Game = struct {
                 }
             },
             .game => {
-                for (0..self.current_world.pixels.items.len) |i| {
-                    if (self.current_world.pixels.items[i] != null) {
-                        self.current_world.pixels.items[i].?.*.dirty = false;
-                        //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.current_world.pixels.items[i] });
-                    }
-                }
-                const y_start = self.current_world.tex.height - 1;
-                const x_start = self.current_world.tex.width - 1;
-                var y = y_start;
                 if (self.player_mode) {
                     self.player.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
@@ -481,19 +524,7 @@ pub const Game = struct {
                         };
                     }
                 }
-                while (y >= 0) : (y -= 1) {
-                    var x = x_start;
-                    while (x >= 0) : (x -= 1) {
-                        var p = self.current_world.pixels.items[y * self.current_world.tex.width + x];
-                        if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and !(p.?.pixel_type == .Object and p.?.managed)) {
-                            //GAME_LOG.info("updating {any}\n", .{p.?});
-                            p.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
-                            self.active_pixels = if (p.?.active) self.active_pixels + 1 else self.active_pixels;
-                        }
-                        if (x == 0) break;
-                    }
-                    if (y == 0) break;
-                }
+                try self.sim();
                 if (WASM or SINGLE_THREADED) {
                     self.on_render(self.delta) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
@@ -582,7 +613,7 @@ pub const Game = struct {
         self.lock = std.Thread.Mutex{};
         self.render_lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(50, 130);
-        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .sixel, ._2d, .color_true, if (WASM) .single else .multi);
+        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         try self.current_world.generate(.forest);
