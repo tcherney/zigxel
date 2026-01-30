@@ -361,15 +361,38 @@ pub const Game = struct {
         self.state = .game;
     }
 
+    pub const BlockIteration = enum {
+        First,
+        Second,
+    };
+
     pub fn sim(self: *Self) !void {
         if (!SINGLE_THREADED or WASM) {
             try self.block_sim(0, self.current_world.tex.width, self.current_world.tex.height);
         } else {
-            const BLOCK_WIDTH = 16;
-            const BLOCK_HEIGHT = 16;
+            var BLOCK_WIDTH = 16;
+            BLOCK_WIDTH += self.current_world.tex.width % BLOCK_WIDTH;
+            var BLOCK_HEIGHT = 16;
+            BLOCK_HEIGHT += self.current_world.tex.height % BLOCK_HEIGHT;
             //TODO spawn threads divy up blocks spaced every other then simulate the ones in between after
-            _ = BLOCK_HEIGHT;
-            _ = BLOCK_WIDTH;
+            const thread_count: usize = try std.Thread.getCpuCount() - 1;
+            const blocks_per_thread: usize = (self.current_world.tex.height + BLOCK_HEIGHT - 1) / BLOCK_HEIGHT / thread_count;
+            var threads: []std.Thread = try self.allocator.alloc(std.Thread, thread_count);
+            for (0..thread_count) |t| {
+                //TODO figure out how give each thead blocks_per_thread odd blocks then second pass for even blocks
+                threads[t] = try std.Thread.spawn(.{}, block_sim, .{
+                    self,
+                    t,
+                    .First,
+                    blocks_per_thread,
+                    BLOCK_WIDTH,
+                    BLOCK_HEIGHT,
+                });
+            }
+            for (threads) |thread| {
+                thread.join();
+            }
+            self.allocator.free(threads);
         }
     }
 
@@ -381,35 +404,41 @@ pub const Game = struct {
         return indx % @as(usize, @intCast(self.current_world.tex.width));
     }
 
-    pub fn block_sim(self: *Self, block_id: usize, block_width: usize, block_height: usize) !void {
-        const start = block_id * block_width * block_height;
-        const end = start + (block_width * block_height);
-        for (start..end) |i| {
-            if (self.current_world.pixels.items[i] != null) {
-                self.current_world.pixels.items[i].?.*.dirty = false;
-                //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.current_world.pixels.items[i] });
-            }
-        }
-        //TODO convert start and end indx to start x,y and end x,y adjust for block size, using get_x and get_y helper functions
-        std.debug.print("{d}, {d}\n", .{ block_width, block_height });
-        std.debug.print("{d}, {d}\n", .{ self.get_y(end), self.get_x(end) });
-        const y_start = self.get_y(end) - 1;
-        const x_start = self.get_x(end - 1);
-        const y_end = self.get_y(start);
-        const x_end = self.get_x(start);
-        var y = y_start;
-        while (y >= y_end) : (y -= 1) {
-            var x = x_start;
-            while (x >= x_end) : (x -= 1) {
-                var p = self.current_world.pixels.items[y * self.current_world.tex.width + x];
-                if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and !(p.?.pixel_type == .Object and p.?.managed)) {
-                    //GAME_LOG.info("updating {any}\n", .{p.?});
-                    p.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
-                    self.active_pixels = if (p.?.active) self.active_pixels + 1 else self.active_pixels;
+    pub fn block_sim(self: *Self, thread_id: usize, num_blocks: usize, iteration: BlockIteration, block_width: usize, block_height: usize) !void {
+        for (0..num_blocks) |b| {
+            const block_id = thread_id * num_blocks * b + switch (iteration) {
+                .First => 0,
+                .Second => 1,
+            };
+            const start = block_id * block_width * block_height;
+            const end = start + (block_width * block_height);
+            for (start..end) |i| {
+                if (self.current_world.pixels.items[i] != null) {
+                    self.current_world.pixels.items[i].?.*.dirty = false;
+                    //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.current_world.pixels.items[i] });
                 }
-                if (x == x_end) break;
             }
-            if (y == y_end) break;
+            //TODO convert start and end indx to start x,y and end x,y adjust for block size, using get_x and get_y helper functions
+            std.debug.print("{d}, {d}\n", .{ block_width, block_height });
+            std.debug.print("{d}, {d}\n", .{ self.get_y(end), self.get_x(end) });
+            const y_start = self.get_y(end) - 1;
+            const x_start = self.get_x(end - 1);
+            const y_end = self.get_y(start);
+            const x_end = self.get_x(start);
+            var y = y_start;
+            while (y >= y_end) : (y -= 1) {
+                var x = x_start;
+                while (x >= x_end) : (x -= 1) {
+                    var p = self.current_world.pixels.items[y * self.current_world.tex.width + x];
+                    if (p != null and !p.?.*.dirty and p.?.pixel_type != .Empty and !(p.?.pixel_type == .Object and p.?.managed)) {
+                        //GAME_LOG.info("updating {any}\n", .{p.?});
+                        p.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height);
+                        self.active_pixels = if (p.?.active) self.active_pixels + 1 else self.active_pixels;
+                    }
+                    if (x == x_end) break;
+                }
+                if (y == y_end) break;
+            }
         }
     }
 
