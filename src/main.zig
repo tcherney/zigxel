@@ -20,6 +20,7 @@ pub const std_options: std.Options = .{
         .{ .scope = .pixel_renderer, .level = .err },
         .{ .scope = .ascii_renderer, .level = .err },
         .{ .scope = .tui, .level = .err },
+        .{ .scope = .common, .level = .info },
     },
 };
 

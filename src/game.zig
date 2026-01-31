@@ -55,6 +55,8 @@ pub const Game = struct {
     timer: std.time.Timer = undefined,
     delta: u64 = undefined,
     active_pixels: u64 = undefined,
+    thread_count: usize = 1,
+    threads: []std.Thread = undefined,
     pub const State = enum {
         game,
         start,
@@ -93,6 +95,9 @@ pub const Game = struct {
         self.allocator.free(self.placement_pixel);
         if (self.player != null) {
             self.player.?.deinit();
+        }
+        if (!SINGLE_THREADED) {
+            self.allocator.free(self.threads);
         }
     }
 
@@ -367,60 +372,92 @@ pub const Game = struct {
     };
 
     pub fn sim(self: *Self) !void {
-        if (!SINGLE_THREADED or WASM) {
-            try self.block_sim(0, self.current_world.tex.width, self.current_world.tex.height);
+        if (SINGLE_THREADED or WASM) {
+            try self.block_sim(0, 1, 0, .First, self.current_world.tex.width, self.current_world.tex.height);
         } else {
-            var BLOCK_WIDTH = 16;
-            BLOCK_WIDTH += self.current_world.tex.width % BLOCK_WIDTH;
-            var BLOCK_HEIGHT = 16;
-            BLOCK_HEIGHT += self.current_world.tex.height % BLOCK_HEIGHT;
+            var BLOCK_WIDTH: usize = 64;
+            BLOCK_WIDTH -= @as(usize, @intCast(self.current_world.tex.width)) % BLOCK_WIDTH;
+            var BLOCK_HEIGHT: usize = 64;
+            BLOCK_HEIGHT -= @as(usize, @intCast(self.current_world.tex.height)) % BLOCK_HEIGHT;
             //TODO spawn threads divy up blocks spaced every other then simulate the ones in between after
-            const thread_count: usize = try std.Thread.getCpuCount() - 1;
-            const blocks_per_thread: usize = (self.current_world.tex.height + BLOCK_HEIGHT - 1) / BLOCK_HEIGHT / thread_count;
-            var threads: []std.Thread = try self.allocator.alloc(std.Thread, thread_count);
-            for (0..thread_count) |t| {
+            const blocks_per_thread: usize = ((@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (BLOCK_WIDTH * BLOCK_HEIGHT) / self.thread_count) / 2;
+            GAME_LOG.info("{d} pixels {d} blocks spawning {d} threads {d} blocks per thread with block size {d}x{d}\n", .{ self.current_world.pixels.items.len, (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (BLOCK_WIDTH * BLOCK_HEIGHT), self.thread_count, blocks_per_thread, BLOCK_WIDTH, BLOCK_HEIGHT });
+            const TOTAL_BLOCKS = (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (BLOCK_WIDTH * BLOCK_HEIGHT);
+            const last_block_id = (blocks_per_thread * self.thread_count * 2) - 1;
+            GAME_LOG.info("{d} total blocks {d} last block id\n", .{ TOTAL_BLOCKS, last_block_id });
+            //try common.timer_start();
+            for (0..self.thread_count) |t| {
                 //TODO figure out how give each thead blocks_per_thread odd blocks then second pass for even blocks
-                threads[t] = try std.Thread.spawn(.{}, block_sim, .{
+                self.threads[t] = try std.Thread.spawn(.{}, block_sim, .{
                     self,
                     t,
-                    .First,
                     blocks_per_thread,
+                    last_block_id,
+                    .First,
                     BLOCK_WIDTH,
                     BLOCK_HEIGHT,
                 });
             }
-            for (threads) |thread| {
+            for (self.threads) |thread| {
                 thread.join();
             }
-            self.allocator.free(threads);
+            //try common.timer_start();
+            for (0..self.thread_count) |t| {
+                self.threads[t] = try std.Thread.spawn(.{}, block_sim, .{
+                    self,
+                    t,
+                    blocks_per_thread,
+                    last_block_id,
+                    .Second,
+                    BLOCK_WIDTH,
+                    BLOCK_HEIGHT,
+                });
+            }
+            for (self.threads) |thread| {
+                thread.join();
+            }
         }
     }
 
-    fn get_y(self: *Self, indx: usize) usize {
+    inline fn get_y(self: *Self, indx: usize) usize {
         return indx / @as(usize, @intCast(self.current_world.tex.width));
     }
 
-    fn get_x(self: *Self, indx: usize) usize {
+    inline fn get_x(self: *Self, indx: usize) usize {
         return indx % @as(usize, @intCast(self.current_world.tex.width));
     }
 
-    pub fn block_sim(self: *Self, thread_id: usize, num_blocks: usize, iteration: BlockIteration, block_width: usize, block_height: usize) !void {
+    pub fn block_sim(self: *Self, thread_id: usize, num_blocks: usize, last_block_id: usize, iteration: BlockIteration, block_width: usize, block_height: usize) !void {
+        //try common.timer_start();
+        const BLOCKS_PER_ROW = (@as(usize, @intCast(self.current_world.tex.width)) + block_width - 1) / block_width;
+        const ITERATION_OFFSET: usize = switch (iteration) {
+            .First => 0,
+            .Second => 1,
+        };
+        //GAME_LOG.info("Blocks per row {d}\n", .{BLOCKS_PER_ROW});
         for (0..num_blocks) |b| {
-            const block_id = thread_id * num_blocks * b + switch (iteration) {
-                .First => 0,
-                .Second => 1,
-            };
-            const start = block_id * block_width * block_height;
-            const end = start + (block_width * block_height);
+            const block_id = thread_id * (num_blocks * 2) + (b * 2) + ITERATION_OFFSET;
+            GAME_LOG.info("thread id {d} block id {d}\n", .{ thread_id, block_id });
+            const start = (block_id / BLOCKS_PER_ROW * block_height * self.current_world.tex.width) + (block_id % BLOCKS_PER_ROW * block_width);
+            var end: usize = 0;
+            if (block_id == last_block_id) {
+                end = self.current_world.pixels.items.len;
+            } else {
+                const end_height = block_id / BLOCKS_PER_ROW * block_height + block_height;
+                const max_block_height = if (end_height >= @as(usize, @intCast(self.current_world.tex.height))) block_height - (end_height - @as(usize, @intCast(self.current_world.tex.height))) - 1 else block_height;
+                end = start + (max_block_height * self.current_world.tex.width) + block_width;
+            }
+
+            //GAME_LOG.info("start {d} end {d}\n", .{ start, end });
             for (start..end) |i| {
                 if (self.current_world.pixels.items[i] != null) {
                     self.current_world.pixels.items[i].?.*.dirty = false;
                     //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.current_world.pixels.items[i] });
                 }
             }
-            //TODO convert start and end indx to start x,y and end x,y adjust for block size, using get_x and get_y helper functions
-            std.debug.print("{d}, {d}\n", .{ block_width, block_height });
-            std.debug.print("{d}, {d}\n", .{ self.get_y(end), self.get_x(end) });
+            //TODO block alignment isn't correct, we need to make sure blocks are where we think they are, maybe test with a grid
+            //std.debug.print("{d}, {d}\n", .{ block_width, block_height });
+            //std.debug.print("{d}, {d}\n", .{ self.get_y(end), self.get_x(end) });
             const y_start = self.get_y(end) - 1;
             const x_start = self.get_x(end - 1);
             const y_end = self.get_y(start);
@@ -440,6 +477,8 @@ pub const Game = struct {
                 if (y == y_end) break;
             }
         }
+        //GAME_LOG.info("Block process time ", .{});
+        //_ = common.timer_end();
     }
 
     var rotate_test: f64 = 0;
@@ -553,7 +592,10 @@ pub const Game = struct {
                         };
                     }
                 }
-                try self.sim();
+                self.sim() catch |err| {
+                    GAME_LOG.info("Error: {any}\n", .{err});
+                    return;
+                };
                 if (WASM or SINGLE_THREADED) {
                     self.on_render(self.delta) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
@@ -644,6 +686,10 @@ pub const Game = struct {
         engine.set_wasm_terminal_size(50, 130);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
+        if (!SINGLE_THREADED) {
+            self.thread_count = 10; //try std.Thread.getCpuCount() - 1;
+            self.threads = try self.allocator.alloc(std.Thread, self.thread_count);
+        }
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         try self.current_world.generate(.forest);
 
