@@ -371,6 +371,12 @@ pub const Game = struct {
         Second,
     };
 
+    pub fn block_thread(self: *Self) !void {
+        _ = self;
+        //TODO thread continually runs waiting for blocks to consume, will consume blocks_per_thread threads or less, need a global running flag for shutting down
+        //TODO blocks stored in queue as block id, may want more information stored to limit calculation in loop
+    }
+
     pub fn sim(self: *Self) !void {
         if (SINGLE_THREADED or WASM) {
             try self.block_sim(0, 1, 0, .First, self.current_world.tex.width, self.current_world.tex.height);
