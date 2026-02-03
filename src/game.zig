@@ -57,6 +57,9 @@ pub const Game = struct {
     active_pixels: u64 = undefined,
     thread_count: usize = 1,
     threads: []std.Thread = undefined,
+    block_queue: std.ArrayList(usize) = undefined,
+    threads_running: bool = false,
+    block_lock: std.Thread.Mutex = undefined,
     pub const State = enum {
         game,
         start,
@@ -97,7 +100,12 @@ pub const Game = struct {
             self.player.?.deinit();
         }
         if (!SINGLE_THREADED) {
+            self.threads_running = false;
+            for (0..self.thread_count) |i| {
+                self.threads[i].join();
+            }
             self.allocator.free(self.threads);
+            self.block_queue.deinit();
         }
     }
 
@@ -372,9 +380,20 @@ pub const Game = struct {
     };
 
     pub fn block_thread(self: *Self) !void {
-        _ = self;
         //TODO thread continually runs waiting for blocks to consume, will consume blocks_per_thread threads or less, need a global running flag for shutting down
         //TODO blocks stored in queue as block id, may want more information stored to limit calculation in loop
+        var blocks_to_process: usize = 0;
+        while (self.threads_running) {
+            blocks_to_process = 0;
+            //TODO lock queue and pull off blocks_per_thread or less blocks
+            //TODO unlock queue
+            //TODO process blocks
+            if (self.block_queue.items.len > 0) {
+                self.block_lock.lock();
+                if (self.block_queue.items.len > 0) {}
+                self.block_lock.unlock();
+            }
+        }
     }
 
     pub fn sim(self: *Self) !void {
@@ -689,12 +708,16 @@ pub const Game = struct {
     pub fn run(self: *Self) !void {
         self.lock = std.Thread.Mutex{};
         self.render_lock = std.Thread.Mutex{};
+        self.block_lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(50, 130);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
         if (!SINGLE_THREADED) {
             self.thread_count = 10; //try std.Thread.getCpuCount() - 1;
             self.threads = try self.allocator.alloc(std.Thread, self.thread_count);
+            self.block_queue = std.ArrayList(usize).init(self.allocator);
+            self.threads_running = true;
+            //TODO create threads and start them
         }
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         try self.current_world.generate(.forest);
