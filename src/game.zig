@@ -64,6 +64,7 @@ pub const Game = struct {
     TOTAL_BLOCKS: usize = 0,
     BLOCK_WIDTH: usize = 64,
     BLOCK_HEIGHT: usize = 64,
+    placement_queue: std.ArrayList(PixelPlacement) = undefined,
     pub const State = enum {
         game,
         start,
@@ -113,7 +114,16 @@ pub const Game = struct {
         }
     }
 
+    pub const PixelPlacement = struct {
+        pixel_type: physic_pixel.PixelType,
+        x: i32,
+        y: i32,
+    };
+
     pub fn place_pixel(self: *Self) !void {
+        if (!SINGLE_THREADED and !WASM) {
+            self.lock.lock();
+        }
         var indx: u32 = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
         if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
             self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
@@ -150,6 +160,9 @@ pub const Game = struct {
             self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
             self.current_world.pixels.items[indx].?.*.managed = temp;
         }
+        if (!SINGLE_THREADED and !WASM) {
+            self.lock.unlock();
+        }
     }
 
     pub fn on_mouse_change(self: *Self, mouse_event: engine.MouseEvent) void {
@@ -174,17 +187,11 @@ pub const Game = struct {
                 self.old_mouse_y = self.placement_pixel[self.placement_index].y;
                 if (mouse_event.clicked) {
                     GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-                    if (!SINGLE_THREADED and !WASM) {
-                        self.lock.lock();
-                    }
                     self.place_pixel() catch |err| {
                         GAME_LOG.info("{any}\n", .{err});
                         self.running = false;
                         return;
                     };
-                    if (!SINGLE_THREADED and !WASM) {
-                        self.lock.unlock();
-                    }
                 }
                 if (mouse_event.scroll_up) {
                     self.placement_pixel[(self.placement_index + 1) % self.placement_pixel.len].x = self.placement_pixel[self.placement_index].x;
@@ -288,17 +295,11 @@ pub const Game = struct {
                     }
                 } else if (key == engine.KEYS.KEY_SPACE) {
                     GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-                    if (!SINGLE_THREADED and !WASM) {
-                        self.lock.lock();
-                    }
                     self.place_pixel() catch |err| {
                         GAME_LOG.info("{any}\n", .{err});
                         self.running = false;
                         return;
                     };
-                    if (!SINGLE_THREADED and !WASM) {
-                        self.lock.unlock();
-                    }
                 } else if (key == engine.KEYS.KEY_i) {
                     if (self.current_world.viewport.y > 0) {
                         self.current_world.viewport.y -= 1;
