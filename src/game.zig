@@ -65,6 +65,7 @@ pub const Game = struct {
     BLOCK_WIDTH: usize = 64,
     BLOCK_HEIGHT: usize = 64,
     placement_queue: std.ArrayList(PixelPlacement) = undefined,
+    placement_lock: std.Thread.Mutex = undefined,
     pub const State = enum {
         game,
         start,
