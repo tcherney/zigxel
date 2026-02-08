@@ -121,48 +121,56 @@ pub const Game = struct {
         y: i32,
     };
 
-    pub fn place_pixel(self: *Self) !void {
+    pub fn queue_pixel(self: *Self) !void {
         if (!SINGLE_THREADED and !WASM) {
-            self.lock.lock();
+            self.placement_lock.lock();
         }
-        var indx: u32 = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
-        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
-            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
-        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
-            const temp = self.current_world.pixels.items[indx].?.managed;
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y);
-            self.current_world.pixels.items[indx].?.*.managed = temp;
-        }
-        indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x));
-        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
-            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
-        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
-            const temp = self.current_world.pixels.items[indx].?.managed;
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y + 1);
-            self.current_world.pixels.items[indx].?.*.managed = temp;
-        }
-        indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x + 1));
-        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
-            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
-        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
-            const temp = self.current_world.pixels.items[indx].?.managed;
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y);
-            self.current_world.pixels.items[indx].?.*.managed = temp;
-        }
-        indx = @as(u32, @bitCast(self.placement_pixel[self.placement_index].y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(self.placement_pixel[self.placement_index].x + 1));
-        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
-            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
-        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
-            const temp = self.current_world.pixels.items[indx].?.managed;
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(self.placement_pixel[self.placement_index].pixel_type, self.placement_pixel[self.placement_index].x + 1, self.placement_pixel[self.placement_index].y + 1);
-            self.current_world.pixels.items[indx].?.*.managed = temp;
-        }
+        try self.placement_queue.append(.{
+            .pixel_type = self.placement_pixel[self.placement_index].pixel_type,
+            .x = self.placement_pixel[self.placement_index].x,
+            .y = self.placement_pixel[self.placement_index].y,
+        });
         if (!SINGLE_THREADED and !WASM) {
-            self.lock.unlock();
+            self.placement_lock.unlock();
+        }
+    }
+
+    pub fn place_pixel(self: *Self, x: i32, y: i32, pixel_type: physic_pixel.PixelType) !void {
+        var indx: u32 = @as(u32, @bitCast(x)) * self.current_world.tex.width + @as(u32, @bitCast(y));
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x, y);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x, y);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
+        }
+        indx = @as(u32, @bitCast(y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(x));
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x, y + 1);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x, y + 1);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
+        }
+        indx = @as(u32, @bitCast(y)) * self.current_world.tex.width + @as(u32, @bitCast(x + 1));
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x + 1, y);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x + 1, y);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
+        }
+        indx = @as(u32, @bitCast(y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(x + 1));
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x + 1, y + 1);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x + 1, y + 1);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
         }
     }
 
@@ -188,7 +196,7 @@ pub const Game = struct {
                 self.old_mouse_y = self.placement_pixel[self.placement_index].y;
                 if (mouse_event.clicked) {
                     GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-                    self.place_pixel() catch |err| {
+                    self.queue_pixel() catch |err| {
                         GAME_LOG.info("{any}\n", .{err});
                         self.running = false;
                         return;
@@ -296,7 +304,7 @@ pub const Game = struct {
                     }
                 } else if (key == engine.KEYS.KEY_SPACE) {
                     GAME_LOG.info("placed {d} {d} \n", .{ self.placement_pixel[self.placement_index].x, self.placement_pixel[self.placement_index].y });
-                    self.place_pixel() catch |err| {
+                    self.queue_pixel() catch |err| {
                         GAME_LOG.info("{any}\n", .{err});
                         self.running = false;
                         return;
@@ -590,6 +598,14 @@ pub const Game = struct {
                 }
             },
             .game => {
+                if (self.placement_queue.items.len > 0) {
+                    self.placement_lock.lock();
+                    while (self.placement_queue.items.len > 0) {
+                        const placement = self.placement_queue.pop().?;
+                        try self.place_pixel(placement.x, placement.y, placement.pixel_type);
+                    }
+                    self.placement_lock.unlock();
+                }
                 if (self.player_mode) {
                     self.player.?.update(self.current_world.pixels.items, self.current_world.tex.width, self.current_world.tex.height) catch |err| {
                         GAME_LOG.info("Error: {any}\n", .{err});
@@ -696,6 +712,7 @@ pub const Game = struct {
         self.lock = std.Thread.Mutex{};
         self.render_lock = std.Thread.Mutex{};
         self.block_lock = std.Thread.Mutex{};
+        self.placement_lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(50, 130);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
@@ -786,7 +803,7 @@ pub const Game = struct {
             // time_elapsed += self.delta;
             // GAME_LOG.info("time elapsed {any} out of {any}\n", .{ time_elapsed, time_to_place });
             // if (time_elapsed > time_to_place) {
-            //     self.place_pixel() catch |err| {
+            //     self.queue_pixel() catch |err| {
             //         GAME_LOG.info("{any}\n", .{err});
             //         self.running = false;
             //         return;
