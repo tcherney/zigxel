@@ -62,8 +62,8 @@ pub const Game = struct {
     block_lock: std.Thread.Mutex = undefined,
     blocks_per_thread: usize = 0,
     TOTAL_BLOCKS: usize = 0,
-    BLOCK_WIDTH: usize = 64,
-    BLOCK_HEIGHT: usize = 64,
+    BLOCK_WIDTH: usize = 128,
+    BLOCK_HEIGHT: usize = 128,
     placement_queue: std.ArrayList(PixelPlacement) = undefined,
     placement_lock: std.Thread.Mutex = undefined,
     pub const State = enum {
@@ -122,7 +122,7 @@ pub const Game = struct {
     };
 
     pub fn queue_pixel(self: *Self) !void {
-        if (!SINGLE_THREADED and !WASM) {
+        if (!SINGLE_THREADED) {
             self.placement_lock.lock();
         }
         try self.placement_queue.append(.{
@@ -130,7 +130,7 @@ pub const Game = struct {
             .x = self.placement_pixel[self.placement_index].x,
             .y = self.placement_pixel[self.placement_index].y,
         });
-        if (!SINGLE_THREADED and !WASM) {
+        if (!SINGLE_THREADED) {
             self.placement_lock.unlock();
         }
     }
@@ -397,7 +397,7 @@ pub const Game = struct {
     pub fn block_thread(self: *Self) !void {
         const BLOCKS_PER_ROW = (@as(usize, @intCast(self.current_world.tex.width)) + self.BLOCK_WIDTH - 1) / self.BLOCK_WIDTH;
         var blocks_to_process: usize = 0;
-        var blocks: [64]usize = undefined;
+        var blocks: [256]usize = undefined;
         while (self.threads_running) {
             //TODO lock queue and pull off blocks_per_thread or less blocks
             //TODO unlock queue
@@ -459,7 +459,7 @@ pub const Game = struct {
         //try common.timer_start();
 
         //GAME_LOG.info("Blocks per row {d}\n", .{BLOCKS_PER_ROW});
-        GAME_LOG.info("block id {d}\n", .{block_id});
+        //GAME_LOG.info("block id {d}\n", .{block_id});
         const start = (block_id / blocks_per_row * self.BLOCK_HEIGHT * self.current_world.tex.width) + (block_id % blocks_per_row * self.BLOCK_WIDTH);
         var end: usize = 0;
         if (block_id == last_block_id) {
@@ -478,6 +478,7 @@ pub const Game = struct {
             }
         }
         //TODO block alignment isn't correct, we need to make sure blocks are where we think they are, maybe test with a grid
+        //TODO bottom pixels not being simulated
         //std.debug.print("{d}, {d}\n", .{ block_width, block_height });
         //std.debug.print("{d}, {d}\n", .{ self.get_y(end), self.get_x(end) });
         const y_start = self.get_y(end) - 1;
@@ -601,14 +602,17 @@ pub const Game = struct {
             .game => {
                 if (self.placement_queue.items.len > 0) {
                     self.placement_lock.lock();
-                    while (self.placement_queue.items.len > 0) {
-                        const placement = self.placement_queue.pop().?;
+                    std.debug.print("Processing {d} placements\n", .{self.placement_queue.items.len});
+                    for (self.placement_queue.items) |placement| {
+                        std.debug.print("Placing pixel {any} at {d}, {d}\n", .{ placement.pixel_type, placement.x, placement.y });
                         self.place_pixel(placement.x, placement.y, placement.pixel_type) catch |err| {
                             GAME_LOG.info("Error: {any}\n", .{err});
                             self.running = false;
                             return;
                         };
                     }
+                    std.debug.print("Finished processing placements\n", .{});
+                    self.placement_queue.clearRetainingCapacity();
                     self.placement_lock.unlock();
                 }
                 if (self.player_mode) {
@@ -754,9 +758,9 @@ pub const Game = struct {
         if (tui_adjust) button_y -= 1;
         try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, button_y, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, self.assets.strings[@intFromEnum(AssetManager.StringIndex.START)], .start);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
-
+        self.placement_queue = std.ArrayList(PixelPlacement).init(self.allocator);
         if (!SINGLE_THREADED and !WASM) {
-            self.thread_count = 10; //try std.Thread.getCpuCount() - 1;
+            self.thread_count = 10; //try std.Thread.getCpuCount() - 3;
             self.threads = try self.allocator.alloc(std.Thread, self.thread_count);
             self.block_queue = std.ArrayList(usize).init(self.allocator);
             self.threads_running = true;
