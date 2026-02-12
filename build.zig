@@ -59,6 +59,8 @@ pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
         lib.linkLibC();
         lib.addIncludePath(b.path("../../../linuxbrew/.linuxbrew/include"));
         lib.linkSystemLibrary("X11");
+    } else if (builtin.target.os.tag == .linux) {
+        lib.linkLibC();
     }
     if (target.result.os.tag == .emscripten) {
         const wasm_mod = b.createModule(.{

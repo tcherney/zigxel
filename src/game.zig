@@ -24,7 +24,7 @@ pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
 pub const DEBUG = false;
-pub const SINGLE_THREADED: bool = false;
+pub const SINGLE_THREADED: bool = true;
 pub const PROFILE_MODE: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
@@ -105,6 +105,7 @@ pub const Game = struct {
         if (self.player != null) {
             self.player.?.deinit();
         }
+        self.placement_queue.deinit();
         if (!SINGLE_THREADED) {
             self.threads_running = false;
             for (0..self.thread_count) |i| {
@@ -424,6 +425,9 @@ pub const Game = struct {
                 try self.block_sim(i, self.TOTAL_BLOCKS - 1, BLOCKS_PER_ROW);
             }
         } else {
+            //TODO add timing, add grid for visualization in renderer
+            //TODO very slow, 160 ms, need to see what is taking so long, the block itself or what
+            try common.timer_start();
             self.block_lock.lock();
             self.block_queue.clearRetainingCapacity();
             const half_blocks = self.TOTAL_BLOCKS / 2;
@@ -444,6 +448,7 @@ pub const Game = struct {
             while (self.block_queue.items.len > 0) {
                 //wait for threads to finish
             }
+            _ = common.timer_end();
         }
     }
 

@@ -224,6 +224,7 @@ pub const EventManager = struct {
                 }
             }
         } else if (builtin.os.tag == .linux) {
+            //TODO this part needs to be updated to reflect how multithreaded on linux works
             EVENT_LOG.info("Initializing x11\n", .{});
             self.xlib = Xlib.init(self.term_width_offset, self.term_height_offset);
             EVENT_LOG.info("x11 initialized\n", .{});
@@ -378,8 +379,10 @@ pub const EventManager = struct {
                 }
             } else {
                 while (self.running) {
-                    const b = self.stdin.readByte();
-                    self.key_press_callback.?.call(@enumFromInt(b));
+                    const b = try self.stdin.reader().readByte();
+                    if (self.key_down_callback != null) {
+                        self.key_down_callback.?.call(@enumFromInt(b));
+                    }
                 }
             }
         }
