@@ -112,8 +112,8 @@ pub const Game = struct {
                 self.threads[i].join();
             }
             self.allocator.free(self.threads);
-            self.block_queue.deinit();
         }
+        self.block_queue.deinit();
     }
 
     pub const PixelPlacement = struct {
@@ -419,7 +419,9 @@ pub const Game = struct {
     }
 
     pub fn sim(self: *Self) !void {
+        try common.timer_start();
         if (SINGLE_THREADED or WASM) {
+            //TODO 123 ms for steam deck, something has to be wrong with the sim cant just be cache locality
             const BLOCKS_PER_ROW = (@as(usize, @intCast(self.current_world.tex.width)) + self.BLOCK_WIDTH - 1) / self.BLOCK_WIDTH;
             for (0..self.TOTAL_BLOCKS) |i| {
                 try self.block_sim(i, self.TOTAL_BLOCKS - 1, BLOCKS_PER_ROW);
@@ -427,7 +429,6 @@ pub const Game = struct {
         } else {
             //TODO add timing, add grid for visualization in renderer
             //TODO very slow, 160 ms, need to see what is taking so long, the block itself or what
-            try common.timer_start();
             self.block_lock.lock();
             self.block_queue.clearRetainingCapacity();
             const half_blocks = self.TOTAL_BLOCKS / 2;
@@ -448,8 +449,8 @@ pub const Game = struct {
             while (self.block_queue.items.len > 0) {
                 //wait for threads to finish
             }
-            _ = common.timer_end();
         }
+        _ = common.timer_end();
     }
 
     inline fn get_y(self: *Self, indx: usize) usize {
@@ -764,17 +765,15 @@ pub const Game = struct {
         try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, button_y, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, self.assets.strings[@intFromEnum(AssetManager.StringIndex.START)], .start);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
         self.placement_queue = std.ArrayList(PixelPlacement).init(self.allocator);
+        self.BLOCK_WIDTH -= @as(usize, @intCast(self.current_world.tex.width)) % self.BLOCK_WIDTH;
+        self.BLOCK_HEIGHT -= @as(usize, @intCast(self.current_world.tex.height)) % self.BLOCK_HEIGHT;
+        self.TOTAL_BLOCKS = (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT);
+        self.block_queue = try std.ArrayList(usize).initCapacity(self.allocator, self.TOTAL_BLOCKS);
         if (!SINGLE_THREADED and !WASM) {
             self.thread_count = 10; //try std.Thread.getCpuCount() - 3;
             self.threads = try self.allocator.alloc(std.Thread, self.thread_count);
-            self.block_queue = std.ArrayList(usize).init(self.allocator);
-            self.threads_running = true;
-            self.BLOCK_WIDTH -= @as(usize, @intCast(self.current_world.tex.width)) % self.BLOCK_WIDTH;
-            self.BLOCK_HEIGHT -= @as(usize, @intCast(self.current_world.tex.height)) % self.BLOCK_HEIGHT;
-            self.TOTAL_BLOCKS = (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT);
             self.blocks_per_thread = ((@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT) / self.thread_count) / 2;
             GAME_LOG.info("{d} pixels {d} blocks spawning {d} threads {d} blocks per thread with block size {d}x{d}\n", .{ self.current_world.pixels.items.len, (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT), self.thread_count, self.blocks_per_thread, self.BLOCK_WIDTH, self.BLOCK_HEIGHT });
-
             const last_block_id = (self.blocks_per_thread * self.thread_count * 2) - 1;
             GAME_LOG.info("{d} total blocks {d} last block id\n", .{ self.TOTAL_BLOCKS, last_block_id });
             for (0..self.thread_count) |t| {

@@ -174,6 +174,7 @@ pub const EventManager = struct {
         }
     }
 
+    //TODO should combine handle_events and event loop
     pub fn handle_events(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             var irInBuf: [128]win32.INPUT_RECORD = undefined;
@@ -224,53 +225,60 @@ pub const EventManager = struct {
                 }
             }
         } else if (builtin.os.tag == .linux) {
-            //TODO this part needs to be updated to reflect how multithreaded on linux works
-            EVENT_LOG.info("Initializing x11\n", .{});
-            self.xlib = Xlib.init(self.term_width_offset, self.term_height_offset);
-            EVENT_LOG.info("x11 initialized\n", .{});
-            defer self.xlib.deinit();
-            EVENT_LOG.info("Grabbing next xevent\n", .{});
-            self.xlib.next_event();
-            switch (self.xlib.event_type) {
-                .KeyPress => {
-                    EVENT_LOG.info("Keypress\n", .{});
-                    const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
-                    if (self.key_down_callback != null) {
-                        self.key_down_callback.?.call(key);
-                    }
-                },
-                .KeyRelease => {
-                    EVENT_LOG.info("Keyrelease\n", .{});
-                    const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
-                    if (self.key_up_callback != null) {
-                        self.key_up_callback.?.call(key);
-                    }
-                    if (self.key_press_callback != null) {
-                        self.key_press_callback.?.call(key);
-                    }
-                },
-                .ButtonPress, .ButtonRelease, .MotionNotify => {
-                    EVENT_LOG.info("Mouse\n", .{});
-                    if (self.mouse_event_callback != null) {
-                        const term_size = try term.Term.get_Size(self.stdout.handle);
-                        const x_ratio: f64 = @as(f64, @floatFromInt(self.xlib.mouse_state.x)) / @as(f64, @floatFromInt(self.xlib.child_width));
-                        const adjusted_y = self.xlib.mouse_state.y - self.term_height_offset;
-                        const y_ratio: f64 = if (adjusted_y > 0) @as(f64, @floatFromInt(adjusted_y)) / @as(f64, @floatFromInt(self.xlib.child_height)) else 0;
-                        const x: f64 = x_ratio * @as(f64, @floatFromInt(term_size.width)) - @as(f64, @floatFromInt(self.xlib.child_border_width));
-                        const y: f64 = y_ratio * @as(f64, @floatFromInt(term_size.height));
-                        self.mouse_event_callback.?.call(.{ .x = @intFromFloat(x), .y = @intFromFloat(y), .clicked = self.xlib.mouse_state.button1, .scroll_up = self.xlib.mouse_state.button4, .scroll_down = self.xlib.mouse_state.button5, .ctrl_pressed = try self.xlib.is_mod_pressed(.ControlMask) });
-                    }
-                },
-                //TODO handle window changes
-                .ResizeRequest => {
-                    EVENT_LOG.info("Window change\n", .{});
-                    if (self.window_change_callback != null) {
-                        self.window_change_callback.?.call();
-                    }
-                },
-                else => {
-                    EVENT_LOG.info("Unknown event\n", .{});
-                },
+            if (_xlib.ENABLED) {
+                EVENT_LOG.info("Initializing x11\n", .{});
+                self.xlib = Xlib.init(self.term_width_offset, self.term_height_offset);
+                EVENT_LOG.info("x11 initialized\n", .{});
+                defer self.xlib.deinit();
+                EVENT_LOG.info("Grabbing next xevent\n", .{});
+                self.xlib.next_event();
+                switch (self.xlib.event_type) {
+                    .KeyPress => {
+                        EVENT_LOG.info("Keypress\n", .{});
+                        const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
+                        if (self.key_down_callback != null) {
+                            self.key_down_callback.?.call(key);
+                        }
+                    },
+                    .KeyRelease => {
+                        EVENT_LOG.info("Keyrelease\n", .{});
+                        const key: KEYS = @enumFromInt(try self.xlib.get_event_key());
+                        if (self.key_up_callback != null) {
+                            self.key_up_callback.?.call(key);
+                        }
+                        if (self.key_press_callback != null) {
+                            self.key_press_callback.?.call(key);
+                        }
+                    },
+                    .ButtonPress, .ButtonRelease, .MotionNotify => {
+                        EVENT_LOG.info("Mouse\n", .{});
+                        if (self.mouse_event_callback != null) {
+                            const term_size = try term.Term.get_Size(self.stdout.handle);
+                            const x_ratio: f64 = @as(f64, @floatFromInt(self.xlib.mouse_state.x)) / @as(f64, @floatFromInt(self.xlib.child_width));
+                            const adjusted_y = self.xlib.mouse_state.y - self.term_height_offset;
+                            const y_ratio: f64 = if (adjusted_y > 0) @as(f64, @floatFromInt(adjusted_y)) / @as(f64, @floatFromInt(self.xlib.child_height)) else 0;
+                            const x: f64 = x_ratio * @as(f64, @floatFromInt(term_size.width)) - @as(f64, @floatFromInt(self.xlib.child_border_width));
+                            const y: f64 = y_ratio * @as(f64, @floatFromInt(term_size.height));
+                            self.mouse_event_callback.?.call(.{ .x = @intFromFloat(x), .y = @intFromFloat(y), .clicked = self.xlib.mouse_state.button1, .scroll_up = self.xlib.mouse_state.button4, .scroll_down = self.xlib.mouse_state.button5, .ctrl_pressed = try self.xlib.is_mod_pressed(.ControlMask) });
+                        }
+                    },
+                    //TODO handle window changes
+                    .ResizeRequest => {
+                        EVENT_LOG.info("Window change\n", .{});
+                        if (self.window_change_callback != null) {
+                            self.window_change_callback.?.call();
+                        }
+                    },
+                    else => {
+                        EVENT_LOG.info("Unknown event\n", .{});
+                    },
+                }
+            } else {
+                //TODO this doesn't work for single threaded, look into polling?
+                const b = try self.stdin.reader().readByte();
+                if (self.key_down_callback != null) {
+                    self.key_down_callback.?.call(@enumFromInt(b));
+                }
             }
         }
     }
