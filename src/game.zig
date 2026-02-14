@@ -420,11 +420,21 @@ pub const Game = struct {
 
     pub fn sim(self: *Self) !void {
         try common.timer_start();
+        //GAME_LOG.info("start {d} end {d}\n", .{ start, end });
+        for (0..self.current_world.pixels.items.len) |i| {
+            if (self.current_world.pixels.items[i] != null) {
+                self.current_world.pixels.items[i].?.*.dirty = false;
+                //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.current_world.pixels.items[i] });
+            }
+        }
         if (SINGLE_THREADED or WASM) {
             //TODO 123 ms for steam deck, something has to be wrong with the sim cant just be cache locality
             const BLOCKS_PER_ROW = (@as(usize, @intCast(self.current_world.tex.width)) + self.BLOCK_WIDTH - 1) / self.BLOCK_WIDTH;
             for (0..self.TOTAL_BLOCKS) |i| {
+                var block_timer = try common.timer_start_param();
                 try self.block_sim(i, self.TOTAL_BLOCKS - 1, BLOCKS_PER_ROW);
+                GAME_LOG.info("Time for block {d}: ", .{i});
+                _ = common.timer_end_param(&block_timer);
             }
         } else {
             //TODO add timing, add grid for visualization in renderer
@@ -450,6 +460,7 @@ pub const Game = struct {
                 //wait for threads to finish
             }
         }
+        GAME_LOG.info("Full sim time: ", .{});
         _ = common.timer_end();
     }
 
@@ -476,13 +487,6 @@ pub const Game = struct {
             end = start + (max_block_height * self.current_world.tex.width) + self.BLOCK_WIDTH;
         }
 
-        //GAME_LOG.info("start {d} end {d}\n", .{ start, end });
-        for (start..end) |i| {
-            if (self.current_world.pixels.items[i] != null) {
-                self.current_world.pixels.items[i].?.*.dirty = false;
-                //GAME_LOG.info("{d} pixel {any}\n", .{ i, self.current_world.pixels.items[i] });
-            }
-        }
         //TODO block alignment isn't correct, we need to make sure blocks are where we think they are, maybe test with a grid
         //TODO bottom pixels not being simulated
         //std.debug.print("{d}, {d}\n", .{ block_width, block_height });
