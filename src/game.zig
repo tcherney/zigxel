@@ -395,6 +395,31 @@ pub const Game = struct {
         Second,
     };
 
+    //TODO use this in sim this way we precompute bounds
+    pub const BlockBounds = struct {
+        y_start: usize,
+        y_end: usize,
+        x_start: usize,
+        x_end: usize,
+        pub fn init(game: *Self, block_id: usize, last_block_id: usize, blocks_per_row: usize) BlockBounds {
+            const start = (block_id / blocks_per_row * game.BLOCK_HEIGHT * game.current_world.tex.width) + (block_id % blocks_per_row * game.BLOCK_WIDTH);
+            var end: usize = 0;
+            if (block_id == last_block_id) {
+                end = game.current_world.pixels.items.len;
+            } else {
+                const end_height = block_id / blocks_per_row * game.BLOCK_HEIGHT + game.BLOCK_HEIGHT;
+                const max_block_height = if (end_height >= @as(usize, @intCast(game.current_world.tex.height))) game.BLOCK_HEIGHT - (end_height - @as(usize, @intCast(game.current_world.tex.height))) - 1 else game.BLOCK_HEIGHT;
+                end = start + (max_block_height * game.current_world.tex.width) + game.BLOCK_WIDTH;
+            }
+            return .{
+                .y_start = game.get_y(end) - 1,
+                .y_end = game.get_x(end - 1),
+                .x_start = game.get_y(start),
+                .x_end = game.get_x(start),
+            };
+        }
+    };
+
     pub fn block_thread(self: *Self) !void {
         const BLOCKS_PER_ROW = (@as(usize, @intCast(self.current_world.tex.width)) + self.BLOCK_WIDTH - 1) / self.BLOCK_WIDTH;
         var blocks_to_process: usize = 0;
