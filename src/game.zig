@@ -121,7 +121,8 @@ pub const Game = struct {
             }
             self.allocator.free(self.threads);
         }
-        self.block_queue.deinit();
+        self.allocator.free(self.odd_blocks);
+        self.allocator.free(self.even_blocks);
     }
 
     pub const PixelPlacement = struct {
@@ -607,18 +608,7 @@ pub const Game = struct {
         switch (self.state) {
             .start => {
                 //self.tui.items.items[self.tui.items.items.len - 1].button.y += 1;
-                if (WASM or SINGLE_THREADED) {
-                    self.on_render(self.delta) catch |err| {
-                        GAME_LOG.info("Error: {any}\n", .{err});
-                        return;
-                    };
-                }
-                if (SINGLE_THREADED and !WASM) {
-                    self.e.events.handle_events() catch |err| {
-                        GAME_LOG.info("Error: {any}\n", .{err});
-                        return;
-                    };
-                }
+
             },
             .game => {
                 if (self.placement_queue.items.len > 0) {
@@ -654,18 +644,6 @@ pub const Game = struct {
                     GAME_LOG.info("Error: {any}\n", .{err});
                     return;
                 };
-                if (WASM or SINGLE_THREADED) {
-                    self.on_render(self.delta) catch |err| {
-                        GAME_LOG.info("Error: {any}\n", .{err});
-                        return;
-                    };
-                }
-                if (SINGLE_THREADED and !WASM) {
-                    self.e.events.handle_events() catch |err| {
-                        GAME_LOG.info("Error: {any}\n", .{err});
-                        return;
-                    };
-                }
             },
         }
         if (!SINGLE_THREADED and !WASM) {
@@ -744,7 +722,7 @@ pub const Game = struct {
         self.block_lock = std.Thread.Mutex{};
         self.placement_lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(50, 130);
-        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM) .single else .multi);
+        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM or SINGLE_THREADED) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         try self.current_world.generate(.forest);
@@ -783,8 +761,8 @@ pub const Game = struct {
         self.BLOCK_WIDTH -= @as(usize, @intCast(self.current_world.tex.width)) % self.BLOCK_WIDTH;
         self.BLOCK_HEIGHT -= @as(usize, @intCast(self.current_world.tex.height)) % self.BLOCK_HEIGHT;
         self.TOTAL_BLOCKS = (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT);
-        self.odd_blocks = self.allocator.alloc(BlockBounds, self.TOTAL_BLOCKS / 2);
-        self.even_blocks = self.allocator.alloc(BlockBounds, self.TOTAL_BLOCKS / 2 + self.TOTAL_BLOCKS % 2);
+        self.odd_blocks = try self.allocator.alloc(BlockBounds, self.TOTAL_BLOCKS / 2);
+        self.even_blocks = try self.allocator.alloc(BlockBounds, self.TOTAL_BLOCKS / 2 + self.TOTAL_BLOCKS % 2);
         self.curr_block = 0;
         self.block_iteration = .Done;
         const BLOCKS_PER_ROW = (@as(usize, @intCast(self.current_world.tex.width)) + self.BLOCK_WIDTH - 1) / self.BLOCK_WIDTH;
@@ -838,6 +816,12 @@ pub const Game = struct {
             self.delta = self.timer.read();
             self.timer.reset();
             main_loop(self);
+            if (WASM or SINGLE_THREADED) {
+                try self.on_render(self.delta);
+            }
+            if (SINGLE_THREADED and !WASM) {
+                try self.e.events.handle_events();
+            }
             self.delta = self.timer.read();
             // time_elapsed += self.delta;
             // GAME_LOG.info("time elapsed {any} out of {any}\n", .{ time_elapsed, time_to_place });

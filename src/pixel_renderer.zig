@@ -227,6 +227,7 @@ pub const PixelRenderer = struct {
     }
 
     pub fn deinit(self: *Self) Error!void {
+        PIXEL_RENDERER_LOG.info("Deinitializing pixel renderer\n", .{});
         self.allocator.free(self.pixel_buffer);
         self.terminal_buffer.deinit();
         if (terminal_type == .native) try self.terminal.off();
@@ -827,6 +828,7 @@ pub const PixelRenderer = struct {
 
     inline fn add_char_terminal(buffer: *TerminalBuffer, c: u8) !void {
         try buffer.append(c);
+        PIXEL_RENDERER_LOG.info("Added char {c} to terminal buffer, new len is {d}\n", .{ c, buffer.items.len });
     }
 
     fn block_render(self: *Self) Error!void {
