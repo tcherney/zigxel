@@ -159,7 +159,7 @@ pub const EventManager = struct {
             raw.iflag.ISTRIP = false;
 
             raw.cc[@as(usize, @intFromEnum(std.posix.V.TIME))] = 0;
-            raw.cc[@as(usize, @intFromEnum(std.posix.V.MIN))] = 1;
+            raw.cc[@as(usize, @intFromEnum(std.posix.V.MIN))] = 0;
             if (std.c.tcsetattr(self.stdin.handle, .FLUSH, &raw) == 1) {
                 return Error.PosixInit;
             }
@@ -274,10 +274,11 @@ pub const EventManager = struct {
                     },
                 }
             } else {
-                //TODO this doesn't work for single threaded, look into polling?
-                const b = try self.stdin.reader().readByte();
-                if (self.key_down_callback != null) {
-                    self.key_down_callback.?.call(@enumFromInt(b));
+                //TODO test this on deck
+                var c: u8 = undefined;
+                const result = std.c.read(self.stdin.handle, &c, 1);
+                if (result == 1 and self.key_down_callback != null) {
+                    self.key_down_callback.?.call(@enumFromInt(c));
                 }
             }
         }

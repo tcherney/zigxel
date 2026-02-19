@@ -828,7 +828,7 @@ pub const PixelRenderer = struct {
 
     inline fn add_char_terminal(buffer: *TerminalBuffer, c: u8) !void {
         try buffer.append(c);
-        PIXEL_RENDERER_LOG.info("Added char {c} to terminal buffer, new len is {d}\n", .{ c, buffer.items.len });
+        //PIXEL_RENDERER_LOG.info("Added char {c} to terminal buffer, new len is {d}\n", .{ c, buffer.items.len });
     }
 
     fn block_render(self: *Self) Error!void {

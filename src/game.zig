@@ -417,8 +417,8 @@ pub const Game = struct {
             }
             return .{
                 .y_start = game.get_y(end) - 1,
-                .y_end = game.get_x(end - 1),
-                .x_start = game.get_y(start),
+                .y_end = game.get_y(start),
+                .x_start = game.get_x(end - 1),
                 .x_end = game.get_x(start),
             };
         }
@@ -474,13 +474,13 @@ pub const Game = struct {
             for (0..self.even_blocks.len) |i| {
                 var block_timer = try common.timer_start_param();
                 try self.block_sim(self.even_blocks[i]);
-                GAME_LOG.info("Time for block {d}: ", .{i});
+                GAME_LOG.info("Time for even block {any} {d}: ", .{ self.even_blocks[i], i });
                 _ = common.timer_end_param(&block_timer);
             }
             for (0..self.odd_blocks.len) |i| {
                 var block_timer = try common.timer_start_param();
                 try self.block_sim(self.odd_blocks[i]);
-                GAME_LOG.info("Time for block {d}: ", .{i});
+                GAME_LOG.info("Time for odd block {any} {d}: ", .{ self.odd_blocks[i], i });
                 _ = common.timer_end_param(&block_timer);
             }
         } else {
@@ -760,12 +760,16 @@ pub const Game = struct {
         self.placement_queue = std.ArrayList(PixelPlacement).init(self.allocator);
         self.BLOCK_WIDTH -= @as(usize, @intCast(self.current_world.tex.width)) % self.BLOCK_WIDTH;
         self.BLOCK_HEIGHT -= @as(usize, @intCast(self.current_world.tex.height)) % self.BLOCK_HEIGHT;
+        self.BLOCK_HEIGHT = @min(self.BLOCK_HEIGHT, self.current_world.tex.height / 2);
+        self.BLOCK_WIDTH = @min(self.BLOCK_WIDTH, self.current_world.tex.width / 2);
         self.TOTAL_BLOCKS = (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT);
         self.odd_blocks = try self.allocator.alloc(BlockBounds, self.TOTAL_BLOCKS / 2);
         self.even_blocks = try self.allocator.alloc(BlockBounds, self.TOTAL_BLOCKS / 2 + self.TOTAL_BLOCKS % 2);
         self.curr_block = 0;
         self.block_iteration = .Done;
-        const BLOCKS_PER_ROW = (@as(usize, @intCast(self.current_world.tex.width)) + self.BLOCK_WIDTH - 1) / self.BLOCK_WIDTH;
+        const BLOCKS_PER_ROW = (@as(usize, @intCast(self.current_world.tex.width))) / self.BLOCK_WIDTH;
+        GAME_LOG.info("{d} pixels, world size {d}x{d} block size {d}x{d}\n", .{ self.current_world.pixels.items.len, self.current_world.tex.width, self.current_world.tex.height, self.BLOCK_WIDTH, self.BLOCK_HEIGHT });
+        GAME_LOG.info("{d} total blocks {d} blocks per row\n", .{ self.TOTAL_BLOCKS, BLOCKS_PER_ROW });
         for (0..self.TOTAL_BLOCKS) |i| {
             if (i % 2 == 0) {
                 self.even_blocks[i / 2] = BlockBounds.init(self, i, self.TOTAL_BLOCKS - 1, BLOCKS_PER_ROW);
@@ -778,8 +782,6 @@ pub const Game = struct {
             self.threads = try self.allocator.alloc(std.Thread, self.thread_count);
             self.blocks_per_thread = ((@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT) / self.thread_count) / 2;
             GAME_LOG.info("{d} pixels {d} blocks spawning {d} threads {d} blocks per thread with block size {d}x{d}\n", .{ self.current_world.pixels.items.len, (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT), self.thread_count, self.blocks_per_thread, self.BLOCK_WIDTH, self.BLOCK_HEIGHT });
-            const last_block_id = (self.blocks_per_thread * self.thread_count * 2) - 1;
-            GAME_LOG.info("{d} total blocks {d} last block id\n", .{ self.TOTAL_BLOCKS, last_block_id });
             for (0..self.thread_count) |t| {
                 self.threads[t] = try std.Thread.spawn(.{}, block_thread, .{self});
             }
