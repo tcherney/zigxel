@@ -1059,10 +1059,10 @@ pub const PixelRenderer = struct {
         if (self.sixel_renderer) {
             try self.sixel_render(width, height);
         } else {
-            var block_timer = try common.timer_start_param();
+            //var block_timer = try common.timer_start_param();
             try self.block_render();
-            PIXEL_RENDERER_LOG.info("Block render time: ", .{});
-            _ = common.timer_end_param(&block_timer);
+            //PIXEL_RENDERER_LOG.info("Block render time: ", .{});
+            //_ = common.timer_end_param(&block_timer);
         }
     }
 };

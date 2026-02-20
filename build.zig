@@ -162,6 +162,14 @@ pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
         test_step.dependOn(&run_exe_unit_tests.step);
         test_step.dependOn(&run_texture_unit_tests.step);
         test_step.dependOn(&run_engine_unit_tests.step);
+        //TODO build docs
+        const install_docs = b.addInstallDirectory(.{
+            .source_dir = lib.getEmittedDocs(),
+            .install_dir = .prefix,
+            .install_subdir = "docs",
+        });
+        const docs_step = b.step("docs", "Generate documentation");
+        docs_step.dependOn(&install_docs.step);
     }
 }
 
@@ -178,6 +186,5 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     try build_target(b, b.resolveTargetQuery(wasm_target), .ReleaseSmall);
-    //TODO droping linux build for now windows and web are hte primary targets
     if (!(target.result.os.tag == .linux and xlib)) try build_target(b, target, optimize);
 }

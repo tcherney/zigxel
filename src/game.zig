@@ -24,7 +24,7 @@ pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
 pub const DEBUG = false;
-pub const SINGLE_THREADED: bool = true;
+pub const SINGLE_THREADED: bool = false;
 pub const PROFILE_MODE: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
@@ -174,13 +174,22 @@ pub const Game = struct {
             self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x + 1, y);
             self.current_world.pixels.items[indx].?.*.managed = temp;
         }
-        indx = @as(u32, @bitCast(y + 1)) * self.current_world.tex.width + @as(u32, @bitCast(x + 1));
+        indx = @as(u32, @bitCast(y)) * self.current_world.tex.width + @as(u32, @bitCast(x - 1));
         if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
             self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x + 1, y + 1);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x - 1, y);
         } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
             const temp = self.current_world.pixels.items[indx].?.managed;
-            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x + 1, y + 1);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x - 1, y);
+            self.current_world.pixels.items[indx].?.*.managed = temp;
+        }
+        indx = @as(u32, @bitCast(y - 1)) * self.current_world.tex.width + @as(u32, @bitCast(x));
+        if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {
+            self.current_world.pixels.items[indx] = try self.allocator.create(PhysicsPixel);
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x, y - 1);
+        } else if (indx >= 0 and indx < self.current_world.pixels.items.len) {
+            const temp = self.current_world.pixels.items[indx].?.managed;
+            self.current_world.pixels.items[indx].?.* = PhysicsPixel.init(pixel_type, x, y - 1);
             self.current_world.pixels.items[indx].?.*.managed = temp;
         }
     }
@@ -399,7 +408,6 @@ pub const Game = struct {
         self.state = .game;
     }
 
-    //TODO use this in sim this way we precompute bounds
     pub const BlockBounds = struct {
         y_start: usize,
         y_end: usize,
@@ -423,7 +431,13 @@ pub const Game = struct {
             };
         }
     };
-
+    //TODO now that we have optimized the loop a bit we should try out a thread spawning approach, would
+    //TODO simplify things and lower amount of idle time, can use same approach pulling from the block lists
+    //TODO that way the moment one thread starts we can start processing instead of waiting
+    //TODO current approach has an issue in multithreaded where work is being done when there is no more
+    //TODO blocks in the lists so the main thread goes on ahead and can go into the next iteration adn
+    //TODO process placement pixels while pixels are still being simmed causing a crash from both threads
+    //TODO writing, can even run into a situation where sim starts again before first sim finished
     pub fn block_thread(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
@@ -439,6 +453,7 @@ pub const Game = struct {
                     self.curr_block = block_end;
                 }
                 self.block_lock.unlock();
+                //GAME_LOG.info("start {d}, end {d}, blocks {d}\n", .{ block_start, block_end, block_end - block_start + 1 });
                 for (block_start..block_end) |b| {
                     try self.block_sim(self.even_blocks[b]);
                 }
@@ -446,15 +461,15 @@ pub const Game = struct {
                 self.block_lock.lock();
                 block_start = self.curr_block;
                 block_end = @min(block_start + self.blocks_per_thread + 1, self.odd_blocks.len);
-                if (block_start >= self.odd_blocks.len) {
-                    self.block_iteration = .Done;
-                    self.curr_block = 0;
-                } else {
-                    self.curr_block = block_end;
-                }
+                self.curr_block = block_end;
                 self.block_lock.unlock();
-                for (block_start..block_end) |b| {
-                    try self.block_sim(self.odd_blocks[b]);
+                if (block_start < block_end) {
+                    for (block_start..block_end) |b| {
+                        try self.block_sim(self.odd_blocks[b]);
+                    }
+                }
+                if (block_end >= self.odd_blocks.len) {
+                    self.block_iteration = .Done;
                 }
             }
         }
@@ -470,22 +485,20 @@ pub const Game = struct {
             }
         }
         if (SINGLE_THREADED or WASM) {
-            //TODO 123 ms for steam deck, something has to be wrong with the sim cant just be cache locality
             for (0..self.even_blocks.len) |i| {
-                var block_timer = try common.timer_start_param();
+                //var block_timer = try common.timer_start_param();
                 try self.block_sim(self.even_blocks[i]);
-                GAME_LOG.info("Time for even block {any} {d}: ", .{ self.even_blocks[i], i });
-                _ = common.timer_end_param(&block_timer);
+                //GAME_LOG.info("Time for even block {any} {d}: ", .{ self.even_blocks[i], i });
+                //_ = common.timer_end_param(&block_timer);
             }
             for (0..self.odd_blocks.len) |i| {
-                var block_timer = try common.timer_start_param();
+                //var block_timer = try common.timer_start_param();
                 try self.block_sim(self.odd_blocks[i]);
-                GAME_LOG.info("Time for odd block {any} {d}: ", .{ self.odd_blocks[i], i });
-                _ = common.timer_end_param(&block_timer);
+                //GAME_LOG.info("Time for odd block {any} {d}: ", .{ self.odd_blocks[i], i });
+                //_ = common.timer_end_param(&block_timer);
             }
         } else {
             //TODO add timing, add grid for visualization in renderer
-            //TODO very slow, 160 ms, need to see what is taking so long, the block itself or what
             self.block_lock.lock();
             self.block_iteration = .First;
             self.block_lock.unlock();
@@ -504,7 +517,7 @@ pub const Game = struct {
     inline fn get_x(self: *Self, indx: usize) usize {
         return indx % @as(usize, @intCast(self.current_world.tex.width));
     }
-    //TODO should change block queue to just be a list of block bounds and keep track of available blocks and wether its been prcoessed
+
     pub fn block_sim(self: *Self, block_bounds: BlockBounds) !void {
         //common.timer_start();
         var y = block_bounds.y_start;
@@ -778,6 +791,7 @@ pub const Game = struct {
             }
         }
         if (!SINGLE_THREADED and !WASM) {
+            self.threads_running = true;
             self.thread_count = 10; //try std.Thread.getCpuCount() - 3;
             self.threads = try self.allocator.alloc(std.Thread, self.thread_count);
             self.blocks_per_thread = ((@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT) / self.thread_count) / 2;
