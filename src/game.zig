@@ -438,6 +438,7 @@ pub const Game = struct {
     //TODO blocks in the lists so the main thread goes on ahead and can go into the next iteration adn
     //TODO process placement pixels while pixels are still being simmed causing a crash from both threads
     //TODO writing, can even run into a situation where sim starts again before first sim finished
+    //TODO make v2 of this where threads keep consuming blocks until block iteration is done
     pub fn block_thread(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
@@ -470,6 +471,44 @@ pub const Game = struct {
                 }
                 if (block_end >= self.odd_blocks.len) {
                     self.block_iteration = .Done;
+                }
+            }
+        }
+    }
+
+    pub fn block_thread2(self: *Self) !void {
+        var block_start: usize = 0;
+        var block_end: usize = 0;
+        while (self.threads_running) {
+            if (self.block_iteration == .First) {
+                self.block_lock.lock();
+                block_start = self.curr_block;
+                block_end = @min(block_start + self.blocks_per_thread + 1, self.even_blocks.len);
+                if (block_start >= self.even_blocks.len) {
+                    self.block_iteration = .Second;
+                    self.curr_block = 0;
+                } else {
+                    self.curr_block = block_end;
+                }
+                self.block_lock.unlock();
+                //GAME_LOG.info("start {d}, end {d}, blocks {d}\n", .{ block_start, block_end, block_end - block_start + 1 });
+                for (block_start..block_end) |b| {
+                    try self.block_sim(self.even_blocks[b]);
+                }
+            } else if (self.block_iteration == .Second) {
+                self.block_lock.lock();
+                block_start = self.curr_block;
+                block_end = @min(block_start + self.blocks_per_thread + 1, self.odd_blocks.len);
+                self.curr_block = block_end;
+                self.block_lock.unlock();
+                if (block_start < block_end) {
+                    for (block_start..block_end) |b| {
+                        try self.block_sim(self.odd_blocks[b]);
+                    }
+                }
+                if (block_end >= self.odd_blocks.len) {
+                    self.block_iteration = .Done;
+                    self.threads_running = false;
                 }
             }
         }

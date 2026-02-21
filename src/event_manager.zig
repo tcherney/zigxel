@@ -275,9 +275,10 @@ pub const EventManager = struct {
                 }
             } else {
                 var c: [1]u8 = undefined;
-                const result = std.c.read(self.stdin.handle, &c, 1);
-                if (result == 1 and self.key_down_callback != null) {
+                var result = std.c.read(self.stdin.handle, &c, 1);
+                while (result == 1 and self.key_down_callback != null) {
                     self.key_down_callback.?.call(@enumFromInt(c[0]));
+                    result = std.c.read(self.stdin.handle, &c, 1);
                 }
             }
         }
@@ -388,9 +389,10 @@ pub const EventManager = struct {
             } else {
                 while (self.running) {
                     var c: [1]u8 = undefined;
-                    const result = std.c.read(self.stdin.handle, &c, 1);
-                    if (result == 1 and self.key_down_callback != null) {
+                    var result = std.c.read(self.stdin.handle, &c, 1);
+                    while (result == 1 and self.key_down_callback != null) {
                         self.key_down_callback.?.call(@enumFromInt(c[0]));
+                        result = std.c.read(self.stdin.handle, &c, 1);
                     }
                 }
             }
