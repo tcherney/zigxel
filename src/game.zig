@@ -24,7 +24,7 @@ pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
 pub const DEBUG = false;
-pub const SINGLE_THREADED: bool = false;
+pub const SINGLE_THREADED: bool = true;
 pub const PROFILE_MODE: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
@@ -537,12 +537,17 @@ pub const Game = struct {
                 //_ = common.timer_end_param(&block_timer);
             }
         } else {
-            //TODO add timing, add grid for visualization in renderer
+            //TODO limit the total number of blocks being simmed, dont sim if block is way outside viewable range
             self.block_lock.lock();
             self.block_iteration = .First;
+            self.curr_block = 0;
             self.block_lock.unlock();
-            while (self.block_iteration != .Done) {
-                //wait for threads to finish
+            self.threads_running = true;
+            for (0..self.thread_count) |t| {
+                self.threads[t] = try std.Thread.spawn(.{}, block_thread2, .{self});
+            }
+            for (0..self.thread_count) |t| {
+                self.threads[t].join();
             }
         }
         GAME_LOG.info("Full sim time: ", .{});
@@ -575,6 +580,69 @@ pub const Game = struct {
         }
         //GAME_LOG.info("Block process time ", .{});
         //_ = common.timer_end();
+    }
+
+    pub fn draw_block_grid(self: *Self) void {
+        for (self.even_blocks) |b| {
+            self.e.renderer.pixel.draw_line(common.Colors.RED, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_start))),
+                .y = @bitCast(@as(u32, @intCast(b.y_start))),
+            }, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_start))),
+                .y = @bitCast(@as(u32, @intCast(b.y_end))),
+            }, self.current_world.tex);
+            self.e.renderer.pixel.draw_line(common.Colors.RED, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_start))),
+                .y = @bitCast(@as(u32, @intCast(b.y_start))),
+            }, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_end))),
+                .y = @bitCast(@as(u32, @intCast(b.y_start))),
+            }, self.current_world.tex);
+            self.e.renderer.pixel.draw_line(common.Colors.RED, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_end))),
+                .y = @bitCast(@as(u32, @intCast(b.y_end))),
+            }, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_end))),
+                .y = @bitCast(@as(u32, @intCast(b.y_start))),
+            }, self.current_world.tex);
+            self.e.renderer.pixel.draw_line(common.Colors.RED, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_end))),
+                .y = @bitCast(@as(u32, @intCast(b.y_end))),
+            }, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_start))),
+                .y = @bitCast(@as(u32, @intCast(b.y_end))),
+            }, self.current_world.tex);
+        }
+        for (self.odd_blocks) |b| {
+            self.e.renderer.pixel.draw_line(common.Colors.BLUE, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_start))),
+                .y = @bitCast(@as(u32, @intCast(b.y_start))),
+            }, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_start))),
+                .y = @bitCast(@as(u32, @intCast(b.y_end))),
+            }, self.current_world.tex);
+            self.e.renderer.pixel.draw_line(common.Colors.BLUE, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_start))),
+                .y = @bitCast(@as(u32, @intCast(b.y_start))),
+            }, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_end))),
+                .y = @bitCast(@as(u32, @intCast(b.y_start))),
+            }, self.current_world.tex);
+            self.e.renderer.pixel.draw_line(common.Colors.BLUE, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_end))),
+                .y = @bitCast(@as(u32, @intCast(b.y_end))),
+            }, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_end))),
+                .y = @bitCast(@as(u32, @intCast(b.y_start))),
+            }, self.current_world.tex);
+            self.e.renderer.pixel.draw_line(common.Colors.BLUE, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_end))),
+                .y = @bitCast(@as(u32, @intCast(b.y_end))),
+            }, .{
+                .x = @bitCast(@as(u32, @intCast(b.x_start))),
+                .y = @bitCast(@as(u32, @intCast(b.y_end))),
+            }, self.current_world.tex);
+        }
     }
 
     var rotate_test: f64 = 0;
@@ -641,6 +709,7 @@ pub const Game = struct {
                         try self.e.renderer.pixel.draw_text(try std.fmt.bufPrint(&debug_buffer, "FPS: {d:.2} Color ({any}), Type {any}", .{ self.e.fps, p.?.pixel, p.?.pixel_type }), 0, 0, 255, 255, 255);
                     }
                 }
+                self.draw_block_grid();
             },
         }
         try self.e.renderer.pixel.flip(self.current_world.tex, self.current_world.viewport);
@@ -835,9 +904,6 @@ pub const Game = struct {
             self.threads = try self.allocator.alloc(std.Thread, self.thread_count);
             self.blocks_per_thread = ((@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT) / self.thread_count) / 2;
             GAME_LOG.info("{d} pixels {d} blocks spawning {d} threads {d} blocks per thread with block size {d}x{d}\n", .{ self.current_world.pixels.items.len, (@as(usize, @intCast(self.current_world.tex.height)) * @as(usize, @intCast(self.current_world.tex.width))) / (self.BLOCK_WIDTH * self.BLOCK_HEIGHT), self.thread_count, self.blocks_per_thread, self.BLOCK_WIDTH, self.BLOCK_HEIGHT });
-            for (0..self.thread_count) |t| {
-                self.threads[t] = try std.Thread.spawn(.{}, block_thread, .{self});
-            }
         }
 
         self.e.on_key_down(Self, on_key_down, self);
