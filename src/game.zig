@@ -431,14 +431,8 @@ pub const Game = struct {
             };
         }
     };
-    //TODO now that we have optimized the loop a bit we should try out a thread spawning approach, would
-    //TODO simplify things and lower amount of idle time, can use same approach pulling from the block lists
-    //TODO that way the moment one thread starts we can start processing instead of waiting
-    //TODO current approach has an issue in multithreaded where work is being done when there is no more
-    //TODO blocks in the lists so the main thread goes on ahead and can go into the next iteration adn
-    //TODO process placement pixels while pixels are still being simmed causing a crash from both threads
-    //TODO writing, can even run into a situation where sim starts again before first sim finished
-    //TODO make v2 of this where threads keep consuming blocks until block iteration is done
+    //TODO compare timings to see where else we can speed up the simming of all blocks
+    //TODO a large optimization we can do is limit what blocks we actually sim, if block is outisde of viewable range by perhaps 2-3 blocks we wont sim it
     pub fn block_thread(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
