@@ -436,6 +436,10 @@ pub const Game = struct {
     pub fn block_thread(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
+        var blocks: []BlockBounds = try self.allocator.alloc(BlockBounds, self.blocks_per_thread);
+        var blocks_to_process: usize = 0;
+        //TODO pull blocks from queue check if block is within viewable range, keep grabbing blocks till we have self.blocks_per_thread or run out
+        defer self.allocator.free(blocks);
         while (self.threads_running) {
             if (self.block_iteration == .First) {
                 self.block_lock.lock();
