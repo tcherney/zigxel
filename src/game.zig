@@ -430,6 +430,15 @@ pub const Game = struct {
                 .x_end = game.get_x(start),
             };
         }
+        pub fn inbound(self: *BlockBounds, game: *Self) bool {
+            //TODO verify that copilot knows what its talking about, also may need to adjust how far outside of the viewport we want to sim, currently its 2 blocks but maybe we can get away with 1 or even just the viewport
+            const BUFFER_WIDTH = game.BLOCK_WIDTH * 2;
+            const BUFFER_HEIGHT = game.BLOCK_HEIGHT * 2;
+            return self.x_start < @as(usize, @intCast(game.current_world.viewport.x + game.current_world.viewport.width + BUFFER_WIDTH)) and
+                self.x_end > @as(usize, @intCast(game.current_world.viewport.x - BUFFER_WIDTH)) and
+                self.y_start < @as(usize, @intCast(game.current_world.viewport.y + game.current_world.viewport.height + BUFFER_HEIGHT)) and
+                self.y_end > @as(usize, @intCast(game.current_world.viewport.y - BUFFER_HEIGHT));
+        }
     };
     //TODO compare timings to see where else we can speed up the simming of all blocks
     //TODO a large optimization we can do is limit what blocks we actually sim, if block is outisde of viewable range by perhaps 2-3 blocks we wont sim it
@@ -443,6 +452,7 @@ pub const Game = struct {
         while (self.threads_running) {
             if (self.block_iteration == .First) {
                 self.block_lock.lock();
+                //TODO until we have blocks_per_thread or run out of blocks for blocks_to_process keep looping grabbing blocks and check if they are in range
                 block_start = self.curr_block;
                 block_end = @min(block_start + self.blocks_per_thread + 1, self.even_blocks.len);
                 if (block_start >= self.even_blocks.len) {
