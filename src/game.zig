@@ -452,71 +452,113 @@ pub const Game = struct {
         while (self.threads_running) {
             if (self.block_iteration == .First) {
                 self.block_lock.lock();
+                blocks_to_process = 0;
                 //TODO until we have blocks_per_thread or run out of blocks for blocks_to_process keep looping grabbing blocks and check if they are in range
-                block_start = self.curr_block;
-                block_end = @min(block_start + self.blocks_per_thread + 1, self.even_blocks.len);
-                if (block_start >= self.even_blocks.len) {
-                    self.block_iteration = .Second;
-                    self.curr_block = 0;
-                } else {
-                    self.curr_block = block_end;
+                while (blocks_to_process < self.blocks_per_thread and block_start < self.even_blocks.len) {
+                    block_start = self.curr_block;
+                    block_end = @min(block_start + self.blocks_per_thread + 1, self.even_blocks.len);
+                    if (block_start >= self.even_blocks.len) {
+                        self.block_iteration = .Second;
+                        self.curr_block = 0;
+                    } else {
+                        self.curr_block = block_end;
+                    }
+                    for (block_start..block_end) |i| {
+                        if (self.even_blocks[i].inbound(self)) {
+                            blocks[blocks_to_process] = i;
+                            blocks_to_process += 1;
+                        }
+                    }
                 }
                 self.block_lock.unlock();
                 //GAME_LOG.info("start {d}, end {d}, blocks {d}\n", .{ block_start, block_end, block_end - block_start + 1 });
-                for (block_start..block_end) |b| {
-                    try self.block_sim(self.even_blocks[b]);
+                for (0..blocks_to_process) |b| {
+                    try self.block_sim(self.even_blocks[blocks[b]]);
                 }
             } else if (self.block_iteration == .Second) {
                 self.block_lock.lock();
-                block_start = self.curr_block;
-                block_end = @min(block_start + self.blocks_per_thread + 1, self.odd_blocks.len);
-                self.curr_block = block_end;
-                self.block_lock.unlock();
-                if (block_start < block_end) {
-                    for (block_start..block_end) |b| {
-                        try self.block_sim(self.odd_blocks[b]);
+                blocks_to_process = 0;
+                //TODO until we have blocks_per_thread or run out of blocks for blocks_to_process keep looping grabbing blocks and check if they are in range
+                while (self.block_iteration != .Done and blocks_to_process < self.blocks_per_thread and block_start < self.even_blocks.len) {
+                    block_start = self.curr_block;
+                    block_end = @min(block_start + self.blocks_per_thread + 1, self.odd_blocks.len);
+                    if (block_start >= self.odd_blocks.len) {
+                        self.block_iteration = .Done;
+                        self.curr_block = 0;
+                    } else {
+                        self.curr_block = block_end;
+                    }
+                    for (block_start..block_end) |i| {
+                        if (self.odd_blocks[i].inbound(self)) {
+                            blocks[blocks_to_process] = i;
+                            blocks_to_process += 1;
+                        }
                     }
                 }
-                if (block_end >= self.odd_blocks.len) {
-                    self.block_iteration = .Done;
+                self.block_lock.unlock();
+                //GAME_LOG.info("start {d}, end {d}, blocks {d}\n", .{ block_start, block_end, block_end - block_start + 1 });
+                for (0..blocks_to_process) |b| {
+                    try self.block_sim(self.odd_blocks[blocks[b]]);
                 }
             }
         }
     }
 
+    //TODO will have to iron out a lot of bugs
     pub fn block_thread2(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
+        var blocks: []BlockBounds = try self.allocator.alloc(BlockBounds, self.blocks_per_thread);
+        var blocks_to_process: usize = 0;
+        //TODO pull blocks from queue check if block is within viewable range, keep grabbing blocks till we have self.blocks_per_thread or run out
+        defer self.allocator.free(blocks);
         while (self.threads_running) {
             if (self.block_iteration == .First) {
                 self.block_lock.lock();
-                block_start = self.curr_block;
-                block_end = @min(block_start + self.blocks_per_thread + 1, self.even_blocks.len);
-                if (block_start >= self.even_blocks.len) {
-                    self.block_iteration = .Second;
-                    self.curr_block = 0;
-                } else {
-                    self.curr_block = block_end;
+                blocks_to_process = 0;
+                while (blocks_to_process < self.blocks_per_thread and block_start < self.even_blocks.len) {
+                    block_start = self.curr_block;
+                    block_end = @min(block_start + self.blocks_per_thread + 1, self.even_blocks.len);
+                    if (block_start >= self.even_blocks.len) {
+                        self.block_iteration = .Second;
+                        self.curr_block = 0;
+                    } else {
+                        self.curr_block = block_end;
+                    }
+                    for (block_start..block_end) |i| {
+                        if (self.even_blocks[i].inbound(self)) {
+                            blocks[blocks_to_process] = i;
+                            blocks_to_process += 1;
+                        }
+                    }
                 }
                 self.block_lock.unlock();
                 //GAME_LOG.info("start {d}, end {d}, blocks {d}\n", .{ block_start, block_end, block_end - block_start + 1 });
-                for (block_start..block_end) |b| {
-                    try self.block_sim(self.even_blocks[b]);
+                for (0..blocks_to_process) |b| {
+                    try self.block_sim(self.even_blocks[blocks[b]]);
                 }
             } else if (self.block_iteration == .Second) {
                 self.block_lock.lock();
-                block_start = self.curr_block;
-                block_end = @min(block_start + self.blocks_per_thread + 1, self.odd_blocks.len);
-                self.curr_block = block_end;
-                self.block_lock.unlock();
-                if (block_start < block_end) {
-                    for (block_start..block_end) |b| {
-                        try self.block_sim(self.odd_blocks[b]);
+                blocks_to_process = 0;
+                //TODO until we have blocks_per_thread or run out of blocks for blocks_to_process keep looping grabbing blocks and check if they are in range
+                while (self.block_iteration != .Done and blocks_to_process < self.blocks_per_thread and block_start < self.even_blocks.len) {
+                    block_start = self.curr_block;
+                    block_end = @min(block_start + self.blocks_per_thread + 1, self.odd_blocks.len);
+                    self.curr_block = block_end;
+                    if (block_end >= self.odd_blocks.len) {
+                        self.block_iteration = .Done;
+                        self.threads_running = false;
+                    }
+                    for (block_start..block_end) |i| {
+                        if (self.odd_blocks[i].inbound(self)) {
+                            blocks[blocks_to_process] = i;
+                            blocks_to_process += 1;
+                        }
                     }
                 }
-                if (block_end >= self.odd_blocks.len) {
-                    self.block_iteration = .Done;
-                    self.threads_running = false;
+                self.block_lock.unlock();
+                for (0..blocks_to_process) |b| {
+                    try self.block_sim(self.odd_blocks[blocks[b]]);
                 }
             }
         }
