@@ -24,7 +24,7 @@ pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
 pub const DEBUG = false;
-pub const SINGLE_THREADED: bool = true;
+pub const SINGLE_THREADED: bool = false;
 pub const PROFILE_MODE: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
@@ -434,10 +434,10 @@ pub const Game = struct {
             //TODO verify that copilot knows what its talking about, also may need to adjust how far outside of the viewport we want to sim, currently its 2 blocks but maybe we can get away with 1 or even just the viewport
             const BUFFER_WIDTH = game.BLOCK_WIDTH * 2;
             const BUFFER_HEIGHT = game.BLOCK_HEIGHT * 2;
-            return self.x_start < @as(usize, @intCast(game.current_world.viewport.x + game.current_world.viewport.width + BUFFER_WIDTH)) and
-                self.x_end > @as(usize, @intCast(game.current_world.viewport.x - BUFFER_WIDTH)) and
-                self.y_start < @as(usize, @intCast(game.current_world.viewport.y + game.current_world.viewport.height + BUFFER_HEIGHT)) and
-                self.y_end > @as(usize, @intCast(game.current_world.viewport.y - BUFFER_HEIGHT));
+            return self.x_start < @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.x)) + game.current_world.viewport.width + BUFFER_WIDTH)) and
+                (game.current_world.viewport.x > BUFFER_WIDTH and self.x_end > @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.x)) - BUFFER_WIDTH))) and
+                self.y_start < @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.y)) + game.current_world.viewport.height + BUFFER_HEIGHT)) and
+                (game.current_world.viewport.y > BUFFER_HEIGHT and self.y_end > @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.y)) - BUFFER_HEIGHT)));
         }
     };
     //TODO compare timings to see where else we can speed up the simming of all blocks
@@ -445,7 +445,7 @@ pub const Game = struct {
     pub fn block_thread(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
-        var blocks: []BlockBounds = try self.allocator.alloc(BlockBounds, self.blocks_per_thread);
+        var blocks: []usize = try self.allocator.alloc(usize, self.blocks_per_thread);
         var blocks_to_process: usize = 0;
         //TODO pull blocks from queue check if block is within viewable range, keep grabbing blocks till we have self.blocks_per_thread or run out
         defer self.allocator.free(blocks);
@@ -508,7 +508,7 @@ pub const Game = struct {
     pub fn block_thread2(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
-        var blocks: []BlockBounds = try self.allocator.alloc(BlockBounds, self.blocks_per_thread);
+        var blocks: []usize = try self.allocator.alloc(usize, self.blocks_per_thread);
         var blocks_to_process: usize = 0;
         //TODO pull blocks from queue check if block is within viewable range, keep grabbing blocks till we have self.blocks_per_thread or run out
         defer self.allocator.free(blocks);
