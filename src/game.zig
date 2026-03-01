@@ -24,7 +24,7 @@ pub const TUI = engine.TUI(Game.State);
 const GAME_LOG = std.log.scoped(.game);
 
 pub const DEBUG = false;
-pub const SINGLE_THREADED: bool = false;
+pub const SINGLE_THREADED: bool = true;
 pub const PROFILE_MODE: bool = false;
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
 const TERMINAL_HEIGHT_OFFSET = 35;
@@ -432,12 +432,18 @@ pub const Game = struct {
         }
         pub fn inbound(self: *BlockBounds, game: *Self) bool {
             //TODO verify that copilot knows what its talking about, also may need to adjust how far outside of the viewport we want to sim, currently its 2 blocks but maybe we can get away with 1 or even just the viewport
+            //TODO this is likely why blocks aren't getting simmed
             const BUFFER_WIDTH = game.BLOCK_WIDTH * 2;
             const BUFFER_HEIGHT = game.BLOCK_HEIGHT * 2;
-            return self.x_start < @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.x)) + game.current_world.viewport.width + BUFFER_WIDTH)) and
-                (game.current_world.viewport.x > BUFFER_WIDTH and self.x_end > @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.x)) - BUFFER_WIDTH))) and
-                self.y_start < @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.y)) + game.current_world.viewport.height + BUFFER_HEIGHT)) and
-                (game.current_world.viewport.y > BUFFER_HEIGHT and self.y_end > @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.y)) - BUFFER_HEIGHT)));
+            //GAME_LOG.info("viewport x: {d}, y: {d}, width: {d}, height: {d}\n buffer_width: {d}, buffer_height: {d}\n", .{ game.current_world.viewport.x, game.current_world.viewport.y, game.current_world.viewport.width, game.current_world.viewport.height, BUFFER_WIDTH, BUFFER_HEIGHT });
+            const lower_x_bound: usize = if (@as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.x)))) > BUFFER_WIDTH) @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.x)))) - BUFFER_WIDTH else 0;
+            const lower_y_bound: usize = if (@as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.y)))) > BUFFER_HEIGHT) @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.y)))) - BUFFER_HEIGHT else 0;
+            const upper_x_bound: usize = @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.x)))) + game.current_world.viewport.width + BUFFER_WIDTH;
+            const upper_y_bound: usize = @as(usize, @intCast(@as(u32, @bitCast(game.current_world.viewport.y)))) + game.current_world.viewport.height + BUFFER_HEIGHT;
+            return (self.x_start >= lower_x_bound and self.x_start <= upper_x_bound and self.y_start >= lower_y_bound and self.y_start <= upper_y_bound) or
+                (self.x_end >= lower_x_bound and self.x_end <= upper_x_bound and self.y_start >= lower_y_bound and self.y_start <= upper_y_bound) or
+                (self.x_start >= lower_x_bound and self.x_start <= upper_x_bound and self.y_end >= lower_y_bound and self.y_end <= upper_y_bound) or
+                (self.x_end >= lower_x_bound and self.x_end <= upper_x_bound and self.y_end >= lower_y_bound and self.y_end <= upper_y_bound);
         }
     };
     //TODO compare timings to see where else we can speed up the simming of all blocks
@@ -576,13 +582,19 @@ pub const Game = struct {
         if (SINGLE_THREADED or WASM) {
             for (0..self.even_blocks.len) |i| {
                 //var block_timer = try common.timer_start_param();
-                try self.block_sim(self.even_blocks[i]);
+                if (self.even_blocks[i].inbound(self)) {
+                    //GAME_LOG.info("Simming even block {any} {d}\n", .{ self.even_blocks[i], i });
+                    try self.block_sim(self.even_blocks[i]);
+                }
                 //GAME_LOG.info("Time for even block {any} {d}: ", .{ self.even_blocks[i], i });
                 //_ = common.timer_end_param(&block_timer);
             }
             for (0..self.odd_blocks.len) |i| {
                 //var block_timer = try common.timer_start_param();
-                try self.block_sim(self.odd_blocks[i]);
+                if (self.odd_blocks[i].inbound(self)) {
+                    //GAME_LOG.info("Simming odd block {any} {d}\n", .{ self.odd_blocks[i], i });
+                    try self.block_sim(self.odd_blocks[i]);
+                }
                 //GAME_LOG.info("Time for odd block {any} {d}: ", .{ self.odd_blocks[i], i });
                 //_ = common.timer_end_param(&block_timer);
             }
