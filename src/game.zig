@@ -431,8 +431,6 @@ pub const Game = struct {
             };
         }
         pub fn inbound(self: *BlockBounds, game: *Self) bool {
-            //TODO verify that copilot knows what its talking about, also may need to adjust how far outside of the viewport we want to sim, currently its 2 blocks but maybe we can get away with 1 or even just the viewport
-            //TODO this is likely why blocks aren't getting simmed
             const BUFFER_WIDTH = game.BLOCK_WIDTH * 2;
             const BUFFER_HEIGHT = game.BLOCK_HEIGHT * 2;
             //GAME_LOG.info("viewport x: {d}, y: {d}, width: {d}, height: {d}\n buffer_width: {d}, buffer_height: {d}\n", .{ game.current_world.viewport.x, game.current_world.viewport.y, game.current_world.viewport.width, game.current_world.viewport.height, BUFFER_WIDTH, BUFFER_HEIGHT });
@@ -446,20 +444,17 @@ pub const Game = struct {
                 (self.x_end >= lower_x_bound and self.x_end <= upper_x_bound and self.y_end >= lower_y_bound and self.y_end <= upper_y_bound);
         }
     };
-    //TODO compare timings to see where else we can speed up the simming of all blocks
-    //TODO a large optimization we can do is limit what blocks we actually sim, if block is outisde of viewable range by perhaps 2-3 blocks we wont sim it
+
     pub fn block_thread(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
         var blocks: []usize = try self.allocator.alloc(usize, self.blocks_per_thread);
         var blocks_to_process: usize = 0;
-        //TODO pull blocks from queue check if block is within viewable range, keep grabbing blocks till we have self.blocks_per_thread or run out
         defer self.allocator.free(blocks);
         while (self.threads_running) {
             if (self.block_iteration == .First) {
                 self.block_lock.lock();
                 blocks_to_process = 0;
-                //TODO until we have blocks_per_thread or run out of blocks for blocks_to_process keep looping grabbing blocks and check if they are in range
                 while (blocks_to_process < self.blocks_per_thread and block_start < self.even_blocks.len) {
                     block_start = self.curr_block;
                     block_end = @min(block_start + self.blocks_per_thread + 1, self.even_blocks.len);
@@ -484,7 +479,6 @@ pub const Game = struct {
             } else if (self.block_iteration == .Second) {
                 self.block_lock.lock();
                 blocks_to_process = 0;
-                //TODO until we have blocks_per_thread or run out of blocks for blocks_to_process keep looping grabbing blocks and check if they are in range
                 while (self.block_iteration != .Done and blocks_to_process < self.blocks_per_thread and block_start < self.even_blocks.len) {
                     block_start = self.curr_block;
                     block_end = @min(block_start + self.blocks_per_thread + 1, self.odd_blocks.len);
@@ -510,13 +504,11 @@ pub const Game = struct {
         }
     }
 
-    //TODO will have to iron out a lot of bugs
     pub fn block_thread2(self: *Self) !void {
         var block_start: usize = 0;
         var block_end: usize = 0;
         var blocks: []usize = try self.allocator.alloc(usize, self.blocks_per_thread);
         var blocks_to_process: usize = 0;
-        //TODO pull blocks from queue check if block is within viewable range, keep grabbing blocks till we have self.blocks_per_thread or run out
         defer self.allocator.free(blocks);
         while (self.threads_running) {
             if (self.block_iteration == .First) {
@@ -546,7 +538,6 @@ pub const Game = struct {
             } else if (self.block_iteration == .Second) {
                 self.block_lock.lock();
                 blocks_to_process = 0;
-                //TODO until we have blocks_per_thread or run out of blocks for blocks_to_process keep looping grabbing blocks and check if they are in range
                 while (self.block_iteration != .Done and blocks_to_process < self.blocks_per_thread and block_start < self.even_blocks.len) {
                     block_start = self.curr_block;
                     block_end = @min(block_start + self.blocks_per_thread + 1, self.odd_blocks.len);
@@ -599,7 +590,6 @@ pub const Game = struct {
                 //_ = common.timer_end_param(&block_timer);
             }
         } else {
-            //TODO limit the total number of blocks being simmed, dont sim if block is way outside viewable range
             self.block_lock.lock();
             self.block_iteration = .First;
             self.curr_block = 0;
@@ -907,6 +897,7 @@ pub const Game = struct {
         engine.set_wasm_terminal_size(50, 130);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM or SINGLE_THREADED) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
+        //TODO adjust this to just be terminal width/height for sixel
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         try self.current_world.generate(.forest);
 

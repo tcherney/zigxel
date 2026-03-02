@@ -65,7 +65,7 @@ pub const Engine = struct {
     pub fn window_change(self: *Self) void {
         self.window_changed = true;
     }
-    //TODO multithreaded rendering?? can split target texture into multiple parts
+
     fn render_loop(self: *Self) Error!void {
         var timer: std.time.Timer = try std.time.Timer.start();
         var elapsed: f64 = 0.0;
