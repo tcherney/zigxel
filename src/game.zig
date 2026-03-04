@@ -897,7 +897,6 @@ pub const Game = struct {
         engine.set_wasm_terminal_size(50, 130);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM or SINGLE_THREADED) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
-        //TODO adjust this to just be terminal width/height for sixel
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.terminal.size.width)), @as(u32, @intCast(self.e.renderer.pixel.terminal.size.height * 2)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.terminal.size.width)), @as(u32, @intCast(self.e.renderer.pixel.terminal.size.height * 2)), self.allocator);
         try self.current_world.generate(.forest);
 
