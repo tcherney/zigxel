@@ -32,7 +32,6 @@ pub fn set_wasm_terminal_size(height: usize, width: usize) void {
     term.WASM_SIZE = .{ .height = height, .width = width };
 }
 
-//TODO update event manager to support sixel coordinates
 pub const Engine = struct {
     renderer: Graphics = undefined,
     events: EventManager = undefined,

@@ -11,7 +11,6 @@ pub inline fn to_seconds(nano: u64) f64 {
 }
 
 const PHYSICS_PIXEL_LOG = std.log.scoped(.physics_pixel);
-//TODO update callback with more information like xy to remove pixel from object
 pub const ObjectReactionCallback = common.Callback(PixelType);
 pub const PixelType = enum { Sand, Water, Empty, Wall, Oil, Rock, Steam, Fire, Lava, Wood, Ice, Plant, Explosive, Object, WhiteWall, Dirt, Grass };
 

@@ -14,6 +14,7 @@ const TUI_LOG = std.log.scoped(.tui);
 pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
 
 //TODO add more elements (textfields??) add key navigation (keeping track of current selected element)
+//TODO add layout system
 pub fn TUI(comptime State: type) type {
     return struct {
         allocator: Allocator,
