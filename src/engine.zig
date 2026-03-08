@@ -32,6 +32,8 @@ pub fn set_wasm_terminal_size(height: usize, width: usize) void {
     term.WASM_SIZE = .{ .height = height, .width = width };
 }
 
+/// 'Engine' is the primary driver of the game engine, all external threads are run through here
+/// for graphics and io
 pub const Engine = struct {
     renderer: Graphics = undefined,
     events: EventManager = undefined,
@@ -111,6 +113,7 @@ pub const Engine = struct {
         }
     }
 
+    /// Frame limit for renderer
     pub fn set_fps(self: *Self, fps: u64) void {
         self.frame_limit = 1_000_000_000 / fps;
         ENGINE_LOG.info("{d}\n", .{self.frame_limit});
@@ -120,6 +123,7 @@ pub const Engine = struct {
         self.running = false;
     }
 
+    /// Starts all threads for the engine
     pub fn start(self: *Self) Error!void {
         switch (self.renderer) {
             inline else => |*renderer| {
@@ -138,25 +142,31 @@ pub const Engine = struct {
         }
     }
 
+    /// Setter for callback to be invoked on key down event
     pub fn on_key_down(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
         self.events.key_down_callback = event_manager.KeyChangeCallback.init(CONTEXT_TYPE, func, context);
     }
 
+    /// Setter for callback to be invoked on key up event
     pub fn on_key_up(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
         self.events.key_up_callback = event_manager.KeyChangeCallback.init(CONTEXT_TYPE, func, context);
     }
 
+    /// Setter for callback to be invoked on key press event
     pub fn on_key_press(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
         self.events.key_press_callback = event_manager.KeyChangeCallback.init(CONTEXT_TYPE, func, context);
     }
 
+    /// Setter for callback to be invoked on mouse change event
     pub fn on_mouse_change(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
         self.events.mouse_event_callback = event_manager.MouseChangeCallback.init(CONTEXT_TYPE, func, context);
     }
+    /// Setter for callback to be invoked on window resize event
     pub fn on_window_change(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
         self.window_change_callback = WindowChangeCallback.init(CONTEXT_TYPE, func, context);
     }
 
+    /// Setter for callback to be invoked when frame is ready be rendered all draw code goes here
     pub fn on_render(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
         self.render_callback = RenderCallback.init(CONTEXT_TYPE, func, context);
     }

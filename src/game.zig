@@ -420,8 +420,7 @@ pub const Game = struct {
                 end = game.current_world.pixels.items.len;
             } else {
                 const end_height = block_id / blocks_per_row * game.BLOCK_HEIGHT + game.BLOCK_HEIGHT;
-                const max_block_height = if (end_height >= @as(usize, @intCast(game.current_world.tex.height))) game.BLOCK_HEIGHT - (end_height - @as(usize, @intCast(game.current_world.tex.height))) - 1 else game.BLOCK_HEIGHT;
-                end = start + (max_block_height * game.current_world.tex.width) + game.BLOCK_WIDTH;
+                end = if (end_height >= @as(usize, @intCast(game.current_world.tex.height))) game.current_world.pixels.items.len else start + (game.BLOCK_HEIGHT * game.current_world.tex.width) + game.BLOCK_WIDTH;
             }
             return .{
                 .y_start = game.get_y(end) - 1,
@@ -895,7 +894,7 @@ pub const Game = struct {
         self.block_lock = std.Thread.Mutex{};
         self.placement_lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(50, 130);
-        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .sixel, ._2d, .color_true, if (WASM or SINGLE_THREADED) .single else .multi);
+        self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .pixel, ._2d, .color_true, if (WASM or SINGLE_THREADED) .single else .multi);
         GAME_LOG.info("starting height {d} starting width {d}\n", .{ self.e.renderer.pixel.terminal.size.height, self.e.renderer.pixel.terminal.size.width });
         self.current_world = if (WASM) try World.init(@as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator) else try World.init(self.world_width, @as(u32, @intCast(self.e.renderer.pixel.pixel_height)) + 10, @as(u32, @intCast(self.e.renderer.pixel.pixel_width)), @as(u32, @intCast(self.e.renderer.pixel.pixel_height)), self.allocator);
         try self.current_world.generate(.forest);
