@@ -71,6 +71,8 @@ pub const MouseEvent = struct {
     ctrl_pressed: bool,
 };
 
+/// Sets up terminal for raw io handles events either in a threaded loop or through calls to handle_events
+/// calls callbacks on events, also handles xlib events if enabled and on linux
 pub const EventManager = struct {
     main_thread: std.Thread = undefined,
     running: bool = false,
