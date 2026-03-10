@@ -116,7 +116,7 @@ pub const EventManager = struct {
         }
         try self.cook();
     }
-
+    /// Leaves raw mode
     fn cook(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             _ = std.os.windows.kernel32.SetConsoleMode(self.stdin.handle, self.original_termios);
@@ -127,6 +127,7 @@ pub const EventManager = struct {
         }
     }
 
+    /// Enables raw IO for unbuffered inputs and outputs
     fn raw_mode(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             if (std.os.windows.kernel32.GetConsoleMode(self.stdin.handle, &self.original_termios) != std.os.windows.TRUE) {
@@ -168,6 +169,7 @@ pub const EventManager = struct {
         }
     }
 
+    /// Main entry point, to be called after init
     pub fn start(self: *Self, single_thread: bool) Error!void {
         try self.raw_mode();
         if (!single_thread) {
@@ -177,6 +179,7 @@ pub const EventManager = struct {
     }
 
     //TODO should combine handle_events and event loop
+    /// Call in single threaded operation to handle all pending events
     pub fn handle_events(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             var irInBuf: [128]win32.INPUT_RECORD = undefined;
@@ -286,6 +289,7 @@ pub const EventManager = struct {
         }
     }
 
+    /// Input loop run in multithreaded operation
     fn event_loop(self: *Self) Error!void {
         if (builtin.os.tag == .windows) {
             var irInBuf: [128]win32.INPUT_RECORD = undefined;
