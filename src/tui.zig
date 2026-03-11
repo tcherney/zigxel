@@ -14,7 +14,8 @@ const TUI_LOG = std.log.scoped(.tui);
 pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
 
 //TODO add more elements (textfields??) add key navigation (keeping track of current selected element)
-//TODO add layout system
+//TODO add layout system, start with grid, row, column, add alignment options, padding, margins
+/// TUI designed to provide a simple way to create interactive terminal interfaces. It supports both pixel and ascii rendering, and is designed to be used with the zig-terminal library for input handling. It is also designed to be used with the zig-image library for pixel rendering, but can be used with any graphics library that implements the Graphics interface.
 pub fn TUI(comptime State: type) type {
     return struct {
         allocator: Allocator,
@@ -104,6 +105,7 @@ pub fn TUI(comptime State: type) type {
                 }
             }
         };
+        /// Item is a union of all possible UI elements. It provides a common interface for drawing and handling input for all elements, allowing them to be stored in a single list and iterated over for drawing and input handling.
         pub const Item = union(enum) {
             button: Button,
             pub const Error = error{} || Button.Error;
@@ -150,6 +152,7 @@ pub fn TUI(comptime State: type) type {
                 }
             }
         }
+        //TODO add more elements
         pub fn add_button(self: *Self, x: usize, y: usize, width: ?usize, height: ?usize, border_color: Pixel, background_color: Pixel, text_color: Pixel, text: []const u8, state: State) Error!void {
             //TODO find out why my text ptr is getting clobbered in wasm
             try self.items.append(.{ .button = try Button.init(self.allocator, x, y, width, height, border_color, background_color, text_color, text, state, self.renderer_type) });
