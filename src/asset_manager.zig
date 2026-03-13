@@ -11,6 +11,7 @@ pub const Graphics = _graphics.Graphics;
 
 /// General asset manager that facilitates the access of different asset types using string names,
 /// this ensures all assets being used by multiple objects get allocated only once
+//TODO manage more assests sound
 pub const AssetManager = struct {
     textures: std.StringHashMap(Texture),
     font_textures: std.StringHashMap(*Texture),
