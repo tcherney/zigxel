@@ -94,6 +94,7 @@ const PIXEL_RENDERER_LOG = std.log.scoped(.pixel_renderer);
 const TerminalBuffer = std.ArrayList(u8);
 //TODO add camera matrix for basic 3d support
 pub const Error = error{ TextureError, SystemResources, Unexpected, PermissionDenied, Unsupported } || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Image.Error;
+/// PixelRenderer is a graphics renderer that uses the terminal to render pixels. It supports both 256 color and true color modes, as well as both native and wasm terminals. It also supports both 2d and 3d graphics types, although 3d support is currently limited to basic transformations. It uses a matrix stack for transformations, and a terminal buffer to optimize rendering by only updating changed pixels. It also supports drawing text, lines, and bezier curves.
 pub const PixelRenderer = struct {
     sixel_renderer: bool = false,
     terminal: term.Term = undefined,

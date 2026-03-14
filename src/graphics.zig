@@ -13,6 +13,7 @@ pub const AsciiRenderer = ascii_renderer.AsciiRenderer;
 
 const GRAPHICS_LOG = std.log.scoped(.graphics);
 pub const Error = ascii_renderer.Error || pixel_renderer.Error;
+/// Graphics is a union of all possible graphics renderers. It provides a common interface for drawing and managing resources, allowing the user to switch between different rendering backends without changing their code. It also allows for different renderers to be used in the same application, for example using ascii rendering for a terminal interface and pixel rendering for a game.
 pub const Graphics = union(enum) {
     pixel: PixelRenderer,
     ascii: AsciiRenderer,

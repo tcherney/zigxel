@@ -36,6 +36,7 @@ pub const DIRT_COLOR = Pixel.init(57, 29, 7, null);
 pub const GRASS_COLOR = PLANT_COLOR;
 pub const ASH_COLOR = Pixel.init(25, 25, 25, null);
 
+/// Properties struct defines the properties of each pixel type, such as color, whether it is solid or not, how long it can exist before disappearing, its density for physics calculations, its speed for movement, whether it can pierce other pixels, and its flammability for fire interactions. It also has a method to vary the color of the pixel based on a variance value, which is used to add some visual variety to the pixels of the same type.
 const Properties = struct {
     color: Pixel,
     solid: bool,
@@ -228,6 +229,7 @@ pub const OBJECT_PROPERTIES: Properties = Properties{
     .flammability = 200,
 };
 
+/// PhysicsPixel represents a single pixel in the physics simulation. It has a type, color, properties, and methods for updating its state based on its type and interactions with other pixels. It also has a callback for when it interacts with an object, which can be used to trigger custom behavior in the game. The PhysicsPixel is designed to be used in a cellular automata style physics simulation, where each pixel updates its state based on its current state and the state of its neighbors.
 pub const PhysicsPixel = struct {
     pixel: Pixel = undefined,
     start_pixel: Pixel,

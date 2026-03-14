@@ -14,7 +14,7 @@ var num_chars: usize = 0;
 
 const FONT_LOG = std.log.scoped(.font);
 pub const WASM: bool = builtin.os.tag == .emscripten or builtin.os.tag == .wasi;
-
+/// Font is a struct that represents a TrueType font. It uses the TTF library to load and parse the font file, and generates textures for each character in the font. It also provides a method to generate a texture from a string, which can be used for rendering text. The font size can be set, which will affect the scale of the generated textures. The font also uses a simple scanline algorithm to fill the character textures, which allows for anti-aliasing and smooth edges.
 pub const Font = struct {
     ttf: TTF = undefined,
     allocator: std.mem.Allocator,

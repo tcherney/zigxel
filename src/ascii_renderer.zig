@@ -18,6 +18,7 @@ pub const terminal_type: TerminalType = if (builtin.os.tag == .emscripten or bui
 
 const ASCII_RENDERER_LOG = std.log.scoped(.ascii_renderer);
 pub const Error = error{TextureError} || term.Error || std.mem.Allocator.Error || std.fmt.BufPrintError || image.Image.Error;
+/// AsciiRenderer is a graphics renderer that uses the terminal to render pixels. It supports both 256 color and true color modes, as well as both native and wasm terminals. It uses a pixel buffer to store the current frame, and a last frame buffer to optimize rendering by only updating changed pixels. It also supports drawing text, lines, and textures, as well as setting background colors.
 pub const AsciiRenderer = struct {
     terminal: term.Term = undefined,
     pixel_buffer: []PixelType = undefined,
