@@ -105,6 +105,103 @@ pub fn TUI(comptime State: type) type {
                 }
             }
         };
+        pub const Layout = union(enum) {
+            absolute: AbsoluteLayout,
+            grid: GridLayout,
+            row: RowLayout,
+            column: ColumnLayout,
+            pub const AbsoluteLayout = struct {
+                allocator: Allocator,
+                x: usize,
+                y: usize,
+                items: std.ArrayList(Item),
+                pub const Error = error{} || Allocator.Error || Item.Error;
+                pub fn init(allocator: Allocator, x: usize, y: usize) AbsoluteLayout.Error!AbsoluteLayout {
+                    return .{
+                        .allocator = allocator,
+                        .x = x,
+                        .y = y,
+                    };
+                }
+
+                pub fn deinit(self: *AbsoluteLayout) void {
+                    for (0..self.items.items.len) |i| {
+                        self.items.items[i].deinit();
+                    }
+                    self.items.deinit();
+                }
+
+                pub fn set_on_click(_: *AbsoluteLayout, item: *Item, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+                    switch (item.*) {
+                        inline else => |*i| i.set_on_click(CONTEXT_TYPE, func, context),
+                    }
+                }
+
+                //TODO have to modifiy the draw function to take relative x,y and add it to item positions
+                pub fn draw(self: *AbsoluteLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) AbsoluteLayout.Error!void {
+                    for (0..self.items.items.len) |i| {
+                        try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y);
+                    }
+                }
+            };
+            pub const GridLayout = struct {
+                allocator: Allocator,
+                x: usize,
+                y: usize,
+                rows: usize,
+                columns: usize,
+                items: std.ArrayList(Item),
+                pub const Error = error{} || Allocator.Error || Item.Error;
+                pub fn init(allocator: Allocator, x: usize, y: usize, rows: usize, columns: usize) GridLayout.Error!GridLayout {
+                    return .{
+                        .allocator = allocator,
+                        .x = x,
+                        .y = y,
+                        .rows = rows,
+                        .columns = columns,
+                    };
+                }
+
+                pub fn deinit(self: *GridLayout) void {
+                    for (0..self.items.items.len) |i| {
+                        self.items.items[i].deinit();
+                    }
+                    self.items.deinit();
+                }
+
+                pub fn set_on_click(_: *GridLayout, item: *Item, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+                    switch (item.*) {
+                        inline else => |*i| i.set_on_click(CONTEXT_TYPE, func, context),
+                    }
+                }
+
+                //TODO calculate item positions based on grid layout and viewport
+                pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) GridLayout.Error!void {
+                    for (0..self.items.items.len) |i| {
+                        try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y);
+                    }
+                }
+            };
+            pub const RowLayout = struct {};
+            pub const ColumnLayout = struct {};
+            pub fn set_on_click(self: *Layout, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+                switch (self.*) {
+                    inline else => |*layout| layout.set_on_click(CONTEXT_TYPE, func, context),
+                }
+            }
+            pub fn draw(self: *Layout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) Item.Error!void {
+                switch (self.*) {
+                    inline else => |*layout| {
+                        if (state == layout.state) try layout.draw(renderer, dest, viewport_x, viewport_y);
+                    },
+                }
+            }
+            pub fn deinit(self: *Layout) void {
+                switch (self.*) {
+                    inline else => |*layout| layout.deinit(),
+                }
+            }
+        };
         /// Item is a union of all possible UI elements. It provides a common interface for drawing and handling input for all elements, allowing them to be stored in a single list and iterated over for drawing and input handling.
         pub const Item = union(enum) {
             button: Button,
