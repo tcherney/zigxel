@@ -69,14 +69,14 @@ pub fn TUI(comptime State: type) type {
                 }
             }
 
-            pub fn draw(self: *Button, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) Button.Error!void {
+            pub fn draw(self: *Button, renderer: *Graphics, dest: ?Texture, offset_x: i32, offset_y: i32, viewport_x: i32, viewport_y: i32) Button.Error!void {
                 const viewport_x_usize = if (WASM) @as(usize, @bitCast(viewport_x)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_x))));
                 const viewport_y_usize = if (WASM) @as(usize, @bitCast(viewport_y)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_y))));
                 if (self.renderer_type == .pixel) {
-                    const y_start = viewport_y_usize + self.y;
+                    const y_start = viewport_y_usize + self.y + offset_y;
                     for (y_start..y_start + self.height) |i| {
                         const i_i32 = if (WASM) @as(i32, @bitCast(i)) else @as(i32, @intCast(@as(i64, @bitCast(i))));
-                        for (viewport_x_usize + self.x..viewport_x_usize + self.x + self.width) |j| {
+                        for (viewport_x_usize + self.x..viewport_x_usize + self.x + self.width + offset_x) |j| {
                             const j_i32 = if (WASM) @as(i32, @bitCast(j)) else @as(i32, @intCast(@as(i64, @bitCast(j))));
                             renderer.pixel.draw_pixel(j_i32, i_i32, self.background_color, dest);
                         }
@@ -90,9 +90,9 @@ pub fn TUI(comptime State: type) type {
                     const mid_x = self.x + (self.width / 2) - (self.text.len / 2);
                     const mid_y = self.y + (self.height / 2);
                     var curr_char: usize = 0;
-                    for (viewport_y_usize + self.y..viewport_y_usize + self.y + self.height) |i| {
+                    for (viewport_y_usize + self.y + offset_y..viewport_y_usize + self.y + self.height + offset_y) |i| {
                         const i_i32 = if (WASM) @as(i32, @bitCast(i)) else @as(i32, @intCast(@as(i64, @bitCast(i))));
-                        for (viewport_x_usize + self.x..viewport_x_usize + self.x + self.width) |j| {
+                        for (viewport_x_usize + self.x + offset_x..viewport_x_usize + self.x + self.width + offset_x) |j| {
                             const j_i32 = if (WASM) @as(i32, @bitCast(j)) else @as(i32, @intCast(@as(i64, @bitCast(j))));
                             if (j >= mid_x and i >= mid_y and curr_char < self.text.len) {
                                 renderer.ascii.draw_symbol_bg(j_i32, i_i32, self.text[curr_char], self.text_color, dest, self.background_color.get_r(), self.background_color.get_g(), self.background_color.get_b());
@@ -178,7 +178,7 @@ pub fn TUI(comptime State: type) type {
                 //TODO calculate item positions based on grid layout and viewport
                 pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) GridLayout.Error!void {
                     for (0..self.items.items.len) |i| {
-                        try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y);
+                        try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y);
                     }
                 }
             };
@@ -211,10 +211,10 @@ pub fn TUI(comptime State: type) type {
                     inline else => |*item| item.set_on_click(CONTEXT_TYPE, func, context),
                 }
             }
-            pub fn draw(self: *Item, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) Item.Error!void {
+            pub fn draw(self: *Item, renderer: *Graphics, dest: ?Texture, offset_x: usize, offset_y: usize, viewport_x: i32, viewport_y: i32, state: State) Item.Error!void {
                 switch (self.*) {
                     inline else => |*item| {
-                        if (state == item.state) try item.draw(renderer, dest, viewport_x, viewport_y);
+                        if (state == item.state) try item.draw(renderer, dest, offset_x, offset_y, viewport_x, viewport_y);
                     },
                 }
             }
@@ -225,40 +225,51 @@ pub fn TUI(comptime State: type) type {
             }
         };
         pub const Self = @This();
-        pub const Error = error{} || Item.Error;
+        pub const Error = error{} || Layout.Error;
         pub fn init(allocator: Allocator, renderer_type: RendererType) Self {
             return .{
                 .allocator = allocator,
-                .items = std.ArrayList(Item).init(allocator),
+                .layout = .{ .absolute = Layout.AbsoluteLayout.init(allocator, 0, 0) },
                 .renderer_type = renderer_type,
             };
         }
         pub fn deinit(self: *Self) void {
-            for (0..self.items.items.len) |i| {
-                self.items.items[i].deinit();
+            switch (self.layout) {
+                inline else => |*layout| {
+                    layout.deinit();
+                },
             }
-            self.items.deinit();
         }
         pub fn mouse_input(self: *Self, x: i32, y: i32, state: State) void {
-            for (0..self.items.items.len) |i| {
-                switch (self.items.items[i]) {
-                    .button => |button| {
-                        if (state != button.state or button.on_click == null) continue;
-                        button.mouse_input(x, y);
-                    },
-                }
+            switch (self.layout) {
+                inline else => |*layout| {
+                    for (0..layout.items.items.len) |i| {
+                        switch (layout.items.items[i]) {
+                            .button => |button| {
+                                if (state != button.state or button.on_click == null) continue;
+                                button.mouse_input(x, y);
+                            },
+                        }
+                    }
+                },
             }
         }
         //TODO add more elements
         pub fn add_button(self: *Self, x: usize, y: usize, width: ?usize, height: ?usize, border_color: Pixel, background_color: Pixel, text_color: Pixel, text: []const u8, state: State) Error!void {
             //TODO find out why my text ptr is getting clobbered in wasm
-            try self.items.append(.{ .button = try Button.init(self.allocator, x, y, width, height, border_color, background_color, text_color, text, state, self.renderer_type) });
-            TUI_LOG.info("Button {any}\n", .{self.items.items[self.items.items.len - 1]});
+            switch (self.layout) {
+                inline else => |*layout| {
+                    try layout.items.append(.{ .button = try Button.init(self.allocator, x, y, width, height, border_color, background_color, text_color, text, state, self.renderer_type) });
+                    TUI_LOG.info("Button {any}\n", .{layout.items.items[layout.items.items.len - 1]});
+                },
+            }
         }
 
         pub fn draw(self: *Self, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) Error!void {
-            for (0..self.items.items.len) |i| {
-                try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y, state);
+            switch (self.layout) {
+                inline else => |*layout| {
+                    try layout.draw(renderer, dest, viewport_x, viewport_y, state);
+                },
             }
         }
     };
