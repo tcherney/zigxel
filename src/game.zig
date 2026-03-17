@@ -81,7 +81,7 @@ pub const Game = struct {
     const Self = @This();
     pub const Error = error{} || image.Image.Error || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error || Texture.Error || Player.Error;
     pub fn init(allocator: std.mem.Allocator) Error!Self {
-        var ret = Self{ .allocator = allocator, .tui = TUI.init(allocator, .pixel) };
+        var ret = Self{ .allocator = allocator, .tui = try TUI.init(allocator, .pixel) };
         try common.gen_rand();
         ret.placement_pixel = try ret.allocator.alloc(PhysicsPixel, 14);
         ret.placement_pixel[0] = PhysicsPixel.init(physic_pixel.PixelType.Sand, ret.starting_pos_x, ret.starting_pos_y);

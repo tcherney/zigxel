@@ -19,7 +19,7 @@ pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .w
 pub fn TUI(comptime State: type) type {
     return struct {
         allocator: Allocator,
-        items: std.ArrayList(Item),
+        layout: Layout,
         renderer_type: RendererType,
         pub const Button = struct {
             width: usize,
@@ -140,7 +140,9 @@ pub fn TUI(comptime State: type) type {
                 //TODO have to modifiy the draw function to take relative x,y and add it to item positions
                 pub fn draw(self: *AbsoluteLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) AbsoluteLayout.Error!void {
                     for (0..self.items.items.len) |i| {
-                        try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y);
+                        if (self.items.items[i].state == State.active) {
+                            try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y, State.active);
+                        }
                     }
                 }
             };
@@ -178,21 +180,24 @@ pub fn TUI(comptime State: type) type {
                 //TODO calculate item positions based on grid layout and viewport
                 pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) GridLayout.Error!void {
                     for (0..self.items.items.len) |i| {
-                        try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y);
+                        if (self.items.items[i].state == State.active) {
+                            try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y);
+                        }
                     }
                 }
             };
             pub const RowLayout = struct {};
             pub const ColumnLayout = struct {};
+            pub const Error = error{} || AbsoluteLayout.Error || GridLayout.Error || Item.Error;
             pub fn set_on_click(self: *Layout, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
                 switch (self.*) {
                     inline else => |*layout| layout.set_on_click(CONTEXT_TYPE, func, context),
                 }
             }
-            pub fn draw(self: *Layout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) Item.Error!void {
+            pub fn draw(self: *Layout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) Layout.Error!void {
                 switch (self.*) {
                     inline else => |*layout| {
-                        if (state == layout.state) try layout.draw(renderer, dest, viewport_x, viewport_y);
+                        try layout.draw(renderer, dest, viewport_x, viewport_y);
                     },
                 }
             }
@@ -226,10 +231,10 @@ pub fn TUI(comptime State: type) type {
         };
         pub const Self = @This();
         pub const Error = error{} || Layout.Error;
-        pub fn init(allocator: Allocator, renderer_type: RendererType) Self {
+        pub fn init(allocator: Allocator, renderer_type: RendererType) Error!Self {
             return .{
                 .allocator = allocator,
-                .layout = .{ .absolute = Layout.AbsoluteLayout.init(allocator, 0, 0) },
+                .layout = .{ .absolute = try Layout.AbsoluteLayout.init(allocator, 0, 0) },
                 .renderer_type = renderer_type,
             };
         }
