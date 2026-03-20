@@ -928,7 +928,7 @@ pub const Game = struct {
         var button_y = (self.e.renderer.pixel.pixel_height / 2);
         if (tui_adjust) button_y -= 1;
         try self.tui.add_button(self.e.renderer.pixel.pixel_width / 2, button_y, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, self.assets.strings[@intFromEnum(AssetManager.StringIndex.START)], .start);
-        switch (self.tui.layout.*) {
+        switch (self.tui.layout) {
             else => |*layout| {
                 layout.absolute.items.items[layout.absolute.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
             },
