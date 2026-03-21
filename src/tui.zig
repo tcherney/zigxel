@@ -69,7 +69,7 @@ pub fn TUI(comptime State: type) type {
                 }
             }
 
-            pub fn draw(self: *Button, renderer: *Graphics, dest: ?Texture, offset_x: i32, offset_y: i32, viewport_x: i32, viewport_y: i32) Button.Error!void {
+            pub fn draw(self: *Button, renderer: *Graphics, dest: ?Texture, offset_x: usize, offset_y: usize, viewport_x: i32, viewport_y: i32) Button.Error!void {
                 const viewport_x_usize = if (WASM) @as(usize, @bitCast(viewport_x)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_x))));
                 const viewport_y_usize = if (WASM) @as(usize, @bitCast(viewport_y)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_y))));
                 if (self.renderer_type == .pixel) {
@@ -121,6 +121,7 @@ pub fn TUI(comptime State: type) type {
                         .allocator = allocator,
                         .x = x,
                         .y = y,
+                        .items = std.ArrayList(Item).init(allocator),
                     };
                 }
 
@@ -138,11 +139,9 @@ pub fn TUI(comptime State: type) type {
                 }
 
                 //TODO have to modifiy the draw function to take relative x,y and add it to item positions
-                pub fn draw(self: *AbsoluteLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) AbsoluteLayout.Error!void {
+                pub fn draw(self: *AbsoluteLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) AbsoluteLayout.Error!void {
                     for (0..self.items.items.len) |i| {
-                        if (self.items.items[i].state == State.active) {
-                            try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y, State.active);
-                        }
+                        try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y, state);
                     }
                 }
             };
@@ -161,6 +160,7 @@ pub fn TUI(comptime State: type) type {
                         .y = y,
                         .rows = rows,
                         .columns = columns,
+                        .items = std.ArrayList(Item).init(allocator),
                     };
                 }
 
@@ -178,17 +178,87 @@ pub fn TUI(comptime State: type) type {
                 }
 
                 //TODO calculate item positions based on grid layout and viewport
-                pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32) GridLayout.Error!void {
+                pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) GridLayout.Error!void {
                     for (0..self.items.items.len) |i| {
-                        if (self.items.items[i].state == State.active) {
-                            try self.items.items[i].draw(renderer, dest, viewport_x, viewport_y);
-                        }
+                        try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y, state);
                     }
                 }
             };
-            pub const RowLayout = struct {};
-            pub const ColumnLayout = struct {};
-            pub const Error = error{} || AbsoluteLayout.Error || GridLayout.Error || Item.Error;
+            pub const RowLayout = struct {
+                allocator: Allocator,
+                x: usize,
+                y: usize,
+                rows: usize,
+                items: std.ArrayList(Item),
+                pub const Error = error{} || Allocator.Error || Item.Error;
+                pub fn init(allocator: Allocator, x: usize, y: usize, rows: usize) RowLayout.Error!RowLayout {
+                    return .{
+                        .allocator = allocator,
+                        .x = x,
+                        .y = y,
+                        .rows = rows,
+                        .items = std.ArrayList(Item).init(allocator),
+                    };
+                }
+
+                pub fn deinit(self: *RowLayout) void {
+                    for (0..self.items.items.len) |i| {
+                        self.items.items[i].deinit();
+                    }
+                    self.items.deinit();
+                }
+
+                pub fn set_on_click(_: *RowLayout, item: *Item, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+                    switch (item.*) {
+                        inline else => |*i| i.set_on_click(CONTEXT_TYPE, func, context),
+                    }
+                }
+
+                //TODO calculate item positions based on grid layout and viewport
+                pub fn draw(self: *RowLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) RowLayout.Error!void {
+                    for (0..self.items.items.len) |i| {
+                        try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y, state);
+                    }
+                }
+            };
+            pub const ColumnLayout = struct {
+                allocator: Allocator,
+                x: usize,
+                y: usize,
+                columns: usize,
+                items: std.ArrayList(Item),
+                pub const Error = error{} || Allocator.Error || Item.Error;
+                pub fn init(allocator: Allocator, x: usize, y: usize, columns: usize) ColumnLayout.Error!ColumnLayout {
+                    return .{
+                        .allocator = allocator,
+                        .x = x,
+                        .y = y,
+                        .columns = columns,
+                        .items = std.ArrayList(Item).init(allocator),
+                    };
+                }
+
+                pub fn deinit(self: *ColumnLayout) void {
+                    for (0..self.items.items.len) |i| {
+                        self.items.items[i].deinit();
+                    }
+                    self.items.deinit();
+                }
+
+                pub fn set_on_click(_: *ColumnLayout, item: *Item, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
+                    switch (item.*) {
+                        inline else => |*i| i.set_on_click(CONTEXT_TYPE, func, context),
+                    }
+                }
+
+                //TODO calculate item positions based on column layout and viewport
+                pub fn draw(self: *ColumnLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) ColumnLayout.Error!void {
+                    for (0..self.items.items.len) |i| {
+                        try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y, state);
+                    }
+                }
+            };
+            pub const Error = error{} || AbsoluteLayout.Error || GridLayout.Error || ColumnLayout.Error || Item.Error;
             pub fn set_on_click(self: *Layout, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
                 switch (self.*) {
                     inline else => |*layout| layout.set_on_click(CONTEXT_TYPE, func, context),
