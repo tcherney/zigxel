@@ -179,8 +179,20 @@ pub fn TUI(comptime State: type) type {
 
                 //TODO calculate item positions based on grid layout and viewport
                 pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) GridLayout.Error!void {
+                    var row: usize = 0;
+                    var column: usize = 0;
+                    var prev_x_end: i32 = self.x;
+                    var prev_y_end: i32 = self.y;
                     for (0..self.items.items.len) |i| {
-                        try self.items.items[i].draw(renderer, dest, self.x, self.y, viewport_x, viewport_y, state);
+                        column = i % self.columns;
+                        row = i / self.columns;
+                        try self.items.items[i].draw(renderer, dest, prev_x_end, prev_y_end, viewport_x, viewport_y, state);
+                        switch (self.items.items[i]) {
+                            inline else => |*item| {
+                                prev_y_end = @max(prev_y_end, @as(i32, @bitCast(item.y + item.height)));
+                                prev_x_end = @max(prev_x_end, @as(i32, @bitCast(item.x + item.width)));
+                            },
+                        }
                     }
                 }
             };
