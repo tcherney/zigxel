@@ -179,8 +179,8 @@ pub fn TUI(comptime State: type) type {
 
                 //TODO calculate item positions based on grid layout and viewport
                 pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) GridLayout.Error!void {
-                    const prev_x_end: i32 = self.x;
-                    var prev_y_end: i32 = self.y;
+                    const prev_x_end = self.x;
+                    var prev_y_end = self.y;
                     //TODO have to adjust offset x every column increment and reset back to self.x when column resets
                     //TODO have to keep offset y to previous end and track the element that extends the furthest
                     //TODO then use that for next row offset
@@ -193,8 +193,8 @@ pub fn TUI(comptime State: type) type {
                             try self.items.items[index].draw(renderer, dest, curr_y_end, prev_y_end, viewport_x, viewport_y, state);
                             switch (self.items.items[index]) {
                                 inline else => |*item| {
-                                    prev_y_end = @max(prev_y_end, curr_y_end + @as(i32, @bitCast(item.y + item.height)));
-                                    curr_x_end = curr_x_end + @as(i32, @bitCast(item.x + item.width));
+                                    prev_y_end = @max(prev_y_end, curr_y_end + item.y + item.height);
+                                    curr_x_end = curr_x_end + item.x + item.width;
                                 },
                             }
                         }
