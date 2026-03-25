@@ -176,14 +176,10 @@ pub fn TUI(comptime State: type) type {
                         inline else => |*i| i.set_on_click(CONTEXT_TYPE, func, context),
                     }
                 }
-
-                //TODO calculate item positions based on grid layout and viewport
+                //TODO test
                 pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) GridLayout.Error!void {
                     const prev_x_end = self.x;
                     var prev_y_end = self.y;
-                    //TODO have to adjust offset x every column increment and reset back to self.x when column resets
-                    //TODO have to keep offset y to previous end and track the element that extends the furthest
-                    //TODO then use that for next row offset
                     for (0..self.rows) |r| {
                         const curr_y_end = prev_y_end;
                         var curr_x_end = prev_x_end;
