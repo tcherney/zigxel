@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const graphics = @import("graphics.zig");
+
 const common = @import("common");
 const texture = @import("texture.zig");
 
@@ -10,6 +11,7 @@ pub const Pixel = common.Pixel;
 pub const Allocator = std.mem.Allocator;
 pub const Texture = texture.Texture;
 const TUI_LOG = std.log.scoped(.tui);
+const KEYS = @import("engine.zig").KEYS;
 
 pub const WASM: bool = if (builtin.os.tag == .emscripten or builtin.os.tag == .wasi) true else false;
 
@@ -21,6 +23,7 @@ pub fn TUI(comptime State: type) type {
         allocator: Allocator,
         layout: Layout,
         renderer_type: RendererType,
+        selected_item: usize = 0,
         pub const Button = struct {
             width: usize,
             height: usize,
@@ -327,6 +330,11 @@ pub fn TUI(comptime State: type) type {
                     layout.deinit();
                 },
             }
+        }
+        pub fn on_key_down(self: *Self, key: KEYS) void {
+            _ = self;
+            _ = key;
+            //TODO implement key nav, check closest item to direction, have to handle wrapping
         }
         pub fn mouse_input(self: *Self, x: i32, y: i32, state: State) void {
             switch (self.layout) {
