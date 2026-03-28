@@ -162,7 +162,6 @@ pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
         test_step.dependOn(&run_exe_unit_tests.step);
         test_step.dependOn(&run_texture_unit_tests.step);
         test_step.dependOn(&run_engine_unit_tests.step);
-        //TODO build docs, looks like this works, need to start adding tons of doc comments now, not just in this project but in all dependencies as well
         const install_docs = b.addInstallDirectory(.{
             .source_dir = lib.getEmittedDocs(),
             .install_dir = .prefix,
