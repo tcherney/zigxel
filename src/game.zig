@@ -145,7 +145,6 @@ pub const Game = struct {
         }
     }
 
-    //TODO segfaul when adding pixels make sure this is correct
     pub fn place_pixel(self: *Self, x: i32, y: i32, pixel_type: physic_pixel.PixelType) !void {
         var indx: u32 = @as(u32, @bitCast(x)) * self.current_world.tex.width + @as(u32, @bitCast(y));
         if (indx >= 0 and indx < self.current_world.pixels.items.len and self.current_world.pixels.items[indx] == null) {

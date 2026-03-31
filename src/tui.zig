@@ -108,6 +108,7 @@ pub fn TUI(comptime State: type) type {
                 }
             }
         };
+        //TODO implement the rest of the layouts, and test them
         pub const Layout = union(enum) {
             absolute: AbsoluteLayout,
             grid: GridLayout,
