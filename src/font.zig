@@ -5,6 +5,7 @@ const _texture = @import("texture.zig");
 const common = @import("common");
 
 //TODO store everything as floats, only convert to int when applying to screen to preserve accuracy
+//TODO will this actually change anything?
 pub const Point = common.Point(2, i32);
 pub const TTF = _ttf.TTF;
 pub const Texture = _texture.Texture;
