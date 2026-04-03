@@ -37,18 +37,18 @@ pub const Weapon = struct {
     pub fn deinit(self: *Weapon) void {
         self.allocator.destroy(self.projectile);
     }
-    //TODO
+    //TODO, move particle along and update trail effect, have to keep track of lifetime for visual trail
     pub fn update(self: *Weapon, dt: u64) void {
         _ = self;
         _ = dt;
     }
-    //TODO
+    //TODO, should be simple just configuring flags to be used in update
     pub fn shoot(self: *Weapon, x: i32, y: i32) void {
         _ = self;
         _ = x;
         _ = y;
     }
-    //TODO draw projectile and effect until it hits something, then projectile will be taken over by sim
+    //TODO should only need to draw visual trail effect rest will be handled by sim
     pub fn draw(self: *Weapon, renderer: *PixelRenderer) void {
         _ = self;
         _ = renderer;
