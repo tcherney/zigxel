@@ -4,7 +4,7 @@ const physics_pixel = @import("physics_pixel.zig");
 pub const Allocator = std.mem.Allocator;
 pub const PhysicsPixel = physics_pixel.PhysicsPixel;
 pub const PixelRenderer = @import("pixel_renderer.zig").PixelRenderer;
-
+pub const Point = @import("common").Point(2, i32);
 //TODO implment weapon, start with none and trail effects with explosive end point
 /// Weapons are projectiles that can be shot by the player or enemies, they have a speed, an effect and a type, they can be updated and drawn by the renderer, they can also be deinitialized when they are no longer needed
 pub const Weapon = struct {
@@ -13,6 +13,7 @@ pub const Weapon = struct {
     effect: ProjectileEffect,
     allocator: Allocator,
     weapon_type: WeaponType,
+    end_point: Point,
     pub const Error = error{InvalidWeaponType} || Allocator.Error;
     /// Effect that the trace applies, can be none, a visible trail, an explosive pixel being added at each step or a fire pixel being added at each step
     pub const ProjectileEffect = enum { none, trail, explosive, fire };
