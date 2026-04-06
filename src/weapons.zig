@@ -1,15 +1,18 @@
 const std = @import("std");
 const physics_pixel = @import("physics_pixel.zig");
+const common = @import("common");
 
 pub const Allocator = std.mem.Allocator;
 pub const PhysicsPixel = physics_pixel.PhysicsPixel;
 pub const PixelRenderer = @import("pixel_renderer.zig").PixelRenderer;
-pub const Point = @import("common").Point(2, i32);
+pub const Point = common.Point(2, i32);
 //TODO implment weapon, start with none and trail effects with explosive end point
 /// Weapons are projectiles that can be shot by the player or enemies, they have a speed, an effect and a type, they can be updated and drawn by the renderer, they can also be deinitialized when they are no longer needed
 pub const Weapon = struct {
     projectile: *PhysicsPixel,
     speed: u64,
+    distance: f64 = 0.0,
+    curr_distance: f64 = 0.0,
     effect: ProjectileEffect,
     allocator: Allocator,
     weapon_type: WeaponType,
@@ -40,14 +43,20 @@ pub const Weapon = struct {
     }
     //TODO, move particle along and update trail effect, have to keep track of lifetime for visual trail
     pub fn update(self: *Weapon, dt: u64) void {
-        _ = self;
-        _ = dt;
+        self.curr_distance += @as(f64, self.speed * dt);
+        if (self.curr_distance >= self.distance) {
+            self.projectile.x = self.end_point.x;
+            self.projectile.y = self.end_point.y;
+        } else {
+            //TODO track current position and draw trail effect
+        }
     }
     //TODO, should be simple just configuring flags to be used in update
     pub fn shoot(self: *Weapon, x: i32, y: i32) void {
-        _ = self;
-        _ = x;
-        _ = y;
+        self.end_point = Point{ .x = x, .y = y };
+        const start_point = Point{ .x = self.projectile.x, .y = self.projectile.y };
+        self.distance = self.end_point.distance_squared(start_point);
+        self.curr_distance = 0.0;
     }
     //TODO should only need to draw visual trail effect rest will be handled by sim
     pub fn draw(self: *Weapon, renderer: *PixelRenderer) void {
