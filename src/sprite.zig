@@ -4,7 +4,7 @@ const texture = @import("texture.zig");
 const image = @import("image");
 
 pub const Texture = texture.Texture;
-
+//TODO add draw function
 pub const Sprite = struct {
     allocator: std.mem.Allocator,
     src: Rectangle,
