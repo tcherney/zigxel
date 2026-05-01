@@ -4,7 +4,11 @@ const texture = @import("texture.zig");
 const image = @import("image");
 
 pub const Texture = texture.Texture;
-//TODO add draw function
+/// A Sprite is a rectangular portion of a texture that can be drawn to the screen.
+/// It contains a source rectangle that defines the portion of the texture to use, and a destination rectangle that defines where to draw the sprite on the screen.
+/// If the source and destination rectangles are different sizes, the sprite will be scaled to fit the destination rectangle.
+/// The scaled buffer is used to store the scaled pixels if the source and destination rectangles are different sizes, and it is freed when the sprite is deinitialized
+/// or when the source or destination rectangles are changed.
 pub const Sprite = struct {
     allocator: std.mem.Allocator,
     src: Rectangle,
@@ -41,6 +45,7 @@ pub const Sprite = struct {
             self.allocator.free(self.scaled_buffer.?);
         }
     }
+    /// Scales the source buffer to the destination size using nearest neighbor algorithm. If the source rectangle is the same as the texture size, it will use the texture pixel buffer directly, otherwise it will create a new buffer for the source rectangle and free it after scaling.
     pub fn scale_buffer(self: *Self) Error!void {
         if (self.scaled_buffer != null) {
             self.allocator.free(self.scaled_buffer.?);
