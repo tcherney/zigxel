@@ -9,6 +9,7 @@ pub const ThreadingSupport = enum { single, multi };
 pub const SixelWidth = 10;
 pub const SixelHeight = 10;
 
+/// Represents a pixel color in either 256 color mode or true color mode. In 256 color mode, the pixel is represented by a single byte that is an index into a color palette. In true color mode, the pixel is represented by three bytes for the red, green, and blue components of the color. The `indx` field is used to store the original index of the color in the palette when converting from 256 color mode to true color mode, so that it can be converted back if needed.
 pub const PixelType = union(enum) {
     color_256: u8,
     color_true: struct { r: u8 = 0, g: u8 = 0, b: u8 = 0, indx: u8 = 0 },
