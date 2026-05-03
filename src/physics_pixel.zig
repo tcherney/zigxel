@@ -12,6 +12,9 @@ pub inline fn to_seconds(nano: u64) f64 {
 
 const PHYSICS_PIXEL_LOG = std.log.scoped(.physics_pixel);
 pub const ObjectReactionCallback = common.Callback(PixelType);
+/// PixelType represents the different types of pixels that can exist in the physics simulation.
+/// Each type has its own properties and behaviors, which are defined in the Properties struct.
+/// The PixelType is used to determine how a pixel should update its state and interact with other pixels in the simulation.
 pub const PixelType = enum { Sand, Water, Empty, Wall, Oil, Rock, Steam, Fire, Lava, Wood, Ice, Plant, Explosive, Object, WhiteWall, Dirt, Grass };
 
 pub inline fn pixel_at_x_y(x: i32, y: i32, pixels: []?*PhysicsPixel, width: u32, height: u32) bool {
@@ -45,6 +48,10 @@ const Properties = struct {
     speed: u32,
     piercing: bool,
     flammability: u32,
+    /// Vary the color of the pixel based on a variance value.
+    /// The variance value is a positive integer that determines how much the color can vary.
+    /// The method generates a random variation value between -variance and +variance, and adds it to the red, green, and blue components of the pixel's color.
+    /// The resulting color is clamped to the range of 0 to 255 for each component, and returned as a new Pixel instance.
     pub fn vary_color(self: *Properties, variance: i16) Pixel {
         const variation = common.rand.intRangeAtMost(i16, -variance, variance);
         const r_i16 = @as(i16, @bitCast(@as(u16, @intCast(self.color.get_r())))) + variation;
