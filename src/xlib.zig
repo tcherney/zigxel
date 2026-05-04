@@ -1,3 +1,8 @@
+//! This module provides a basic interface to the Xlib library for handling keyboard and mouse events in a Linux environment.
+//! It allows you to grab the keyboard and mouse input, track the mouse position, and detect key presses and releases.
+//! The module is designed to be used in a terminal application, where it can capture input events even when the terminal is not in focus.
+//! Note that this module is only enabled on Linux systems and requires the Xlib library to be installed.
+//!
 const std = @import("std");
 const builtin = @import("builtin");
 
@@ -5,6 +10,7 @@ const XLIB_LOG = std.log.scoped(.xlib);
 pub const ENABLED = false;
 pub const Error = error{InvalidEvent};
 
+/// This struct represents the state of the Xlib interface, including the display connection, the window being monitored, and the current mouse state.
 pub const Xlib = if (builtin.os.tag == .linux and ENABLED) struct {
     display: ?*c._XDisplay,
     window: c_ulong,
@@ -146,6 +152,10 @@ pub const Xlib = if (builtin.os.tag == .linux and ENABLED) struct {
 
     }
     //TODO add window and mouse event handling
+    /// This function retrieves the next event from the Xlib event queue and processes it.
+    /// It handles button press and release events, motion notify events, and resize requests.
+    /// The function updates the mouse state and coordinates based on the events received,
+    /// and manages pointer grabbing to ensure that input is captured correctly when interacting with the terminal window.
     pub fn next_event(self: *Xlib) void {
         //TODO establish child window
         // use this window to then subscribe to pointer events
@@ -204,6 +214,7 @@ pub const Xlib = if (builtin.os.tag == .linux and ENABLED) struct {
     }
 
     //TODO revisit this to handle modifer presses
+    /// This function checks if a specific mouse button or modifier key is currently pressed based on the event type.
     pub fn is_mod_pressed(self: *Xlib, button_state: MouseState.ButtonMask) Error!bool {
         if (self.event_type != .ButtonPress and self.event_type != .ButtonRelease and self.event_type != .MotionNotify) {
             return Error.InvalidEvent;
@@ -218,6 +229,7 @@ pub const Xlib = if (builtin.os.tag == .linux and ENABLED) struct {
         return (state & mask) != 0;
     }
 
+    /// This function retrieves the keycode of the key event and converts it to a keysym, which is then masked to get the ASCII value of the key.
     pub fn get_event_key(self: *Xlib) Error!u8 {
         if (self.event_type != .KeyPress and self.event_type != .KeyRelease) {
             return Error.InvalidEvent;
