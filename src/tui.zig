@@ -72,6 +72,9 @@ pub fn TUI(comptime State: type) type {
                 }
             }
 
+            /// Draw the button. For pixel rendering, it draws a filled rectangle with the background color and then draws the text on top.
+            /// For ascii rendering, it draws the text character by character, filling the background with spaces.
+            /// The text is centered within the button based on its width and height.
             pub fn draw(self: *Button, renderer: *Graphics, dest: ?Texture, offset_x: usize, offset_y: usize, viewport_x: i32, viewport_y: i32) Button.Error!void {
                 const viewport_x_usize = if (WASM) @as(usize, @bitCast(viewport_x)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_x))));
                 const viewport_y_usize = if (WASM) @as(usize, @bitCast(viewport_y)) else @as(usize, @bitCast(@as(i64, @intCast(viewport_y))));
