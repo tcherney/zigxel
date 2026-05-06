@@ -112,6 +112,9 @@ pub fn TUI(comptime State: type) type {
             }
         };
         //TODO implement the rest of the layouts, and test them
+        /// Layout is a union of different layout types (absolute, grid, row, column) that can contain a list of items.
+        /// It provides a common interface for drawing and handling input for all layouts, allowing them to be stored in a single variable and switched between at runtime.
+        /// Each layout type has its own implementation of the draw and input handling functions, which are called through the common interface.
         pub const Layout = union(enum) {
             absolute: AbsoluteLayout,
             grid: GridLayout,
@@ -152,6 +155,9 @@ pub fn TUI(comptime State: type) type {
                     }
                 }
             };
+            /// GridLayout arranges items in a grid based on the specified number of rows and columns.
+            /// It calculates item positions based on their index in the list and the grid dimensions.
+            /// The draw function iterates through the items and draws them at their calculated positions, taking into account the viewport offset.
             pub const GridLayout = struct {
                 allocator: Allocator,
                 x: usize,
@@ -184,6 +190,9 @@ pub fn TUI(comptime State: type) type {
                     }
                 }
                 //TODO test
+                /// GridLayout arranges items in a grid based on the specified number of rows and columns.
+                /// It calculates item positions based on their index in the list and the grid dimensions.
+                /// The draw function iterates through the items and draws them at their calculated positions, taking into account the viewport offset.
                 pub fn draw(self: *GridLayout, renderer: *Graphics, dest: ?Texture, viewport_x: i32, viewport_y: i32, state: State) GridLayout.Error!void {
                     const prev_x_end = self.x;
                     var prev_y_end = self.y;
@@ -204,6 +213,7 @@ pub fn TUI(comptime State: type) type {
                     }
                 }
             };
+            /// RowLayout arranges items in rows. It calculates item positions based on the number of rows and the maximum height of items in each row.
             pub const RowLayout = struct {
                 allocator: Allocator,
                 x: usize,
@@ -241,6 +251,8 @@ pub fn TUI(comptime State: type) type {
                     }
                 }
             };
+            /// ColumnLayout is similar to RowLayout but arranges items in columns instead of rows.
+            /// It calculates item positions based on the number of columns and the maximum width of items in each column.
             pub const ColumnLayout = struct {
                 allocator: Allocator,
                 x: usize,
