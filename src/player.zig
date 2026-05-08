@@ -7,6 +7,7 @@ pub const PixelRenderer = @import("pixel_renderer.zig").PixelRenderer;
 pub const GameObject = game_object.GameObject;
 pub const Weapon = weapons.Weapon;
 
+/// Player struct, contains a GameObject and a Weapon. The player can move left and right, jump, and attack with their weapon.
 pub const Player = struct {
     allocator: std.mem.Allocator,
     go: GameObject,
@@ -45,11 +46,11 @@ pub const Player = struct {
     }
 
     //TODO add explosive player attack
-
+    /// Attacks with the player's weapon. If the player is on the ground, they will attack in the direction they are facing. If the player is in the air, they will attack downwards.
     pub fn update(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) Error!void {
         try self.go.update(pixels, xlimit, ylimit);
     }
-
+    /// Draws the player to the screen. If dest is null, it will draw to the screen. If dest is not null, it will draw to the texture.
     pub fn draw(self: *Self, renderer: *PixelRenderer, dest: ?game_object.Texture) void {
         self.go.draw(renderer, dest);
     }
