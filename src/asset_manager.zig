@@ -34,6 +34,7 @@ pub const AssetManager = struct {
         };
     }
 
+    /// Gets a font from the asset manager using the asset name. If the font is not found, it returns an error.
     pub fn get_font(self: *Self, asset_name: []const u8) Error!*Font {
         const entry = self.fonts.getEntry(asset_name);
         if (entry) |e| {
@@ -43,6 +44,7 @@ pub const AssetManager = struct {
         }
     }
 
+    /// Loads a font from a file and stores it in the asset manager with the given asset name.
     pub fn load_font(self: *Self, asset_name: []const u8, font_path: []const u8, font_size: u16, graphics: *Graphics) Error!void {
         const entry = try self.fonts.getOrPut(asset_name);
         if (!entry.found_existing) {
@@ -54,6 +56,9 @@ pub const AssetManager = struct {
         }
     }
 
+    /// Loads a font texture from a string using the specified font. The resulting texture is stored in the asset manager with the given string as the key.
+    /// This allows for dynamic generation of font textures based on the characters needed, and ensures that each unique string is only rendered to a texture once,
+    /// saving memory and processing time.
     pub fn load_font_texture(self: *Self, str: []const u8, font_name: []const u8) Error!void {
         const entry = try self.font_textures.getOrPut(str);
         if (!entry.found_existing) {
@@ -62,6 +67,9 @@ pub const AssetManager = struct {
         }
     }
 
+    /// Gets a texture from the asset manager using the asset name. If the texture is not found, it returns an error.
+    /// It first checks the textures hashmap, and if it doesn't find it there, it checks the font_textures hashmap.
+    /// This allows for both regular textures and font textures to be accessed using the same function.
     pub fn get_texture(self: *Self, asset_name: []const u8) Error!*Texture {
         const entry = self.textures.getEntry(asset_name);
         if (entry) |e| {
@@ -76,6 +84,9 @@ pub const AssetManager = struct {
         }
     }
 
+    /// Loads a texture from an image file and stores it in the asset manager with the given asset name.
+    /// If the asset name already exists, it will not load the texture again and will keep the existing one.
+    /// The image format is determined by the file extension, and supports PNG, BMP, and JPEG formats.
     pub fn load_texture(self: *Self, asset_name: []const u8, image_path: []const u8) Error!void {
         const last_indx = std.mem.lastIndexOf(u8, image_path, ".");
         if (last_indx) |indx| {
