@@ -52,6 +52,9 @@ pub const Font = struct {
         };
     }
 
+    /// Sets the font size and calculates the scale factor for rendering the font.
+    /// The scale factor is based on the units per em value from the font's TTF directory,
+    /// which allows for accurate scaling of the font regardless of the original size of the font file.
     pub fn set_size(self: *Self, font_size: u16) void {
         self.font_size = font_size;
         FONT_LOG.info("units per em {any}, font_size {any}, lowest rec {any}\n", .{ self.ttf.font_directory.head.units_per_em, font_size, self.ttf.font_directory.head.lowest_rec_PPEM });
@@ -161,6 +164,9 @@ pub const Font = struct {
     }
 
     //TODO figure out kerning, see if we cant figure out minimums that make rendering at smaller sizes feasible
+    /// Generates a texture from a string by concatenating the textures of each character in the string.
+    /// It also handles kerning and vertical alignment of the characters based on their glyph outlines.
+    /// The resulting texture is saved as a BMP file for debugging purposes.
     pub fn texture_from_string(self: *Self, str: []const u8) Error!*Texture {
         var tex: ?*Texture = null;
         var baseline_y: u32 = 0;
@@ -336,6 +342,8 @@ pub const Font = struct {
         } else return Error.CharNotSupported;
     }
 
+    /// Loads a font from a file and generates textures for each character in the font.
+    /// The font size can be set, which will affect the scale of the generated textures.
     pub fn load(self: *Self, file_name: []const u8, font_size: u16, graphics: anytype) Error!void {
         try self.ttf.load(file_name);
         self.set_size(font_size);
