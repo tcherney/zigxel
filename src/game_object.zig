@@ -35,6 +35,8 @@ pub const GameObject = struct {
         a: []texture.Pixel,
     };
     const Self = @This();
+    /// Initializes a new game object based on the provided parameters, including its position, texture, and physical properties.
+    /// It creates a list of physics pixels that represent the object's shape and behavior in the game world.
     pub fn init(x: i32, y: i32, w_width: u32, tex: *Texture, managed: bool, underlined: bool, pixel_type: physics_pixel.PixelType, allocator: std.mem.Allocator) Error!Self {
         var pixel_list: std.ArrayList(*PhysicsPixel) = std.ArrayList(*PhysicsPixel).init(allocator);
         var x_pix: i32 = x;
@@ -80,6 +82,8 @@ pub const GameObject = struct {
         return Self{ .pixels = pixels, .pixel_map = pixel_map, .allocator = allocator, .background_buffer = .{ .status = .None, .a = try allocator.alloc(texture.Pixel, pixels.len) }, .managed = managed };
     }
 
+    /// Handles reactions when the game object interacts with different pixel types.
+    /// For example, it counts how many pixels of the object are wet or hot based on the type of pixel it interacts with.
     pub fn on_object_reaction(self: *Self, pixel_type: physics_pixel.PixelType) void {
         if (pixel_type == .Water) {
             self.wet_pixels += 1;
@@ -88,6 +92,8 @@ pub const GameObject = struct {
         }
     }
 
+    /// Adds the game object's pixels to the physics simulation, replacing any existing pixels at those locations.
+    /// It also sets up reactions for when the object interacts with other pixels.
     pub fn add_sim(self: *Self, pixels: []?*PhysicsPixel, w_width: u32) void {
         for (0..self.pixels.len) |i| {
             const indx: u32 = @as(u32, @bitCast(self.pixels[i].y)) * w_width + @as(u32, @bitCast(self.pixels[i].x));
@@ -182,6 +188,7 @@ pub const GameObject = struct {
     }
 
     //TODO MORE STATUS EFFECTS
+    /// Draws the game object using the provided renderer and texture. The appearance changes based on the object's status (e.g., wet, hot).
     pub fn draw(self: *Self, renderer: *PixelRenderer, dest: ?Texture) void {
         switch (self.status) {
             .Wet => {
@@ -234,6 +241,7 @@ pub const GameObject = struct {
 
     //TODO need to make a pass on this to fix ineffciencies in large objects
     //TODO add logging to profile whats taking time
+    /// Updates the game object and its pixels
     pub fn update(self: *Self, pixels: []?*physics_pixel.PhysicsPixel, xlimit: u32, ylimit: u32) Error!void {
         self.wet_pixels = 0;
         self.hot_pixels = 0;

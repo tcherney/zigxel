@@ -600,6 +600,10 @@ pub const PhysicsPixel = struct {
         return false;
     }
 
+    /// The react_with_neighbors function checks the eight neighboring pixels around the current pixel and calls the reaction function if any of them are not empty.
+    /// It uses the in_bounds function to ensure that it does not check pixels outside the bounds of the simulation, and it checks each neighbor in a specific order
+    /// (top-left, top, top-right, right, bottom-right, bottom, bottom-left, left) to ensure consistent behavior.
+    /// This function is called during the update process to allow pixels to interact with their neighbors and create complex behaviors in the simulation.
     pub fn react_with_neighbors(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         var x: i32 = self.x - 1;
         var y: i32 = self.y - 1;
@@ -775,6 +779,9 @@ pub const PhysicsPixel = struct {
         }
     }
 
+    /// The update function is the main function that updates the state of the PhysicsPixel based on its type and interactions with other pixels.
+    /// It handles the logic for each pixel type, including movement, reactions with neighbors, and duration-based transformations (like fire burning out or steam condensing).
+    /// It also manages the active state of the pixel, allowing it to "sleep" when idle for too long to optimize performance.
     pub fn update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         if (self.active) {
             self.updated = false;
