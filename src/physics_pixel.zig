@@ -331,6 +331,9 @@ pub const PhysicsPixel = struct {
         return Self{ .x = x, .y = y, .pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .start_pixel = Pixel.init(color.get_r(), color.get_g(), color.get_b(), null), .pixel_type = pixel_type, .last_dir = if (common.rand.boolean()) -1 else 1, .properties = properties };
     }
 
+    /// set_color allows you to change the color of the pixel by providing new RGBA values.
+    /// It updates the pixel's color based on the provided values, which can be used to visually represent changes in the pixel's state or interactions
+    ///  with other pixels in the simulation.
     pub fn set_color(self: *Self, r: u8, g: u8, b: u8, a: u8) void {
         self.pixel = Pixel.init(r, g, b, a);
     }
