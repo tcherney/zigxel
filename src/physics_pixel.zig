@@ -362,18 +362,34 @@ pub const PhysicsPixel = struct {
         return x >= 0 and @as(u32, @bitCast(x)) < xlimit and y >= 0 and @as(u32, @bitCast(y)) < ylimit;
     }
 
+    /// The update function is responsible for updating the state of the pixel based on its type and interactions with other pixels.
+    /// It uses a switch statement to determine the type of the pixel and calls the appropriate update function for that type.
+    /// Each update function implements the specific behavior for that pixel type, such as movement, interactions with neighbors, and changes in state over time.
+    /// The update function is called during each simulation step to ensure that all pixels are updated according to their properties and interactions.
     pub fn left_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         _ = self.execute_move(pixels, self.x - 1, self.y, xlimit, ylimit);
     }
 
+    /// The update function is responsible for updating the state of the pixel based on its type and interactions with other pixels.
+    /// It uses a switch statement to determine the type of the pixel and calls the appropriate update function for that type.
+    /// Each update function implements the specific behavior for that pixel type, such as movement, interactions with neighbors, and changes in state over time.
+    /// The update function is called during each simulation step to ensure that all pixels are updated according to their properties and interactions.
     pub fn right_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         _ = self.execute_move(pixels, self.x + 1, self.y, xlimit, ylimit);
     }
 
+    /// The update function is responsible for updating the state of the pixel based on its type and interactions with other pixels.
+    /// It uses a switch statement to determine the type of the pixel and calls the appropriate update function for that type.
+    /// Each update function implements the specific behavior for that pixel type, such as movement, interactions with neighbors, and changes in state over time.
+    /// The update function is called during each simulation step to ensure that all pixels are updated according to their properties and interactions.
     pub fn up_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         _ = self.execute_move(pixels, self.x, self.y - 1, xlimit, ylimit);
     }
 
+    /// The update function is responsible for updating the state of the pixel based on its type and interactions with other pixels.
+    /// It uses a switch statement to determine the type of the pixel and calls the appropriate update function for that type.
+    /// Each update function implements the specific behavior for that pixel type, such as movement, interactions with neighbors, and changes in state over time.
+    /// The update function is called during each simulation step to ensure that all pixels are updated according to their properties and interactions.
     pub fn down_update(self: *Self, pixels: []?*PhysicsPixel, xlimit: u32, ylimit: u32) void {
         _ = self.execute_move(pixels, self.x, self.y + 1, xlimit, ylimit);
     }
