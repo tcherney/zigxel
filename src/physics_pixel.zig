@@ -593,6 +593,9 @@ pub const PhysicsPixel = struct {
         }
     }
 
+    /// The on_object_reaction function allows you to set a callback function that will be called when the pixel interacts with an object.
+    /// The callback function takes a PixelType as an argument, which represents the type of the pixel that the object interacted with.
+    /// This can be used to trigger custom behavior in the game when certain interactions occur, such as changing the state of the pixel or triggering an event.
     pub fn on_object_reaction(self: *Self, comptime CONTEXT_TYPE: type, func: anytype, context: *CONTEXT_TYPE) void {
         self.object_reaction_callback = ObjectReactionCallback.init(CONTEXT_TYPE, func, context);
     }
